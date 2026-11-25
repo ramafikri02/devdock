@@ -109,10 +109,14 @@ Struktur utama terdiri dari 4 area:
 ## 4. Spesifikasi Layar
 
 ### 4.1 Overview (Landing Default)
-- **Header:** ringkasan jumlah project/service + waktu scan terakhir + segmented filter (`Semua`, `Jalan`, `Bermasalah`).
-- **KPI Row (6 kartu):** Jalan, Crash, Bentrok port, CPU total, RAM total, `node_modules` total.
-- **Section `Projects`:** strip ringkas tiap project multi-service yang menampilkan urutan service (`1. lms-backend :4001 → 2. lms-frontend :3002`), tombol `Buka Project`, `Start/Restart All`, dan `Stop All`.
-- **Section `Services Aktif & Perlu Perhatian`:** grid kartu service yang sedang jalan (dengan sparkline CPU, RAM, domain, port) atau bermasalah (crash dengan pesan error + tombol *Jalankan lagi*; bentrok port dengan tombol *Pakai port lain* / *Kill PID*).
+- **Header:** ringkasan jumlah project/service (tombol `+ Tambah` sudah tersedia global di Topbar; CTA `Tambah Project` hanya muncul di empty state saat belum ada service).
+- **Compact Health Strip (4 segmen):** Jalan (`x/y`), Crash, Bentrok Port (auto-refresh periodik tiap 10 detik saat Overview aktif + navigasi ke Port Inspector), dan Storage total + reclaimable (dengan tombol refresh).
+- **Live Telemetry Row (3 panel analytic):**
+  - **CPU Total (Area Chart, 15m):** realtime `2s` dari `metrics.globalHistory`, hover scrubbing, `Peak` & `Avg`, serta tombol `Pause/Resume`.
+  - **RAM Total (Area Chart, 15m):** realtime `2s` pohon proses DevDock dengan hover scrubbing, `Peak` & `Avg`, dan `Pause/Resume`.
+  - **Panel Adaptif (Top Konsumsi Aktif / Distribusi Storage):** saat ada proses jalan menampilkan top service berdasarkan konsumsi RAM/CPU; saat idle menampilkan distribusi storage (`node_modules`, build cache, source & lain).
+- **Section `Aktif & Perlu Perhatian`:** tampil otomatis di atas saat ada service berstatus `running`, `restarting`, `crashed`, `conflict`, atau `missing`.
+- **Section `Projects & Services`:** toolbar dengan inline search, filter project (saat >1 project), segmented filter (`Semua`, `Jalan`, `Bermasalah`), tombol `Lipat/Expand semua`, dan toggle layout (`Grouped List` default / `Cards`). Mode default mengelompokkan service sebagai compact rows di dalam accordion tiap Project (dengan branch git ditampilkan sekali di header project, dan package non-server tanpa script `dev`/`start` dilipat ke sub-baris opsional).
 
 ### 4.2 Project Hub (Saat klik Project multi-service, mis. `LMS App`)
 - **Layout 2 kolom:** konten utama di kiri + **Right Inspector (`280px`)** di kanan.
