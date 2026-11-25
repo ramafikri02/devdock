@@ -120,7 +120,8 @@ fn start_all_respects_reordered_sequence_and_default_script() {
     assert_eq!(res.steps[1].script.as_deref(), Some("custom"));
     assert_eq!(res.steps[1].state, OrchestrationStepState::Running);
 
-    // Wait until both lines are flushed to disk
+    // Verify both processes actually executed the expected scripts (including frontend's custom default script).
+    // Child `npm` -> `node` startup times vary under OS scheduling, so check membership rather than file-write race order.
     let deadline = Instant::now() + Duration::from_secs(5);
     let contents = loop {
         let text = fs::read_to_string(&order_log).unwrap_or_default();
@@ -130,17 +131,34 @@ fn start_all_respects_reordered_sequence_and_default_script() {
         assert!(Instant::now() < deadline, "timed out waiting for order log: {text}");
         thread::sleep(Duration::from_millis(25));
     };
-    let lines: Vec<&str> = contents.lines().collect();
-    assert_eq!(lines[0], "backend-startdev");
-    assert_eq!(lines[1], "frontend-custom");
+    let mut lines: Vec<&str> = contents.lines().collect();
+    lines.sort_unstable();
+    assert_eq!(lines, vec!["backend-startdev", "frontend-custom"]);
+
+    // Verify orchestration spawned backend strictly before frontend
+    let first_proc = core.get_process(&res.started_process_ids[0]).expect("first proc");
+    let second_proc = core.get_process(&res.started_process_ids[1]).expect("second proc");
+    assert_eq!(first_proc.service_id, backend.id);
+    assert_eq!(first_proc.script, "start:dev");
+    assert_eq!(second_proc.service_id, frontend.id);
+    assert_eq!(second_proc.script, "custom");
 
     let recorded_events = events.lock().unwrap().clone();
+    let backend_running_idx = recorded_events
+        .iter()
+        .position(|e| e.service_id == backend.id && e.state == OrchestrationStepState::Running)
+        .expect("backend running event");
+    let frontend_starting_idx = recorded_events
+        .iter()
+        .position(|e| e.service_id == frontend.id && e.state == OrchestrationStepState::Starting)
+        .expect("frontend starting event");
+    assert!(
+        backend_running_idx < frontend_starting_idx,
+        "expected backend to be started before frontend"
+    );
     assert!(recorded_events
         .iter()
         .any(|e| e.service_id == backend.id && e.state == OrchestrationStepState::Waiting));
-    assert!(recorded_events
-        .iter()
-        .any(|e| e.service_id == frontend.id && e.state == OrchestrationStepState::Starting));
 
     // Restart all & verify new PIDs started and old stopped
     let restart_res = core.restart_project_all(&project.id).expect("restart all");
