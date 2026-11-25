@@ -70,6 +70,7 @@ export function ServiceWorkbenchView({
   const renameProject = useAppStore((s) => s.renameProject);
   const setPmOverride = useAppStore((s) => s.setPmOverride);
   const setNodeVersionOverride = useAppStore((s) => s.setNodeVersionOverride);
+  const setScriptAutoRestart = useAppStore((s) => s.setScriptAutoRestart);
   const setServicePort = useAppStore((s) => s.setServicePort);
   const setServicePortInjection = useAppStore((s) => s.setServicePortInjection);
   const assignNextFreePort = useAppStore((s) => s.assignNextFreePort);
@@ -189,9 +190,18 @@ export function ServiceWorkbenchView({
         (p) =>
           p.status === "running" ||
           p.status === "starting" ||
+          p.status === "restarting" ||
           p.status === "stopping",
       ),
     [serviceProcesses],
+  );
+
+  const latestCrashedProcess = useMemo(
+    () =>
+      activeServiceProcesses.length === 0
+        ? (serviceProcesses.find((p) => p.status === "crashed") ?? null)
+        : null,
+    [serviceProcesses, activeServiceProcesses.length],
   );
 
   const processesByScript = useMemo(() => {
@@ -332,7 +342,9 @@ export function ServiceWorkbenchView({
     activeServiceProcesses.length > 0
       ? activeServiceProcesses.some((p) => p.status === "stopping")
         ? "stopping"
-        : "running"
+        : activeServiceProcesses.some((p) => p.status === "restarting")
+          ? "restarting"
+          : "running"
       : serviceProcesses[0]?.status === "crashed"
         ? "crashed"
         : "stopped";
@@ -457,6 +469,14 @@ export function ServiceWorkbenchView({
                       aria-hidden="true"
                     />
                     Running ({activeServiceProcesses.length})
+                  </span>
+                ) : latestServiceStatus === "restarting" ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-warn-soft px-2 py-0.5 text-[11.5px] font-medium text-warn">
+                    <span
+                      className="h-1.5 w-1.5 animate-pulse rounded-full bg-warn"
+                      aria-hidden="true"
+                    />
+                    Restarting…
                   </span>
                 ) : latestServiceStatus === "stopping" ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-warn-soft px-2 py-0.5 text-[11.5px] font-medium text-warn">
@@ -748,6 +768,68 @@ export function ServiceWorkbenchView({
             </div>
           ) : null}
 
+          {/* Crash summary banner with Run again action */}
+          {!service.isMissing && latestCrashedProcess ? (
+            <div
+              role="alert"
+              className="rounded-[10px] border border-danger/45 bg-danger-soft p-3.5"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                  <AlertTriangle
+                    className="mt-0.5 h-4 w-4 shrink-0 text-danger"
+                    aria-hidden="true"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-fg">
+                      Script{" "}
+                      <span className="font-mono">
+                        {latestCrashedProcess.script}
+                      </span>{" "}
+                      crashed (exit {latestCrashedProcess.exitCode ?? "—"})
+                      {latestCrashedProcess.restartCount > 0 ? (
+                        <span className="ml-1.5 font-mono text-[11.5px] font-normal text-danger tabular-nums">
+                          · {latestCrashedProcess.restartCount}× auto-restart
+                        </span>
+                      ) : null}
+                    </p>
+                    {latestCrashedProcess.crashReason ? (
+                      <p className="mt-0.5 text-[12px] text-fg-2">
+                        {latestCrashedProcess.crashReason}
+                      </p>
+                    ) : null}
+                    {latestCrashedProcess.lastErrorSnippet ? (
+                      <p className="mt-1 truncate rounded bg-surface/70 px-2 py-1 font-mono text-[11.5px] text-danger">
+                        {latestCrashedProcess.lastErrorSnippet}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={busyAction !== null}
+                    onClick={() =>
+                      void handleRunScript(latestCrashedProcess.script)
+                    }
+                    className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
+                  >
+                    <Play className="h-3 w-3 fill-current" aria-hidden="true" />
+                    <span>Jalankan lagi</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openLogsForProcess(latestCrashedProcess.id)}
+                    className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] border border-border-strong bg-surface px-2.5 text-[12px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
+                  >
+                    <TerminalSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Log</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {/* Tabs */}
           <div className="border-b border-border">
             <div className="flex gap-1" role="tablist" aria-label="Service Workbench tabs">
@@ -836,6 +918,7 @@ export function ServiceWorkbenchView({
                       <th className="px-4 py-2.5">Script</th>
                       <th className="px-4 py-2.5">Command</th>
                       <th className="px-4 py-2.5">Status</th>
+                      <th className="px-4 py-2.5">Auto-Restart</th>
                       <th className="px-4 py-2.5 text-right">Aksi</th>
                     </tr>
                   </thead>
@@ -846,10 +929,12 @@ export function ServiceWorkbenchView({
                         (p) =>
                           p.status === "running" ||
                           p.status === "starting" ||
+                          p.status === "restarting" ||
                           p.status === "stopping",
                       );
                       const activeRun = activeRuns[0] ?? null;
                       const latestRun = runs[0] ?? null;
+                      const autoRestartOn = service.autoRestartScripts.includes(name);
 
                       return (
                         <tr
@@ -872,29 +957,33 @@ export function ServiceWorkbenchView({
                           <td className="px-4 py-2.5">
                             {activeRun ? (
                               <div className="flex flex-wrap items-center gap-1.5">
-                                <span
-                                  className={cn(
-                                    "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
-                                    activeRun.status === "stopping"
-                                      ? "bg-warn-soft text-warn"
-                                      : "bg-accent-soft text-accent",
-                                  )}
-                                >
                                   <span
                                     className={cn(
-                                      "h-1.5 w-1.5 rounded-full",
-                                      activeRun.status === "stopping"
-                                        ? "animate-pulse bg-warn"
-                                        : "bg-accent",
+                                      "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                                      activeRun.status === "stopping" ||
+                                        activeRun.status === "restarting"
+                                        ? "bg-warn-soft text-warn"
+                                        : "bg-accent-soft text-accent",
                                     )}
-                                    aria-hidden="true"
-                                  />
-                                  {activeRun.status === "stopping"
-                                    ? "Stopping…"
-                                    : activeRuns.length > 1
-                                      ? `Running ×${activeRuns.length}`
-                                      : "Running"}
-                                </span>
+                                  >
+                                    <span
+                                      className={cn(
+                                        "h-1.5 w-1.5 rounded-full",
+                                        activeRun.status === "stopping" ||
+                                          activeRun.status === "restarting"
+                                          ? "animate-pulse bg-warn"
+                                          : "bg-accent",
+                                      )}
+                                      aria-hidden="true"
+                                    />
+                                    {activeRun.status === "stopping"
+                                      ? "Stopping…"
+                                      : activeRun.status === "restarting"
+                                        ? `Restarting (${activeRun.restartCount}/3)…`
+                                        : activeRuns.length > 1
+                                          ? `Running ×${activeRuns.length}`
+                                          : "Running"}
+                                  </span>
                                 {activeRun.pid ? (
                                   <span className="font-mono text-[11px] text-fg-faint tabular-nums">
                                     PID {activeRun.pid}
@@ -922,6 +1011,36 @@ export function ServiceWorkbenchView({
                                 Idle
                               </span>
                             )}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={autoRestartOn}
+                              aria-label={`Auto-restart untuk ${name}`}
+                              onClick={() =>
+                                void setScriptAutoRestart(
+                                  service.id,
+                                  name,
+                                  !autoRestartOn,
+                                )
+                              }
+                              className={cn(
+                                "inline-flex h-6 items-center gap-1.5 rounded-full border px-2 text-[11px] font-medium transition-colors",
+                                autoRestartOn
+                                  ? "border-accent/50 bg-accent-soft text-accent"
+                                  : "border-border-strong bg-surface-2 text-fg-muted hover:text-fg",
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "h-1.5 w-1.5 rounded-full",
+                                  autoRestartOn ? "bg-accent" : "bg-fg-faint",
+                                )}
+                                aria-hidden="true"
+                              />
+                              <span>{autoRestartOn ? "On" : "Off"}</span>
+                            </button>
                           </td>
                           <td className="px-4 py-2.5 text-right">
                             <div className="inline-flex items-center justify-end gap-1.5">
@@ -1408,6 +1527,14 @@ export function ServiceWorkbenchView({
             <span className="font-mono text-fg tabular-nums">
               {service.port !== null ? `:${service.port}` : "auto"}
               {service.portInjection ? ` (${service.portInjection})` : ""}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-fg-muted">Auto-Restart</span>
+            <span className="font-mono text-fg tabular-nums">
+              {service.autoRestartScripts.length > 0
+                ? `${service.autoRestartScripts.length} script (3×/60d)`
+                : "Off"}
             </span>
           </div>
           <div className="flex items-center justify-between">

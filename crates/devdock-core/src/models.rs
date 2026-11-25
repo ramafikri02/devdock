@@ -128,6 +128,7 @@ pub struct Service {
     pub detected_pm: PackageManager,
     pub detected_framework: Framework,
     pub scripts: BTreeMap<String, String>,
+    pub auto_restart_scripts: Vec<String>,
     pub is_missing: bool,
     pub created_at: String,
     pub updated_at: String,
@@ -407,6 +408,7 @@ pub struct StorageCleanResult {
 pub enum ProcessStatus {
     Starting,
     Running,
+    Restarting,
     Stopping,
     Stopped,
     Crashed,
@@ -414,7 +416,10 @@ pub enum ProcessStatus {
 
 impl ProcessStatus {
     pub fn is_active(self) -> bool {
-        matches!(self, Self::Starting | Self::Running | Self::Stopping)
+        matches!(
+            self,
+            Self::Starting | Self::Running | Self::Restarting | Self::Stopping
+        )
     }
 }
 
@@ -456,6 +461,24 @@ pub struct ProcessInfo {
     pub finished_at: Option<String>,
     pub duration_ms: Option<u64>,
     pub line_count: usize,
+    pub auto_restart: bool,
+    pub restart_count: u32,
+    pub crash_reason: Option<String>,
+    pub last_error_snippet: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CrashNotificationEvent {
+    pub process_id: String,
+    pub project_id: String,
+    pub service_id: String,
+    pub service_name: String,
+    pub script: String,
+    pub exit_code: Option<i32>,
+    pub reason: String,
+    pub last_error_snippet: Option<String>,
+    pub auto_restart_exhausted: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -464,6 +487,7 @@ pub enum ProcessEvent {
     StatusChanged(ProcessInfo),
     LogLine(LogLine),
     LogsCleared { process_id: String },
+    CrashNotification(CrashNotificationEvent),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

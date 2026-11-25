@@ -46,6 +46,7 @@ export interface Service {
   detectedPm: PackageManager;
   detectedFramework: Framework;
   scripts: Record<string, string>;
+  autoRestartScripts: string[];
   isMissing: boolean;
   createdAt: string;
   updatedAt: string;
@@ -260,6 +261,7 @@ export interface StorageCleanResult {
 export type ProcessStatus =
   | "starting"
   | "running"
+  | "restarting"
   | "stopping"
   | "stopped"
   | "crashed";
@@ -292,6 +294,22 @@ export interface ProcessInfo {
   finishedAt: string | null;
   durationMs: number | null;
   lineCount: number;
+  autoRestart: boolean;
+  restartCount: number;
+  crashReason: string | null;
+  lastErrorSnippet: string | null;
+}
+
+export interface CrashNotificationEvent {
+  processId: string;
+  projectId: string;
+  serviceId: string;
+  serviceName: string;
+  script: string;
+  exitCode: number | null;
+  reason: string;
+  lastErrorSnippet: string | null;
+  autoRestartExhausted: boolean;
 }
 
 export type LogExportScopeKind = "process" | "project" | "all";
@@ -477,6 +495,18 @@ export async function setServiceNodeVersionOverride(
   return invoke<Service>("set_service_node_version_override", {
     serviceId,
     version: version?.trim() ? version.trim() : null,
+  });
+}
+
+export async function setScriptAutoRestart(
+  serviceId: string,
+  scriptName: string,
+  enabled: boolean,
+): Promise<Service> {
+  return invoke<Service>("set_script_auto_restart", {
+    serviceId,
+    scriptName,
+    enabled,
   });
 }
 
@@ -961,6 +991,17 @@ export async function onProcessLogsCleared(
     return () => {};
   }
   return listen<{ processId: string }>("process:logs-cleared", (event) => {
+    handler(event.payload);
+  });
+}
+
+export async function onProcessCrashed(
+  handler: (event: CrashNotificationEvent) => void,
+): Promise<UnlistenFn> {
+  if (!isTauriRuntime()) {
+    return () => {};
+  }
+  return listen<CrashNotificationEvent>("process:crashed", (event) => {
     handler(event.payload);
   });
 }

@@ -10,7 +10,7 @@ import { ServiceWorkbenchView } from "@/views/ServiceWorkbenchView";
 import { ProjectOverviewView } from "@/views/ProjectOverviewView";
 import { EnvPresetsView } from "@/views/EnvPresetsView";
 import { PortInspectorView } from "@/views/PortInspectorView";
-import { onProcessStatus, onProjectsChanged } from "@/lib/tauri";
+import { onProcessCrashed, onProcessStatus, onProjectsChanged } from "@/lib/tauri";
 import { useAppStore } from "@/store/appStore";
 
 export default function App() {
@@ -18,6 +18,7 @@ export default function App() {
   const loadProjects = useAppStore((s) => s.loadProjects);
   const upsertProcess = useAppStore((s) => s.upsertProcess);
   const refreshPorts = useAppStore((s) => s.refreshPorts);
+  const pushToast = useAppStore((s) => s.pushToast);
   const projects = useAppStore((s) => s.projects);
   const route = useAppStore((s) => s.route);
   const setRoute = useAppStore((s) => s.setRoute);
@@ -32,6 +33,7 @@ export default function App() {
   useEffect(() => {
     let unlistenProjects: (() => void) | undefined;
     let unlistenProcess: (() => void) | undefined;
+    let unlistenCrash: (() => void) | undefined;
     void onProjectsChanged(() => {
       void loadProjects();
     }).then((fn) => {
@@ -43,11 +45,23 @@ export default function App() {
     }).then((fn) => {
       unlistenProcess = fn;
     });
+    void onProcessCrashed((crash) => {
+      pushToast({
+        title: `${crash.serviceName} · ${crash.script} crashed`,
+        description: crash.lastErrorSnippet
+          ? `${crash.reason} — ${crash.lastErrorSnippet}`
+          : crash.reason,
+        variant: "danger",
+      });
+    }).then((fn) => {
+      unlistenCrash = fn;
+    });
     return () => {
       if (unlistenProjects) unlistenProjects();
       if (unlistenProcess) unlistenProcess();
+      if (unlistenCrash) unlistenCrash();
     };
-  }, [loadProjects, upsertProcess, refreshPorts]);
+  }, [loadProjects, upsertProcess, refreshPorts, pushToast]);
 
   const totalServices = useMemo(
     () => projects.reduce((sum, p) => sum + p.services.length, 0),

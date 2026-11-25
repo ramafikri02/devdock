@@ -33,7 +33,7 @@ use crate::models::{
 use crate::ports::PortManager;
 use crate::presets::PresetStore;
 use crate::process_manager::{
-    ProcessEventListener, ProcessManager, DEFAULT_STOP_GRACE_PERIOD,
+    AutoRestartPolicy, ProcessEventListener, ProcessManager, DEFAULT_STOP_GRACE_PERIOD,
 };
 use crate::registry::ProjectRegistry;
 use crate::runtime::{prepend_dir_to_path, RuntimeResolver};
@@ -68,6 +68,11 @@ impl DevDockCore {
         notifier: Arc<dyn Notifier>,
     ) -> CoreResult<Self> {
         let db = Database::open(db_path)?;
+        let processes = ProcessManager::new(
+            DEFAULT_LOG_CAPACITY,
+            DEFAULT_STOP_GRACE_PERIOD,
+            Arc::clone(&notifier),
+        );
         Ok(Self {
             db,
             secrets,
@@ -75,7 +80,7 @@ impl DevDockCore {
             notifier,
             adapters: AdapterRegistry::default(),
             storage: StorageAnalyzer::new(),
-            processes: ProcessManager::new(DEFAULT_LOG_CAPACITY, DEFAULT_STOP_GRACE_PERIOD),
+            processes,
             runtime: RuntimeResolver::new(),
         })
     }
@@ -99,14 +104,42 @@ impl DevDockCore {
     /// and in-memory OS fakes.
     pub fn in_memory_for_tests(initial_path: &str) -> CoreResult<Self> {
         let db = Database::open_in_memory()?;
+        let notifier: Arc<dyn Notifier> = Arc::new(InMemoryNotifier::new());
+        let processes = ProcessManager::new(
+            DEFAULT_LOG_CAPACITY,
+            DEFAULT_STOP_GRACE_PERIOD,
+            Arc::clone(&notifier),
+        );
         Ok(Self {
             db,
             secrets: Arc::new(InMemorySecretStore::new()),
             shell_env: Arc::new(InMemoryShellEnvProvider::new(initial_path)),
-            notifier: Arc::new(InMemoryNotifier::new()),
+            notifier,
             adapters: AdapterRegistry::default(),
             storage: StorageAnalyzer::new(),
-            processes: ProcessManager::new(DEFAULT_LOG_CAPACITY, DEFAULT_STOP_GRACE_PERIOD),
+            processes,
+            runtime: RuntimeResolver::new(),
+        })
+    }
+
+    pub fn in_memory_for_tests_with_notifier(
+        initial_path: &str,
+        notifier: Arc<dyn Notifier>,
+    ) -> CoreResult<Self> {
+        let db = Database::open_in_memory()?;
+        let processes = ProcessManager::new(
+            DEFAULT_LOG_CAPACITY,
+            DEFAULT_STOP_GRACE_PERIOD,
+            Arc::clone(&notifier),
+        );
+        Ok(Self {
+            db,
+            secrets: Arc::new(InMemorySecretStore::new()),
+            shell_env: Arc::new(InMemoryShellEnvProvider::new(initial_path)),
+            notifier,
+            adapters: AdapterRegistry::default(),
+            storage: StorageAnalyzer::new(),
+            processes,
             runtime: RuntimeResolver::new(),
         })
     }
@@ -117,16 +150,22 @@ impl DevDockCore {
         stop_grace_period: Duration,
     ) -> CoreResult<Self> {
         let db = Database::open_in_memory()?;
+        let notifier: Arc<dyn Notifier> = Arc::new(InMemoryNotifier::new());
+        let processes = ProcessManager::new(log_capacity, stop_grace_period, Arc::clone(&notifier));
         Ok(Self {
             db,
             secrets: Arc::new(InMemorySecretStore::new()),
             shell_env: Arc::new(InMemoryShellEnvProvider::new(initial_path)),
-            notifier: Arc::new(InMemoryNotifier::new()),
+            notifier,
             adapters: AdapterRegistry::default(),
             storage: StorageAnalyzer::new(),
-            processes: ProcessManager::new(log_capacity, stop_grace_period),
+            processes,
             runtime: RuntimeResolver::new(),
         })
+    }
+
+    pub fn set_auto_restart_policy(&self, policy: AutoRestartPolicy) {
+        self.processes.set_auto_restart_policy(policy);
     }
 
     pub fn db_path(&self) -> String {
@@ -368,6 +407,16 @@ impl DevDockCore {
     ) -> CoreResult<Service> {
         self.registry()
             .set_service_node_version_override(service_id, version)
+    }
+
+    pub fn set_script_auto_restart(
+        &self,
+        service_id: &str,
+        script_name: &str,
+        enabled: bool,
+    ) -> CoreResult<Service> {
+        self.registry()
+            .set_script_auto_restart(service_id, script_name, enabled)
     }
 
     pub fn inspect_service_node_runtime(&self, service_id: &str) -> CoreResult<ServiceNodeRuntime> {
@@ -715,9 +764,10 @@ impl DevDockCore {
         }
 
         let (spec, env_map) = self.preview_service_run_spec(service_id, script)?;
+        let auto_restart = service.auto_restart_scripts.iter().any(|s| s == script);
 
         self.processes
-            .spawn_script(&service, script, &spec, &env_map)
+            .spawn_script(&service, script, &spec, &env_map, auto_restart)
     }
 
     pub fn stop_process(&self, process_id: &str) -> CoreResult<ProcessInfo> {

@@ -6,8 +6,31 @@ use devdock_core::models::{
     ServiceEnvInspection, ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
 };
 use devdock_core::secret_store::OsKeychainSecretStore;
-use devdock_core::traits::InMemoryNotifier;
+use devdock_core::traits::Notifier;
 use devdock_core::DevDockCore;
+
+struct OsDesktopNotifier;
+
+impl Notifier for OsDesktopNotifier {
+    fn notify(&self, title: &str, body: &str) -> devdock_core::error::CoreResult<()> {
+        #[cfg(target_os = "macos")]
+        {
+            let escaped_title = title.replace('\\', "\\\\").replace('"', "\\\"");
+            let escaped_body = body.replace('\\', "\\\\").replace('"', "\\\"");
+            let script = format!(
+                "display notification \"{escaped_body}\" with title \"DevDock\" subtitle \"{escaped_title}\""
+            );
+            let _ = std::process::Command::new("osascript")
+                .args(["-e", &script])
+                .spawn();
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = (title, body);
+        }
+        Ok(())
+    }
+}
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::{BTreeMap, HashSet};
 use std::path::PathBuf;
@@ -168,6 +191,19 @@ fn set_service_node_version_override(
     state
         .core
         .set_service_node_version_override(&service_id, version.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_script_auto_restart(
+    state: State<'_, AppState>,
+    service_id: String,
+    script_name: String,
+    enabled: bool,
+) -> Result<Service, String> {
+    state
+        .core
+        .set_script_auto_restart(&service_id, &script_name, enabled)
         .map_err(|e| e.to_string())
 }
 
@@ -775,7 +811,7 @@ pub fn run() {
                 DevDockCore::open_desktop(
                     &db_path,
                     Arc::new(OsKeychainSecretStore::new()),
-                    Arc::new(InMemoryNotifier::new()),
+                    Arc::new(OsDesktopNotifier),
                 )
                 .expect("failed to initialize DevDock core"),
             );
@@ -793,6 +829,9 @@ pub fn run() {
                         "process:logs-cleared",
                         serde_json::json!({ "processId": process_id }),
                     );
+                }
+                ProcessEvent::CrashNotification(crash) => {
+                    let _ = event_handle.emit("process:crashed", crash);
                 }
             }));
 
@@ -819,6 +858,7 @@ pub fn run() {
             rename_service,
             set_service_pm_override,
             set_service_node_version_override,
+            set_script_auto_restart,
             set_service_port,
             set_service_port_injection,
             ensure_service_port,

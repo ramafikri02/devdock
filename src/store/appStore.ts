@@ -29,6 +29,7 @@ import {
   restartProcess as apiRestartProcess,
   runServiceScript as apiRunServiceScript,
   setAppSetting,
+  setScriptAutoRestart as apiSetScriptAutoRestart,
   setServiceNodeVersionOverride,
   setServicePmOverride,
   setServicePort as apiSetServicePort,
@@ -129,6 +130,11 @@ interface AppState {
   renameService: (serviceId: string, newName: string) => Promise<void>;
   setPmOverride: (serviceId: string, pm: PackageManager | null) => Promise<void>;
   setNodeVersionOverride: (serviceId: string, version: string | null) => Promise<void>;
+  setScriptAutoRestart: (
+    serviceId: string,
+    scriptName: string,
+    enabled: boolean,
+  ) => Promise<void>;
   setServicePort: (serviceId: string, port: number | null) => Promise<void>;
   setServicePortInjection: (
     serviceId: string,
@@ -506,6 +512,17 @@ export const useAppStore = create<AppState>((set, get) => ({
         ? `Versi Node di-override ke ${version.trim()}`
         : "Versi Node dikembalikan ke deteksi otomatis",
       variant: "success",
+    });
+  },
+
+  setScriptAutoRestart: async (serviceId, scriptName, enabled) => {
+    await apiSetScriptAutoRestart(serviceId, scriptName, enabled);
+    await get().loadProjects();
+    get().pushToast({
+      title: enabled
+        ? `Auto-restart diaktifkan untuk "${scriptName}" (maks 3×/60d)`
+        : `Auto-restart dimatikan untuk "${scriptName}"`,
+      variant: "info",
     });
   },
 

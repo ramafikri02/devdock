@@ -115,6 +115,21 @@ impl<'a> ProjectRegistry<'a> {
             _ => (PackageManager::Npm, Framework::Unknown, BTreeMap::new(), true),
         };
 
+        let auto_restart_scripts: Vec<String> = self
+            .db
+            .with_conn(|conn| {
+                let mut stmt = conn.prepare(
+                    "SELECT script_name FROM script_setting
+                     WHERE service_id = ?1 AND auto_restart = 1
+                     ORDER BY script_name ASC",
+                )?;
+                let rows = stmt
+                    .query_map(params![row.id], |r| r.get::<_, String>(0))?
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(rows)
+            })
+            .unwrap_or_default();
+
         Service {
             id: row.id,
             project_id: row.project_id,
@@ -130,6 +145,7 @@ impl<'a> ProjectRegistry<'a> {
             detected_pm,
             detected_framework,
             scripts,
+            auto_restart_scripts,
             is_missing,
             created_at: row.created_at,
             updated_at: row.updated_at,
@@ -723,6 +739,35 @@ impl<'a> ProjectRegistry<'a> {
                 "Service not found: {service_id}"
             )));
         }
+
+        self.get_service(service_id)
+    }
+
+    pub fn set_script_auto_restart(
+        &self,
+        service_id: &str,
+        script_name: &str,
+        enabled: bool,
+    ) -> CoreResult<Service> {
+        // Ensure service exists
+        self.get_service(service_id)?;
+        let trimmed = script_name.trim();
+        if trimmed.is_empty() {
+            return Err(CoreError::Validation(
+                "Script name cannot be empty".to_string(),
+            ));
+        }
+
+        let flag: i32 = if enabled { 1 } else { 0 };
+        self.db.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO script_setting (service_id, script_name, auto_restart)
+                 VALUES (?1, ?2, ?3)
+                 ON CONFLICT(service_id, script_name) DO UPDATE SET auto_restart = excluded.auto_restart",
+                params![service_id, trimmed, flag],
+            )?;
+            Ok(())
+        })?;
 
         self.get_service(service_id)
     }

@@ -60,6 +60,7 @@ function statusDotClass(status: ProcessInfo["status"]): string {
     case "running":
       return "bg-accent";
     case "starting":
+    case "restarting":
     case "stopping":
       return "bg-warn animate-pulse";
     case "crashed":
