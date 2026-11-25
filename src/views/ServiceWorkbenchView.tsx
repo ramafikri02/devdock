@@ -490,7 +490,7 @@ export function ServiceWorkbenchView({
     <div className="animate-view-enter flex h-full min-h-0">
       {/* Main left column */}
       <div className="min-w-0 flex-1 overflow-y-auto p-6">
-        <div className="mx-auto max-w-4xl space-y-5">
+        <div className="w-full space-y-5">
           {/* Header */}
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">

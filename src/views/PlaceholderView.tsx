@@ -14,7 +14,7 @@ export function PlaceholderView({
   icon: Icon,
 }: PlaceholderViewProps) {
   return (
-    <div className="animate-view-enter mx-auto max-w-4xl p-6">
+    <div className="animate-view-enter w-full p-6">
       <div className="rounded-[12px] border border-border bg-surface p-6">
         <div className="flex items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-surface-2 text-info">

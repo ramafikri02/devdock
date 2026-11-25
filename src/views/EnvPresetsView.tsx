@@ -164,7 +164,7 @@ export function EnvPresetsView() {
   };
 
   return (
-    <div className="animate-view-enter mx-auto max-w-5xl space-y-5 p-6">
+    <div className="animate-view-enter w-full space-y-5 p-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>

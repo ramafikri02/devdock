@@ -104,7 +104,7 @@ export function SettingsView() {
   };
 
   return (
-    <div className="animate-view-enter mx-auto max-w-4xl space-y-6 p-6">
+    <div className="animate-view-enter w-full space-y-6 p-6">
       <div>
         <h1 className="text-[19px] font-semibold tracking-tight text-fg">
           Settings

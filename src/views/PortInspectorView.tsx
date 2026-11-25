@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -6,6 +6,7 @@ import {
   RefreshCw,
   Search,
   Skull,
+  X,
 } from "lucide-react";
 import { type ListeningPortEntry, killPortOwner } from "@/lib/tauri";
 import { useAppStore } from "@/store/appStore";
@@ -13,6 +14,10 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { cn } from "@/lib/cn";
 
 type PortFilter = "all" | "conflicts" | "devdock" | "external";
+
+function getRowKey(entry: ListeningPortEntry): string {
+  return `${entry.port}-${entry.pid}`;
+}
 
 export function PortInspectorView() {
   const portSnapshot = useAppStore((s) => s.portSnapshot);
@@ -24,6 +29,10 @@ export function PortInspectorView() {
   const [search, setSearch] = useState("");
   const [killTarget, setKillTarget] = useState<ListeningPortEntry | null>(null);
   const [killingPid, setKillingPid] = useState<number | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
+  const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
+  const [killingBulk, setKillingBulk] = useState(false);
+  const selectAllRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     void refreshPorts();
@@ -49,6 +58,66 @@ export function PortInspectorView() {
     });
   }, [entries, filter, search]);
 
+  const selectedEntries = useMemo(
+    () => entries.filter((entry) => selectedKeys.has(getRowKey(entry))),
+    [entries, selectedKeys],
+  );
+
+  const uniqueSelectedPids = useMemo(() => {
+    const seen = new Map<number, ListeningPortEntry>();
+    for (const entry of selectedEntries) {
+      if (!seen.has(entry.pid)) {
+        seen.set(entry.pid, entry);
+      }
+    }
+    return Array.from(seen.values());
+  }, [selectedEntries]);
+
+  const filteredSelectedCount = useMemo(
+    () => filtered.filter((entry) => selectedKeys.has(getRowKey(entry))).length,
+    [filtered, selectedKeys],
+  );
+
+  const allFilteredSelected =
+    filtered.length > 0 && filteredSelectedCount === filtered.length;
+  const someFilteredSelected =
+    filteredSelectedCount > 0 && filteredSelectedCount < filtered.length;
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someFilteredSelected;
+    }
+  }, [someFilteredSelected]);
+
+  const toggleRowSelection = (entry: ListeningPortEntry) => {
+    const key = getRowKey(entry);
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllFiltered = () => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        for (const entry of filtered) {
+          next.delete(getRowKey(entry));
+        }
+      } else {
+        for (const entry of filtered) {
+          next.add(getRowKey(entry));
+        }
+      }
+      return next;
+    });
+  };
+
   const handleConfirmKill = async () => {
     if (!killTarget) return;
     const target = killTarget;
@@ -59,6 +128,15 @@ export function PortInspectorView() {
       pushToast({
         title: `Port ${target.port} berhasil dibebaskan (PID ${target.pid} dihentikan)`,
         variant: "success",
+      });
+      setSelectedKeys((prev) => {
+        const next = new Set(prev);
+        for (const entry of entries) {
+          if (entry.pid === target.pid) {
+            next.delete(getRowKey(entry));
+          }
+        }
+        return next;
       });
       await refreshPorts();
     } catch (err) {
@@ -72,8 +150,44 @@ export function PortInspectorView() {
     }
   };
 
+  const handleConfirmBulkKill = async () => {
+    if (uniqueSelectedPids.length === 0) return;
+    const targets = uniqueSelectedPids;
+    setConfirmBulkOpen(false);
+    setKillingBulk(true);
+    try {
+      const results = await Promise.allSettled(
+        targets.map((entry) => killPortOwner(entry.pid)),
+      );
+      const succeeded = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - succeeded;
+
+      if (failed === 0) {
+        pushToast({
+          title: `${succeeded} proses berhasil dihentikan`,
+          variant: "success",
+        });
+      } else if (succeeded > 0) {
+        pushToast({
+          title: `${succeeded} proses dihentikan, ${failed} gagal`,
+          variant: "warn",
+        });
+      } else {
+        pushToast({
+          title: `Gagal menghentikan ${failed} proses terpilih`,
+          variant: "danger",
+        });
+      }
+
+      setSelectedKeys(new Set());
+      await refreshPorts();
+    } finally {
+      setKillingBulk(false);
+    }
+  };
+
   return (
-    <div className="animate-view-enter mx-auto max-w-6xl space-y-5 p-6">
+    <div className="animate-view-enter w-full space-y-5 p-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -159,6 +273,44 @@ export function PortInspectorView() {
         </div>
       </div>
 
+      {/* Bulk selection bar */}
+      {selectedEntries.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-danger/35 bg-surface px-4 py-2.5">
+          <div className="flex items-center gap-2 text-[12.5px] text-fg">
+            <span className="font-mono font-semibold text-fg tabular-nums">
+              {selectedEntries.length}
+            </span>
+            <span className="text-fg-muted">
+              port dipilih ({uniqueSelectedPids.length} proses unik)
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={killingBulk}
+              onClick={() => setSelectedKeys(new Set())}
+              className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] border border-border-strong bg-surface-2 px-2.5 text-[11.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg disabled:opacity-45"
+            >
+              <X className="h-3 w-3" aria-hidden="true" />
+              <span>Batal</span>
+            </button>
+            <button
+              type="button"
+              disabled={killingBulk}
+              onClick={() => setConfirmBulkOpen(true)}
+              className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] bg-danger-solid px-2.5 text-[11.5px] font-semibold text-white hover:opacity-95 disabled:opacity-45"
+            >
+              <Skull className="h-3 w-3" aria-hidden="true" />
+              <span>
+                {killingBulk
+                  ? "Killing…"
+                  : `Kill Terpilih (${uniqueSelectedPids.length})`}
+              </span>
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {/* Ports table */}
       <div className="overflow-hidden rounded-[10px] border border-border bg-surface">
         {filtered.length === 0 ? (
@@ -178,6 +330,17 @@ export function PortInspectorView() {
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-border bg-surface-2 text-[11.5px] font-semibold tracking-wide text-fg-muted uppercase">
+                <th className="w-10 px-4 py-2.5">
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    disabled={killingBulk || filtered.length === 0}
+                    onChange={toggleSelectAllFiltered}
+                    aria-label="Pilih semua port yang ditampilkan"
+                    className="h-3.5 w-3.5 cursor-pointer rounded border-border-strong accent-accent align-middle"
+                  />
+                </th>
                 <th className="px-4 py-2.5">Port</th>
                 <th className="px-4 py-2.5">Proses</th>
                 <th className="px-4 py-2.5">PID</th>
@@ -187,14 +350,28 @@ export function PortInspectorView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-[13px]">
-              {filtered.map((entry) => (
+              {filtered.map((entry) => {
+                const rowKey = getRowKey(entry);
+                const isSelected = selectedKeys.has(rowKey);
+                return (
                 <tr
-                  key={`${entry.port}-${entry.pid}`}
+                  key={rowKey}
                   className={cn(
                     "transition-colors hover:bg-surface-hover/40",
-                    entry.isConflict && "bg-warn-soft/35",
+                    isSelected && "bg-surface-hover/60",
+                    entry.isConflict && !isSelected && "bg-warn-soft/35",
                   )}
                 >
+                  <td className="w-10 px-4 py-2.5">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      disabled={killingBulk}
+                      onChange={() => toggleRowSelection(entry)}
+                      aria-label={`Pilih port :${entry.port} PID ${entry.pid}`}
+                      className="h-3.5 w-3.5 cursor-pointer rounded border-border-strong accent-accent align-middle"
+                    />
+                  </td>
                   <td className="px-4 py-2.5 font-mono font-semibold text-fg tabular-nums">
                     <span>:{entry.port}</span>
                     <span className="ml-1.5 text-[11px] font-normal text-fg-faint">
@@ -231,7 +408,7 @@ export function PortInspectorView() {
                   <td className="px-4 py-2.5 text-right">
                     <button
                       type="button"
-                      disabled={killingPid === entry.pid}
+                      disabled={killingPid === entry.pid || killingBulk}
                       onClick={() => setKillTarget(entry)}
                       className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] border border-danger/45 bg-danger-soft px-2.5 text-[11.5px] font-medium text-danger hover:bg-danger-solid hover:text-white disabled:opacity-45"
                     >
@@ -240,7 +417,8 @@ export function PortInspectorView() {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -261,6 +439,18 @@ export function PortInspectorView() {
         confirmLabel="Kill Proses"
         onCancel={() => setKillTarget(null)}
         onConfirm={() => void handleConfirmKill()}
+      />
+
+      <ConfirmDialog
+        open={confirmBulkOpen}
+        title={`Hentikan ${uniqueSelectedPids.length} proses terpilih?`}
+        description={`Akan menghentikan ${uniqueSelectedPids.length} proses unik yang mencakup ${selectedEntries.length} port terpilih (${uniqueSelectedPids
+          .slice(0, 5)
+          .map((e) => `${e.processName} :${e.port}`)
+          .join(", ")}${uniqueSelectedPids.length > 5 ? ", …" : ""}). Setiap proses akan menerima SIGTERM lalu SIGKILL jika tidak berhenti.`}
+        confirmLabel={`Kill ${uniqueSelectedPids.length} Proses`}
+        onCancel={() => setConfirmBulkOpen(false)}
+        onConfirm={() => void handleConfirmBulkKill()}
       />
     </div>
   );
