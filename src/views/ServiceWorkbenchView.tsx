@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Code2,
   Cpu,
   Download,
   FileCode2,
   FolderOpen,
+  GitBranch,
   Globe,
   HardDrive,
   Layers,
@@ -39,6 +41,7 @@ import {
   killPortOwner,
   onNodeInstallProgress,
   openExternalUrl,
+  openServiceQuickAction,
   pickFolderDialog,
 } from "@/lib/tauri";
 import { formatBytes, formatDuration } from "@/lib/format";
@@ -86,6 +89,7 @@ export function ServiceWorkbenchView({
   const processes = useAppStore((s) => s.processes);
   const metrics = useAppStore((s) => s.metrics);
   const proxyStatus = useAppStore((s) => s.proxyStatus);
+  const gitInfo = useAppStore((s) => s.gitInfoByService[service.id]);
   const runScript = useAppStore((s) => s.runScript);
   const stopProcess = useAppStore((s) => s.stopProcess);
   const restartProcess = useAppStore((s) => s.restartProcess);
@@ -609,13 +613,109 @@ export function ServiceWorkbenchView({
                     <span>{serviceProxyRoute.domain}</span>
                   </button>
                 ) : null}
+                {gitInfo?.isGitRepo && gitInfo.branch ? (
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-[6px] px-2 py-0.5 font-mono text-[11.5px]",
+                      gitInfo.isDirty
+                        ? "bg-warn-soft text-warn"
+                        : "bg-surface-2 text-fg-2",
+                    )}
+                    title={
+                      gitInfo.isDirty
+                        ? `${gitInfo.changedFiles} file berubah`
+                        : "Working tree bersih"
+                    }
+                  >
+                    <GitBranch className="h-3 w-3" aria-hidden="true" />
+                    <span>{gitInfo.branch}</span>
+                    {gitInfo.isDirty ? (
+                      <span className="font-semibold" aria-label="dirty">
+                        *
+                      </span>
+                    ) : null}
+                  </span>
+                ) : null}
                 <span className="truncate font-mono text-[11.5px] text-fg-faint select-text">
                   {service.path}
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {!service.isMissing ? (
+                <div className="flex items-center gap-1 rounded-[7px] border border-border bg-surface p-0.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void openServiceQuickAction(service.id, "editor").catch((e) =>
+                        pushToast({
+                          title: "Gagal membuka Editor",
+                          description: e instanceof Error ? e.message : String(e),
+                          variant: "danger",
+                        }),
+                      )
+                    }
+                    aria-label="Open in Editor"
+                    title="Open in Editor"
+                    className="btn-press flex h-7 w-7 items-center justify-center rounded-[5px] text-fg-muted hover:bg-surface-hover hover:text-fg"
+                  >
+                    <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void openServiceQuickAction(service.id, "terminal").catch((e) =>
+                        pushToast({
+                          title: "Gagal membuka Terminal",
+                          description: e instanceof Error ? e.message : String(e),
+                          variant: "danger",
+                        }),
+                      )
+                    }
+                    aria-label="Open in Terminal"
+                    title="Open in Terminal"
+                    className="btn-press flex h-7 w-7 items-center justify-center rounded-[5px] text-fg-muted hover:bg-surface-hover hover:text-fg"
+                  >
+                    <Terminal className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void openServiceQuickAction(service.id, "browser").catch((e) =>
+                        pushToast({
+                          title: "Gagal membuka Browser",
+                          description: e instanceof Error ? e.message : String(e),
+                          variant: "danger",
+                        }),
+                      )
+                    }
+                    aria-label="Open in Browser"
+                    title="Open in Browser"
+                    className="btn-press flex h-7 w-7 items-center justify-center rounded-[5px] text-fg-muted hover:bg-surface-hover hover:text-fg"
+                  >
+                    <Globe className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void openServiceQuickAction(service.id, "file_manager").catch(
+                        (e) =>
+                          pushToast({
+                            title: "Gagal membuka Finder/Explorer",
+                            description: e instanceof Error ? e.message : String(e),
+                            variant: "danger",
+                          }),
+                      )
+                    }
+                    aria-label="Open in Finder / Explorer"
+                    title="Open in Finder / Explorer"
+                    className="btn-press flex h-7 w-7 items-center justify-center rounded-[5px] text-fg-muted hover:bg-surface-hover hover:text-fg"
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                </div>
+              ) : null}
               {!service.isMissing && primaryScript ? (
                 activeServiceProcesses.length > 0 ? (
                   <button

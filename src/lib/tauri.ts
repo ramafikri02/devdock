@@ -1248,6 +1248,29 @@ export async function openExternalUrl(url: string): Promise<void> {
   await invoke("open_external_url", { url });
 }
 
+export interface GitStatusInfo {
+  isGitRepo: boolean;
+  branch: string | null;
+  isDirty: boolean;
+  changedFiles: number;
+}
+
+export interface DetectedTool {
+  id: string;
+  name: string;
+  command: string;
+  available: boolean;
+}
+
+export interface DesktopToolSettings {
+  defaultEditor: string | null;
+  defaultTerminal: string | null;
+  detectedEditors: DetectedTool[];
+  detectedTerminals: DetectedTool[];
+}
+
+export type QuickActionTarget = "editor" | "terminal" | "browser" | "file_manager";
+
 export async function onProxyStatus(
   handler: (status: ProxyStatus) => void,
 ): Promise<UnlistenFn> {
@@ -1255,6 +1278,59 @@ export async function onProxyStatus(
     return () => {};
   }
   return listen<ProxyStatus>("proxy:status", (event) => {
+    handler(event.payload);
+  });
+}
+
+export async function getAllServicesGitInfo(): Promise<Record<string, GitStatusInfo>> {
+  if (!isTauriRuntime()) {
+    return {};
+  }
+  return invoke<Record<string, GitStatusInfo>>("get_all_services_git_info");
+}
+
+export async function getDesktopToolSettings(): Promise<DesktopToolSettings> {
+  if (!isTauriRuntime()) {
+    return {
+      defaultEditor: "code",
+      defaultTerminal: "terminal",
+      detectedEditors: [],
+      detectedTerminals: [],
+    };
+  }
+  return invoke<DesktopToolSettings>("get_desktop_tool_settings");
+}
+
+export async function setDefaultEditor(
+  editorId: string | null,
+): Promise<DesktopToolSettings> {
+  return invoke<DesktopToolSettings>("set_default_editor", { editorId });
+}
+
+export async function setDefaultTerminal(
+  terminalId: string | null,
+): Promise<DesktopToolSettings> {
+  return invoke<DesktopToolSettings>("set_default_terminal", { terminalId });
+}
+
+export async function openServiceQuickAction(
+  serviceId: string,
+  target: QuickActionTarget,
+): Promise<void> {
+  await invoke("open_service_quick_action", { serviceId, target });
+}
+
+export async function confirmAppQuit(stopProcesses: boolean): Promise<void> {
+  await invoke("confirm_app_quit", { stopProcesses });
+}
+
+export async function onQuitRequested(
+  handler: (payload: { activeCount: number }) => void,
+): Promise<UnlistenFn> {
+  if (!isTauriRuntime()) {
+    return () => {};
+  }
+  return listen<{ activeCount: number }>("app:quit-requested", (event) => {
     handler(event.payload);
   });
 }

@@ -1,5 +1,4 @@
 import {
-  Activity,
   KeyRound,
   LayoutGrid,
   Network,
@@ -145,8 +144,11 @@ export function Sidebar({ projectsSlot }: SidebarProps) {
         </button>
 
         <div className="flex items-center gap-1.5 text-[11.5px] text-fg-muted">
-          <Activity className="h-3 w-3 text-accent" aria-hidden="true" />
-          <span>Core siap</span>
+          <span
+            className="h-2 w-2 rounded-full bg-accent shadow-[0_0_5px_var(--accent)]"
+            aria-hidden="true"
+          />
+          <span>Tray aktif</span>
         </div>
       </div>
     </aside>

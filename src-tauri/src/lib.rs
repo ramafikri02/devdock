@@ -1,11 +1,11 @@
 use devdock_core::models::{
-    AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
-    GlobalStorageSummary, HostsSyncPreview, HostsSyncResult, LogExportScope, LogLine,
-    MetricsSnapshot, NodeInstallResult, PackageManager, PortCheckResult, PortInjectionMethod,
-    PortInspectorSnapshot, PresetEntryInput, ProcessEvent, ProcessInfo, Project,
-    ProjectEnvSummary, ProjectOrchestrationResult, ProjectStatusSummary, ProjectStorageSummary,
-    ProxyStatus, ScanResult, Service, ServiceEnvInspection, ServiceNodeRuntime,
-    ServiceStorageReport, StorageCleanResult,
+    AppBootstrapInfo, AttachedPreset, DbTestResult, DesktopToolSettings, EnvPreset, EnvWriteResult,
+    GitStatusInfo, GlobalStorageSummary, HostsSyncPreview, HostsSyncResult, LogExportScope,
+    LogLine, MetricsSnapshot, NodeInstallResult, PackageManager, PortCheckResult,
+    PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput, ProcessEvent, ProcessInfo,
+    Project, ProjectEnvSummary, ProjectOrchestrationResult, ProjectStatusSummary,
+    ProjectStorageSummary, ProxyStatus, QuickActionTarget, ScanResult, Service,
+    ServiceEnvInspection, ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
 };
 use devdock_core::monitor::DEFAULT_MONITOR_INTERVAL;
 use devdock_core::secret_store::OsKeychainSecretStore;
@@ -35,10 +35,13 @@ impl Notifier for OsDesktopNotifier {
     }
 }
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent};
 
 pub struct WatcherState {
     watcher: RecommendedWatcher,
@@ -61,6 +64,7 @@ impl WatcherState {
 pub struct AppState {
     pub core: Arc<DevDockCore>,
     pub watcher: Mutex<Option<WatcherState>>,
+    pub allow_exit: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -83,6 +87,239 @@ impl AppState {
         if let Ok(status) = self.core.sync_proxy_routes() {
             let _ = app.emit("proxy:status", status);
         }
+        refresh_tray_menu(app, &self.core);
+    }
+}
+
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
+fn build_tray_menu(app: &AppHandle, core: &DevDockCore) -> tauri::Result<Menu<tauri::Wry>> {
+    let menu = Menu::new(app)?;
+    let processes = core.list_processes();
+    let active_count = processes.iter().filter(|p| p.status.is_active()).count();
+
+    let status_label = if active_count > 0 {
+        format!("DevDock · {active_count} proses berjalan")
+    } else {
+        "DevDock · Idle".to_string()
+    };
+    let header_item = MenuItem::with_id(app, "tray:status", status_label, false, None::<&str>)?;
+    let show_item = MenuItem::with_id(app, "tray:show", "Tampilkan DevDock", true, None::<&str>)?;
+    menu.append(&header_item)?;
+    menu.append(&show_item)?;
+
+    if let Ok(projects) = core.list_projects() {
+        if !projects.is_empty() {
+            menu.append(&PredefinedMenuItem::separator(app)?)?;
+            for proj in projects.iter().take(12) {
+                let running_in_proj = proj
+                    .services
+                    .iter()
+                    .filter(|s| {
+                        processes
+                            .iter()
+                            .any(|p| p.service_id == s.id && p.status.is_active())
+                    })
+                    .count();
+
+                if proj.services.len() == 1 {
+                    let svc = &proj.services[0];
+                    let is_up = running_in_proj > 0;
+                    let sub_title = if is_up {
+                        format!("● {} (running)", proj.name)
+                    } else {
+                        proj.name.clone()
+                    };
+                    let sub = Submenu::new(app, sub_title, true)?;
+                    let toggle_label = if is_up { "Stop" } else { "Start" };
+                    sub.append(&MenuItem::with_id(
+                        app,
+                        format!("tray:svc:toggle:{}", svc.id),
+                        toggle_label,
+                        !svc.is_missing,
+                        None::<&str>,
+                    )?)?;
+                    sub.append(&MenuItem::with_id(
+                        app,
+                        format!("tray:svc:browser:{}", svc.id),
+                        "Open in Browser",
+                        true,
+                        None::<&str>,
+                    )?)?;
+                    menu.append(&sub)?;
+                } else {
+                    let sub_title = if running_in_proj > 0 {
+                        format!(
+                            "● {} ({}/{})",
+                            proj.name,
+                            running_in_proj,
+                            proj.services.length_or_len()
+                        )
+                    } else {
+                        format!("{} (0/{})", proj.name, proj.services.len())
+                    };
+                    let sub = Submenu::new(app, sub_title, true)?;
+                    if running_in_proj > 0 {
+                        sub.append(&MenuItem::with_id(
+                            app,
+                            format!("tray:proj:stop:{}", proj.id),
+                            "Stop All",
+                            true,
+                            None::<&str>,
+                        )?)?;
+                    } else {
+                        sub.append(&MenuItem::with_id(
+                            app,
+                            format!("tray:proj:start:{}", proj.id),
+                            "Start All",
+                            true,
+                            None::<&str>,
+                        )?)?;
+                    }
+                    sub.append(&PredefinedMenuItem::separator(app)?)?;
+                    for svc in &proj.services {
+                        let is_up = processes
+                            .iter()
+                            .any(|p| p.service_id == svc.id && p.status.is_active());
+                        let svc_sub = Submenu::new(
+                            app,
+                            if is_up {
+                                format!("● {}", svc.name)
+                            } else {
+                                svc.name.clone()
+                            },
+                            true,
+                        )?;
+                        svc_sub.append(&MenuItem::with_id(
+                            app,
+                            format!("tray:svc:toggle:{}", svc.id),
+                            if is_up { "Stop" } else { "Start" },
+                            !svc.is_missing,
+                            None::<&str>,
+                        )?)?;
+                        svc_sub.append(&MenuItem::with_id(
+                            app,
+                            format!("tray:svc:browser:{}", svc.id),
+                            "Open in Browser",
+                            true,
+                            None::<&str>,
+                        )?)?;
+                        sub.append(&svc_sub)?;
+                    }
+                    menu.append(&sub)?;
+                }
+            }
+        }
+    }
+
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        "tray:quit",
+        "Keluar DevDock",
+        true,
+        None::<&str>,
+    )?)?;
+    Ok(menu)
+}
+
+trait VecLenExt {
+    fn length_or_len(&self) -> usize;
+}
+impl<T> VecLenExt for Vec<T> {
+    fn length_or_len(&self) -> usize {
+        self.len()
+    }
+}
+
+fn refresh_tray_menu(app: &AppHandle, core: &DevDockCore) {
+    if let Some(tray) = app.tray_by_id("devdock-tray") {
+        if let Ok(menu) = build_tray_menu(app, core) {
+            let _ = tray.set_menu(Some(menu));
+        }
+    }
+}
+
+fn handle_tray_menu_event(app: &AppHandle, id: &str) {
+    if id == "tray:show" {
+        show_main_window(app);
+        return;
+    }
+
+    let state = app.state::<AppState>();
+    let core = Arc::clone(&state.core);
+
+    if id == "tray:quit" {
+        let active = core.active_process_count();
+        if active > 0 {
+            show_main_window(app);
+            let _ = app.emit(
+                "app:quit-requested",
+                serde_json::json!({ "activeCount": active }),
+            );
+        } else {
+            state.allow_exit.store(true, Ordering::SeqCst);
+            app.exit(0);
+        }
+        return;
+    }
+
+    if let Some(svc_id) = id.strip_prefix("tray:svc:toggle:") {
+        let svc_id = svc_id.to_string();
+        tauri::async_runtime::spawn_blocking(move || {
+            let active: Vec<ProcessInfo> = core
+                .list_processes()
+                .into_iter()
+                .filter(|p| p.service_id == svc_id && p.status.is_active())
+                .collect();
+            if !active.is_empty() {
+                for p in active {
+                    let _ = core.stop_process(&p.id);
+                }
+            } else if let Ok(svc) = core.get_service(&svc_id) {
+                let script = svc
+                    .default_script
+                    .clone()
+                    .filter(|s| svc.scripts.contains_key(s))
+                    .or_else(|| {
+                        ["dev", "start:dev", "serve", "start"]
+                            .iter()
+                            .find(|k| svc.scripts.contains_key(**k))
+                            .map(|s| (*s).to_string())
+                    })
+                    .or_else(|| svc.scripts.keys().next().cloned());
+                if let Some(script_name) = script {
+                    let _ = core.run_service_script(&svc_id, &script_name);
+                }
+            }
+        });
+        return;
+    }
+
+    if let Some(svc_id) = id.strip_prefix("tray:svc:browser:") {
+        let _ = core.open_service_quick_action(svc_id, QuickActionTarget::Browser);
+        return;
+    }
+
+    if let Some(proj_id) = id.strip_prefix("tray:proj:start:") {
+        let proj_id = proj_id.to_string();
+        tauri::async_runtime::spawn_blocking(move || {
+            let _ = core.start_project_all(&proj_id);
+        });
+        return;
+    }
+
+    if let Some(proj_id) = id.strip_prefix("tray:proj:stop:") {
+        let proj_id = proj_id.to_string();
+        tauri::async_runtime::spawn_blocking(move || {
+            let _ = core.stop_project_all(&proj_id);
+        });
     }
 }
 
@@ -945,6 +1182,90 @@ fn open_external_url(state: State<'_, AppState>, url: String) -> Result<(), Stri
     state.core.open_external_url(&url).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn get_service_git_info(
+    state: State<'_, AppState>,
+    service_id: String,
+) -> Result<GitStatusInfo, String> {
+    state
+        .core
+        .get_service_git_info(&service_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_all_services_git_info(
+    state: State<'_, AppState>,
+) -> Result<HashMap<String, GitStatusInfo>, String> {
+    state
+        .core
+        .get_all_services_git_info()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_desktop_tool_settings(state: State<'_, AppState>) -> Result<DesktopToolSettings, String> {
+    state
+        .core
+        .get_desktop_tool_settings()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_default_editor(
+    state: State<'_, AppState>,
+    editor_id: Option<String>,
+) -> Result<DesktopToolSettings, String> {
+    state
+        .core
+        .set_default_editor(editor_id.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_default_terminal(
+    state: State<'_, AppState>,
+    terminal_id: Option<String>,
+) -> Result<DesktopToolSettings, String> {
+    state
+        .core
+        .set_default_terminal(terminal_id.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn open_service_quick_action(
+    state: State<'_, AppState>,
+    service_id: String,
+    target: QuickActionTarget,
+) -> Result<(), String> {
+    state
+        .core
+        .open_service_quick_action(&service_id, target)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn confirm_app_quit(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    stop_processes: bool,
+) -> Result<(), String> {
+    let core = Arc::clone(&state.core);
+    if stop_processes {
+        tauri::async_runtime::spawn_blocking(move || {
+            core.stop_all_processes();
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+    } else {
+        core.detach_processes_on_exit();
+    }
+    state.allow_exit.store(true, Ordering::SeqCst);
+    app.exit(0);
+    Ok(())
+}
+
 fn create_package_json_watcher(app_handle: AppHandle) -> Option<WatcherState> {
     let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
         if let Ok(event) = res {
@@ -993,6 +1314,7 @@ pub fn run() {
                     if let Ok(proxy_status) = event_core.sync_proxy_routes() {
                         let _ = event_handle.emit("proxy:status", proxy_status);
                     }
+                    refresh_tray_menu(&event_handle, &event_core);
                 }
                 ProcessEvent::LogLine(line) => {
                     let _ = event_handle.emit("process:log", line);
@@ -1038,13 +1360,50 @@ pub fn run() {
 
             let watcher_state = create_package_json_watcher(app.handle().clone());
             let state = AppState {
-                core,
+                core: Arc::clone(&core),
                 watcher: Mutex::new(watcher_state),
+                allow_exit: Arc::new(AtomicBool::new(false)),
             };
             state.sync_watchers();
 
+            let tray_menu = build_tray_menu(app.handle(), &core)?;
+            let mut tray_builder = TrayIconBuilder::with_id("devdock-tray")
+                .menu(&tray_menu)
+                .tooltip("DevDock")
+                .show_menu_on_left_click(true)
+                .on_menu_event(|app_handle, event| {
+                    handle_tray_menu_event(app_handle, event.id.as_ref());
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        if let Ok(menu) =
+                            build_tray_menu(tray.app_handle(), &tray.app_handle().state::<AppState>().core)
+                        {
+                            let _ = tray.set_menu(Some(menu));
+                        }
+                    }
+                });
+            if let Some(icon) = app.default_window_icon().cloned() {
+                tray_builder = tray_builder.icon(icon);
+            }
+            let _ = tray_builder.build(app)?;
+
             app.manage(state);
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let state = window.state::<AppState>();
+                if !state.allow_exit.load(Ordering::SeqCst) {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             get_bootstrap_info,
@@ -1119,7 +1478,30 @@ pub fn run() {
             preview_hosts_sync,
             sync_etc_hosts,
             open_external_url,
+            get_service_git_info,
+            get_all_services_git_info,
+            get_desktop_tool_settings,
+            set_default_editor,
+            set_default_terminal,
+            open_service_quick_action,
+            confirm_app_quit,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running DevDock Tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building DevDock Tauri application")
+        .run(|app_handle, event| {
+            if let RunEvent::ExitRequested { api, .. } = event {
+                let state = app_handle.state::<AppState>();
+                if !state.allow_exit.load(Ordering::SeqCst) {
+                    let active = state.core.active_process_count();
+                    if active > 0 {
+                        api.prevent_exit();
+                        show_main_window(app_handle);
+                        let _ = app_handle.emit(
+                            "app:quit-requested",
+                            serde_json::json!({ "activeCount": active }),
+                        );
+                    }
+                }
+            }
+        });
 }

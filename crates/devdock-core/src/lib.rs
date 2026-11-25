@@ -3,6 +3,7 @@ pub mod db;
 pub mod db_tester;
 pub mod env_resolver;
 pub mod error;
+pub mod git_info;
 pub mod log_buffer;
 pub mod models;
 pub mod monitor;
@@ -10,6 +11,7 @@ pub mod ports;
 pub mod presets;
 pub mod process_manager;
 pub mod proxy;
+pub mod quick_actions;
 pub mod registry;
 pub mod runtime;
 pub mod scanner;
@@ -25,13 +27,13 @@ use crate::env_resolver::EnvResolver;
 use crate::error::{CoreError, CoreResult};
 use crate::log_buffer::DEFAULT_LOG_CAPACITY;
 use crate::models::{
-    AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
-    GlobalStorageSummary, HostsSyncPreview, HostsSyncResult, LogExportScope, LogLine,
-    MetricsSnapshot, NodeInstallProgress, NodeInstallResult, OrchestrationStepState,
+    AppBootstrapInfo, AttachedPreset, DbTestResult, DesktopToolSettings, EnvPreset, EnvWriteResult,
+    GitStatusInfo, GlobalStorageSummary, HostsSyncPreview, HostsSyncResult, LogExportScope,
+    LogLine, MetricsSnapshot, NodeInstallProgress, NodeInstallResult, OrchestrationStepState,
     PackageManager, PortCheckResult, PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput,
     ProcessEvent, ProcessInfo, ProcessStatus, Project, ProjectAggregateStatus, ProjectEnvSummary,
     ProjectOrchestrationResult, ProjectOrchestrationStep, ProjectStatusSummary,
-    ProjectStorageSummary, ProxyStatus, ScanResult, Service, ServiceDescriptor,
+    ProjectStorageSummary, ProxyStatus, QuickActionTarget, ScanResult, Service, ServiceDescriptor,
     ServiceEnvInspection, ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
     StorageEntryKind,
 };
@@ -42,8 +44,12 @@ use crate::process_manager::{
     AutoRestartPolicy, ProcessEventListener, ProcessManager, DEFAULT_STOP_GRACE_PERIOD,
 };
 use crate::proxy::{
-    open_url_in_browser, preview_hosts_sync_at, sync_hosts_file_elevated, system_hosts_path,
-    LocalDomainProxy, DEFAULT_PROXY_FALLBACK_PORT, DEFAULT_PROXY_PREFERRED_PORT,
+    format_local_domain_url, open_url_in_browser, preview_hosts_sync_at, service_domain_slug,
+    sync_hosts_file_elevated, system_hosts_path, LocalDomainProxy, DEFAULT_PROXY_FALLBACK_PORT,
+    DEFAULT_PROXY_PREFERRED_PORT,
+};
+use crate::quick_actions::{
+    detect_tools, open_folder_in_editor, open_folder_in_file_manager, open_folder_in_terminal,
 };
 use crate::registry::ProjectRegistry;
 use crate::runtime::{prepend_dir_to_path, RuntimeResolver};
@@ -1239,5 +1245,105 @@ impl DevDockCore {
 
     pub fn open_external_url(&self, url: &str) -> CoreResult<()> {
         open_url_in_browser(url)
+    }
+
+    pub fn active_process_count(&self) -> usize {
+        self.list_processes()
+            .into_iter()
+            .filter(|p| p.status.is_active())
+            .count()
+    }
+
+    pub fn detach_processes_on_exit(&self) {
+        self.processes.set_stop_on_drop(false);
+    }
+
+    pub fn get_service_git_info(&self, service_id: &str) -> CoreResult<GitStatusInfo> {
+        let svc = self.get_service(service_id)?;
+        Ok(crate::git_info::inspect_git_folder(Path::new(&svc.path)))
+    }
+
+    pub fn get_all_services_git_info(
+        &self,
+    ) -> CoreResult<std::collections::HashMap<String, GitStatusInfo>> {
+        let projects = self.list_projects()?;
+        let mut map = std::collections::HashMap::new();
+        for proj in projects {
+            for svc in proj.services {
+                map.insert(
+                    svc.id,
+                    crate::git_info::inspect_git_folder(Path::new(&svc.path)),
+                );
+            }
+        }
+        Ok(map)
+    }
+
+    pub fn get_desktop_tool_settings(&self) -> CoreResult<DesktopToolSettings> {
+        let path_env = self.shell_env.get_path().unwrap_or_default();
+        let saved_editor = self.get_setting("default_editor")?;
+        let saved_terminal = self.get_setting("default_terminal")?;
+        Ok(detect_tools(&path_env, saved_editor, saved_terminal))
+    }
+
+    pub fn set_default_editor(&self, editor_id: Option<&str>) -> CoreResult<DesktopToolSettings> {
+        let val = editor_id.map(str::trim).unwrap_or("");
+        self.set_setting("default_editor", val)?;
+        self.get_desktop_tool_settings()
+    }
+
+    pub fn set_default_terminal(
+        &self,
+        terminal_id: Option<&str>,
+    ) -> CoreResult<DesktopToolSettings> {
+        let val = terminal_id.map(str::trim).unwrap_or("");
+        self.set_setting("default_terminal", val)?;
+        self.get_desktop_tool_settings()
+    }
+
+    pub fn service_browser_url(&self, service_id: &str) -> CoreResult<String> {
+        let svc = self.get_service(service_id)?;
+        let proxy_status = self.proxy.status();
+        if proxy_status.running {
+            if let Some(route) = proxy_status
+                .routes
+                .into_iter()
+                .find(|r| r.service_id == svc.id)
+            {
+                return Ok(route.url);
+            }
+            if let Some(port) = svc.port {
+                let slug = service_domain_slug(&svc.name);
+                let bound = proxy_status.bound_port.unwrap_or(port);
+                return Ok(format_local_domain_url(&format!("{slug}.localhost"), bound));
+            }
+        }
+        let port = svc.port.unwrap_or(3000);
+        Ok(format!("http://localhost:{port}"))
+    }
+
+    pub fn open_service_quick_action(
+        &self,
+        service_id: &str,
+        target: QuickActionTarget,
+    ) -> CoreResult<()> {
+        let svc = self.get_service(service_id)?;
+        let folder = Path::new(&svc.path);
+        let path_env = self.shell_env.get_path().unwrap_or_default();
+        match target {
+            QuickActionTarget::Editor => {
+                let saved = self.get_setting("default_editor")?;
+                open_folder_in_editor(folder, saved.as_deref(), &path_env)
+            }
+            QuickActionTarget::Terminal => {
+                let saved = self.get_setting("default_terminal")?;
+                open_folder_in_terminal(folder, saved.as_deref(), &path_env)
+            }
+            QuickActionTarget::FileManager => open_folder_in_file_manager(folder),
+            QuickActionTarget::Browser => {
+                let url = self.service_browser_url(service_id)?;
+                open_url_in_browser(&url)
+            }
+        }
     }
 }

@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { CommandPaletteModal } from "@/components/ui/CommandPaletteModal";
 import { AddProjectModal } from "@/components/projects/AddProjectModal";
@@ -11,12 +12,14 @@ import { ProjectOverviewView } from "@/views/ProjectOverviewView";
 import { EnvPresetsView } from "@/views/EnvPresetsView";
 import { PortInspectorView } from "@/views/PortInspectorView";
 import {
+  confirmAppQuit,
   onMetricsSnapshot,
   onProcessCrashed,
   onProcessStatus,
   onProjectOrchestration,
   onProjectsChanged,
   onProxyStatus,
+  onQuitRequested,
 } from "@/lib/tauri";
 import { useAppStore } from "@/store/appStore";
 
@@ -34,6 +37,8 @@ export default function App() {
   const setRoute = useAppStore((s) => s.setRoute);
   const openAddProjectModal = useAppStore((s) => s.openAddProjectModal);
   const openScanModal = useAppStore((s) => s.openScanModal);
+  const [quitActiveCount, setQuitActiveCount] = useState<number | null>(null);
+  const [quitBusy, setQuitBusy] = useState(false);
 
   useEffect(() => {
     void init();
@@ -47,6 +52,7 @@ export default function App() {
     let unlistenMetrics: (() => void) | undefined;
     let unlistenOrchestration: (() => void) | undefined;
     let unlistenProxy: (() => void) | undefined;
+    let unlistenQuit: (() => void) | undefined;
     void onProjectsChanged(() => {
       void loadProjects();
     }).then((fn) => {
@@ -84,6 +90,11 @@ export default function App() {
     }).then((fn) => {
       unlistenProxy = fn;
     });
+    void onQuitRequested(({ activeCount }) => {
+      setQuitActiveCount(activeCount);
+    }).then((fn) => {
+      unlistenQuit = fn;
+    });
     return () => {
       if (unlistenProjects) unlistenProjects();
       if (unlistenProcess) unlistenProcess();
@@ -91,6 +102,7 @@ export default function App() {
       if (unlistenMetrics) unlistenMetrics();
       if (unlistenOrchestration) unlistenOrchestration();
       if (unlistenProxy) unlistenProxy();
+      if (unlistenQuit) unlistenQuit();
     };
   }, [
     loadProjects,
@@ -204,6 +216,66 @@ export default function App() {
       <CommandPaletteModal />
       <AddProjectModal />
       <ScanFolderModal />
+      {quitActiveCount !== null ? (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-label="Konfirmasi keluar DevDock"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]"
+        >
+          <div className="animate-modal-enter w-full max-w-md rounded-[12px] border border-border-strong bg-surface p-5 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-warn-soft text-warn">
+                <AlertTriangle className="h-4.5 w-4.5" aria-hidden="true" />
+              </div>
+              <div>
+                <h2 className="text-[15px] font-semibold text-fg">
+                  Hentikan semua proses sebelum keluar?
+                </h2>
+                <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">
+                  Saat ini ada{" "}
+                  <span className="font-mono font-semibold text-fg tabular-nums">
+                    {quitActiveCount}
+                  </span>{" "}
+                  proses yang masih berjalan. Anda dapat menghentikan seluruh pohon proses atau membiarkannya tetap berjalan di latar belakang.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={quitBusy}
+                onClick={() => setQuitActiveCount(null)}
+                className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={quitBusy}
+                onClick={() => {
+                  setQuitBusy(true);
+                  void confirmAppQuit(false).finally(() => setQuitBusy(false));
+                }}
+                className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg hover:bg-surface-hover disabled:opacity-50"
+              >
+                Biarkan Jalan & Keluar
+              </button>
+              <button
+                type="button"
+                disabled={quitBusy}
+                onClick={() => {
+                  setQuitBusy(true);
+                  void confirmAppQuit(true).finally(() => setQuitBusy(false));
+                }}
+                className="btn-press h-8 rounded-[7px] bg-danger-solid px-3 text-[12.5px] font-semibold text-white hover:opacity-95 disabled:opacity-50"
+              >
+                Stop Semua & Keluar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

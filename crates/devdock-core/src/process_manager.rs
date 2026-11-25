@@ -133,6 +133,7 @@ impl ProcessManagerInner {
 
 pub struct ProcessManager {
     inner: Arc<ProcessManagerInner>,
+    stop_on_drop: AtomicBool,
 }
 
 impl Default for ProcessManager {
@@ -161,7 +162,12 @@ impl ProcessManager {
                 notifier,
                 listeners: RwLock::new(Vec::new()),
             }),
+            stop_on_drop: AtomicBool::new(true),
         }
+    }
+
+    pub fn set_stop_on_drop(&self, stop_on_drop: bool) {
+        self.stop_on_drop.store(stop_on_drop, Ordering::SeqCst);
     }
 
     pub fn set_auto_restart_policy(&self, policy: AutoRestartPolicy) {
@@ -786,7 +792,9 @@ impl ProcessManager {
 
 impl Drop for ProcessManager {
     fn drop(&mut self) {
-        self.stop_all_processes();
+        if self.stop_on_drop.load(Ordering::SeqCst) {
+            self.stop_all_processes();
+        }
     }
 }
 

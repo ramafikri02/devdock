@@ -748,3 +748,39 @@ pub struct HostsSyncResult {
     pub hosts_path: String,
     pub domains_written: usize,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStatusInfo {
+    pub is_git_repo: bool,
+    pub branch: Option<String>,
+    pub is_dirty: bool,
+    pub changed_files: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DetectedTool {
+    pub id: String,
+    pub name: String,
+    pub command: String,
+    pub available: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopToolSettings {
+    pub default_editor: Option<String>,
+    pub default_terminal: Option<String>,
+    pub detected_editors: Vec<DetectedTool>,
+    pub detected_terminals: Vec<DetectedTool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QuickActionTarget {
+    Editor,
+    Terminal,
+    Browser,
+    FileManager,
+}

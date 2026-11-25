@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Cpu,
   FolderPlus,
+  GitBranch,
   HardDrive,
   MemoryStick,
   Network,
@@ -53,6 +54,7 @@ export function OverviewView({
   const processes = useAppStore((s) => s.processes);
   const portSnapshot = useAppStore((s) => s.portSnapshot);
   const metrics = useAppStore((s) => s.metrics);
+  const gitInfoByService = useAppStore((s) => s.gitInfoByService);
   const setRoute = useAppStore((s) => s.setRoute);
   const runScript = useAppStore((s) => s.runScript);
   const stopProcess = useAppStore((s) => s.stopProcess);
@@ -623,6 +625,27 @@ export function OverviewView({
                                 </span>
                               </>
                             ) : null}
+                            {(() => {
+                              const git = gitInfoByService[item.service.id];
+                              if (!git?.isGitRepo || !git.branch) return null;
+                              return (
+                                <>
+                                  <span>·</span>
+                                  <span
+                                    className={cn(
+                                      "inline-flex items-center gap-0.5 font-mono text-[11px]",
+                                      git.isDirty ? "text-warn" : "text-fg-muted",
+                                    )}
+                                  >
+                                    <GitBranch className="h-2.5 w-2.5" aria-hidden="true" />
+                                    <span>
+                                      {git.branch}
+                                      {git.isDirty ? "*" : ""}
+                                    </span>
+                                  </span>
+                                </>
+                              );
+                            })()}
                           </div>
                         </button>
 

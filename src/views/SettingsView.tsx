@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   CheckCircle2,
+  Code2,
   Database,
   Globe,
   Loader2,
@@ -14,6 +15,8 @@ import {
   type HostsSyncPreview,
   openExternalUrl,
   previewHostsSync,
+  setDefaultEditor,
+  setDefaultTerminal,
   syncEtcHosts,
 } from "@/lib/tauri";
 import { useAppStore } from "@/store/appStore";
@@ -26,6 +29,8 @@ export function SettingsView() {
   const refreshPath = useAppStore((s) => s.refreshPath);
   const proxyStatus = useAppStore((s) => s.proxyStatus);
   const setProxyEnabled = useAppStore((s) => s.setProxyEnabled);
+  const toolSettings = useAppStore((s) => s.toolSettings);
+  const setToolSettings = useAppStore((s) => s.setToolSettings);
   const pushToast = useAppStore((s) => s.pushToast);
 
   const [proxyBusy, setProxyBusy] = useState(false);
@@ -238,6 +243,97 @@ export function SettingsView() {
             )}
             <span>{syncingHosts ? "Menyinkronkan…" : "Sinkronkan /etc/hosts"}</span>
           </button>
+        </div>
+      </section>
+
+      {/* Quick Actions: Default Editor & Terminal */}
+      <section className="rounded-[10px] border border-border bg-surface p-4">
+        <h2 className="flex items-center gap-2 text-[14px] font-semibold text-fg">
+          <Code2 className="h-4 w-4 text-info" aria-hidden="true" />
+          <span>Quick Actions (Editor & Terminal Default)</span>
+        </h2>
+        <p className="mt-0.5 text-[12.5px] text-fg-muted">
+          DevDock mendeteksi editor dan terminal yang terpasang di mesin Anda untuk tombol aksi cepat di Service Workbench.
+        </p>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label
+              htmlFor="default-editor-select"
+              className="text-[12px] font-medium text-fg-2"
+            >
+              Editor Default
+            </label>
+            <select
+              id="default-editor-select"
+              value={toolSettings?.defaultEditor ?? ""}
+              onChange={(e) => {
+                const val = e.target.value || null;
+                void setDefaultEditor(val)
+                  .then((updated) => {
+                    setToolSettings(updated);
+                    pushToast({
+                      title: "Editor default diperbarui",
+                      variant: "success",
+                    });
+                  })
+                  .catch((err) => {
+                    pushToast({
+                      title: "Gagal menyimpan editor default",
+                      description: err instanceof Error ? err.message : String(err),
+                      variant: "danger",
+                    });
+                  });
+              }}
+              className="mt-1.5 h-8 w-full rounded-[7px] border border-border-strong bg-surface-2 px-2.5 text-[12.5px] text-fg"
+            >
+              <option value="">Deteksi otomatis</option>
+              {(toolSettings?.detectedEditors ?? []).map((ed) => (
+                <option key={ed.id} value={ed.id}>
+                  {ed.name} {ed.available ? "(terpasang)" : "(tidak terdeteksi)"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label
+              htmlFor="default-terminal-select"
+              className="text-[12px] font-medium text-fg-2"
+            >
+              Terminal Default
+            </label>
+            <select
+              id="default-terminal-select"
+              value={toolSettings?.defaultTerminal ?? ""}
+              onChange={(e) => {
+                const val = e.target.value || null;
+                void setDefaultTerminal(val)
+                  .then((updated) => {
+                    setToolSettings(updated);
+                    pushToast({
+                      title: "Terminal default diperbarui",
+                      variant: "success",
+                    });
+                  })
+                  .catch((err) => {
+                    pushToast({
+                      title: "Gagal menyimpan terminal default",
+                      description: err instanceof Error ? err.message : String(err),
+                      variant: "danger",
+                    });
+                  });
+              }}
+              className="mt-1.5 h-8 w-full rounded-[7px] border border-border-strong bg-surface-2 px-2.5 text-[12.5px] text-fg"
+            >
+              <option value="">Deteksi otomatis</option>
+              {(toolSettings?.detectedTerminals ?? []).map((term) => (
+                <option key={term.id} value={term.id}>
+                  {term.name} {term.available ? "(terpasang)" : "(tidak terdeteksi)"}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </section>
 

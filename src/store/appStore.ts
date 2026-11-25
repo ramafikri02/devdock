@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import {
   type AppBootstrapInfo,
+  type DesktopToolSettings,
   type EnvPreset,
+  type GitStatusInfo,
   type GlobalStorageSummary,
   type MetricsSnapshot,
   type PackageManager,
@@ -15,8 +17,10 @@ import {
   assignNextFreePort as apiAssignNextFreePort,
   attachFolderToProject,
   cleanProjectBuildCaches as apiCleanProjectBuildCaches,
+  getAllServicesGitInfo,
   getBootstrapInfo,
   getCachedGlobalStorage,
+  getDesktopToolSettings,
   getMetricsSnapshot,
   getProxyStatus,
   inspectListeningPorts,
@@ -97,11 +101,16 @@ interface AppState {
   portsLoading: boolean;
   metrics: MetricsSnapshot | null;
   proxyStatus: ProxyStatus | null;
+  gitInfoByService: Record<string, GitStatusInfo>;
+  toolSettings: DesktopToolSettings | null;
   orchestrationSteps: Record<string, Record<string, ProjectOrchestrationStep>>;
   orchestratingProjectIds: Record<string, boolean>;
 
   init: () => Promise<void>;
   loadProjects: () => Promise<void>;
+  loadGitInfo: () => Promise<void>;
+  loadToolSettings: () => Promise<void>;
+  setToolSettings: (settings: DesktopToolSettings) => void;
   loadPresets: () => Promise<void>;
   loadProcesses: () => Promise<void>;
   refreshPorts: () => Promise<void>;
@@ -217,22 +226,36 @@ export const useAppStore = create<AppState>((set, get) => ({
   portsLoading: false,
   metrics: null,
   proxyStatus: null,
+  gitInfoByService: {},
+  toolSettings: null,
   orchestrationSteps: {},
   orchestratingProjectIds: {},
 
   init: async () => {
     try {
-      const [info, projects, presets, cachedStorage, procList, ports, metrics, proxyStatus] =
-        await Promise.all([
-          getBootstrapInfo(),
-          listProjects(),
-          listPresets(),
-          getCachedGlobalStorage(),
-          listProcesses(),
-          inspectListeningPorts(),
-          getMetricsSnapshot(),
-          getProxyStatus(),
-        ]);
+      const [
+        info,
+        projects,
+        presets,
+        cachedStorage,
+        procList,
+        ports,
+        metrics,
+        proxyStatus,
+        gitInfoByService,
+        toolSettings,
+      ] = await Promise.all([
+        getBootstrapInfo(),
+        listProjects(),
+        listPresets(),
+        getCachedGlobalStorage(),
+        listProcesses(),
+        inspectListeningPorts(),
+        getMetricsSnapshot(),
+        getProxyStatus(),
+        getAllServicesGitInfo(),
+        getDesktopToolSettings(),
+      ]);
       const theme: ThemeMode = info.theme === "light" ? "light" : "dark";
       applyThemeClass(theme);
       const processes: Record<string, ProcessInfo> = {};
@@ -249,6 +272,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         portSnapshot: ports,
         metrics,
         proxyStatus,
+        gitInfoByService,
+        toolSettings,
       });
       // Gently warm storage cache in the background when services exist
       if (projects.some((p) => p.services.length > 0)) {
@@ -361,6 +386,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const projects = await listProjects();
       set({ projects });
       void get().refreshGlobalStorage(false);
+      void get().loadGitInfo();
     } catch (err) {
       get().pushToast({
         title: "Gagal memuat daftar project",
@@ -368,6 +394,28 @@ export const useAppStore = create<AppState>((set, get) => ({
         variant: "danger",
       });
     }
+  },
+
+  loadGitInfo: async () => {
+    try {
+      const gitInfoByService = await getAllServicesGitInfo();
+      set({ gitInfoByService });
+    } catch {
+      // Non-fatal
+    }
+  },
+
+  loadToolSettings: async () => {
+    try {
+      const toolSettings = await getDesktopToolSettings();
+      set({ toolSettings });
+    } catch {
+      // Non-fatal
+    }
+  },
+
+  setToolSettings: (toolSettings) => {
+    set({ toolSettings });
   },
 
   refreshGlobalStorage: async (forceRefresh = false) => {
