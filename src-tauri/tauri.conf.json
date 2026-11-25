@@ -43,7 +43,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE5MEFBNUY5NkU2NEZFRkEKUldUNi9tUnUrYVVLR2VzR1BQcWZSMWFyUlJRTzl4SGFMbjU0elRqSWIwb1JnNFdJYUpqcjhuRFMK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE1N0MyODdFNTI1QkYyNDMKUldSRDhsdFNmaWg4cGRJaHFvV3ROVGtjYXNFUUMrZkpzYTVCZTBPQmwwMU8ydlFnK3JYRkI4TDkK",
       "endpoints": [
         "https://github.com/ramafikri02/devdock/releases/latest/download/latest.json"
       ]
