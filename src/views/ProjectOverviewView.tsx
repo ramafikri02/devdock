@@ -24,7 +24,9 @@ import {
   detachPresetFromProject,
   inspectProjectSharedEnv,
   reorderProjectPresets,
+  testProjectDbConnection,
 } from "@/lib/tauri";
+import { DbTestButton } from "@/components/workbench/DbTestButton";
 import { formatBytes } from "@/lib/format";
 import { useAppStore } from "@/store/appStore";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -435,6 +437,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                     <th className="px-4 py-2">Key</th>
                     <th className="px-4 py-2">Nilai</th>
                     <th className="px-4 py-2">Preset Sumber</th>
+                    <th className="px-4 py-2 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border text-[12.5px]">
@@ -464,6 +467,16 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                           <span className="ml-1.5 text-[10.5px] text-fg-faint">
                             (timpa {entry.overriddenSources.join(", ")})
                           </span>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        {entry.detectedDbKind ? (
+                          <DbTestButton
+                            envKey={entry.key}
+                            onTest={() =>
+                              testProjectDbConnection(project.id, entry.key)
+                            }
+                          />
                         ) : null}
                       </td>
                     </tr>

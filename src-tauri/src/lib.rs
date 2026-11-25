@@ -1,7 +1,8 @@
 use devdock_core::models::{
-    AppBootstrapInfo, AttachedPreset, EnvPreset, EnvWriteResult, GlobalStorageSummary,
-    PackageManager, PresetEntryInput, Project, ProjectEnvSummary, ProjectStorageSummary,
-    ScanResult, Service, ServiceEnvInspection, ServiceStorageReport, StorageCleanResult,
+    AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
+    GlobalStorageSummary, PackageManager, PresetEntryInput, Project, ProjectEnvSummary,
+    ProjectStorageSummary, ScanResult, Service, ServiceEnvInspection, ServiceStorageReport,
+    StorageCleanResult,
 };
 use devdock_core::secret_store::OsKeychainSecretStore;
 use devdock_core::traits::InMemoryNotifier;
@@ -389,6 +390,39 @@ fn inspect_project_shared_env(
 }
 
 #[tauri::command]
+async fn test_service_db_connection(
+    state: State<'_, AppState>,
+    service_id: String,
+    key: String,
+    mode: Option<String>,
+    value_override: Option<String>,
+) -> Result<DbTestResult, String> {
+    state
+        .core
+        .test_service_db_connection(
+            &service_id,
+            &key,
+            mode.as_deref(),
+            value_override.as_deref(),
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn test_project_db_connection(
+    state: State<'_, AppState>,
+    project_id: String,
+    key: String,
+) -> Result<DbTestResult, String> {
+    state
+        .core
+        .test_project_db_connection(&project_id, &key)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn analyze_service_storage(
     state: State<'_, AppState>,
     service_id: String,
@@ -535,6 +569,8 @@ pub fn run() {
             detach_preset_from_service,
             reorder_service_presets,
             inspect_project_shared_env,
+            test_service_db_connection,
+            test_project_db_connection,
             analyze_service_storage,
             analyze_project_storage,
             get_cached_global_storage,

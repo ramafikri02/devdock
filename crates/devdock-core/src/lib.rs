@@ -1,5 +1,6 @@
 pub mod adapter;
 pub mod db;
+pub mod db_tester;
 pub mod env_resolver;
 pub mod error;
 pub mod models;
@@ -13,13 +14,14 @@ pub mod traits;
 
 use crate::adapter::{AdapterRegistry, ProjectAdapter};
 use crate::db::Database;
+use crate::db_tester::{DbConnectionTester, DEFAULT_DB_TIMEOUT};
 use crate::env_resolver::EnvResolver;
 use crate::error::{CoreError, CoreResult};
 use crate::models::{
-    AppBootstrapInfo, AttachedPreset, EnvPreset, EnvWriteResult, GlobalStorageSummary,
-    PackageManager, PresetEntryInput, Project, ProjectEnvSummary, ProjectStorageSummary,
-    ScanResult, Service, ServiceDescriptor, ServiceEnvInspection, ServiceStorageReport,
-    StorageCleanResult,
+    AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
+    GlobalStorageSummary, PackageManager, PresetEntryInput, Project, ProjectEnvSummary,
+    ProjectStorageSummary, ScanResult, Service, ServiceDescriptor, ServiceEnvInspection,
+    ServiceStorageReport, StorageCleanResult,
 };
 use crate::presets::PresetStore;
 use crate::registry::ProjectRegistry;
@@ -390,6 +392,51 @@ impl DevDockCore {
     pub fn inspect_project_shared_env(&self, project_id: &str) -> CoreResult<ProjectEnvSummary> {
         self.get_project(project_id)?;
         self.presets().inspect_project_shared_env(project_id)
+    }
+
+    pub async fn test_db_connection(&self, key: &str, url: &str) -> DbTestResult {
+        DbConnectionTester::test_connection(key, url, DEFAULT_DB_TIMEOUT).await
+    }
+
+    pub async fn test_service_db_connection(
+        &self,
+        service_id: &str,
+        key: &str,
+        mode: Option<&str>,
+        value_override: Option<&str>,
+    ) -> CoreResult<DbTestResult> {
+        let url = match value_override {
+            Some(v) => v.to_string(),
+            None => {
+                let inspection = self.inspect_service_env(service_id, mode)?;
+                inspection
+                    .entries
+                    .into_iter()
+                    .find(|e| e.key == key)
+                    .map(|e| e.value)
+                    .ok_or_else(|| {
+                        CoreError::NotFound(format!("Env key '{key}' not found in service"))
+                    })?
+            }
+        };
+        Ok(DbConnectionTester::test_connection(key, &url, DEFAULT_DB_TIMEOUT).await)
+    }
+
+    pub async fn test_project_db_connection(
+        &self,
+        project_id: &str,
+        key: &str,
+    ) -> CoreResult<DbTestResult> {
+        let summary = self.inspect_project_shared_env(project_id)?;
+        let url = summary
+            .entries
+            .into_iter()
+            .find(|e| e.key == key)
+            .map(|e| e.value)
+            .ok_or_else(|| {
+                CoreError::NotFound(format!("Shared env key '{key}' not found in project"))
+            })?;
+        Ok(DbConnectionTester::test_connection(key, &url, DEFAULT_DB_TIMEOUT).await)
     }
 
     pub fn write_service_env(

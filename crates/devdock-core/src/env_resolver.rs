@@ -1,3 +1,4 @@
+use crate::db_tester::DbConnectionTester;
 use crate::error::{CoreError, CoreResult};
 use crate::models::{
     AttachedPreset, EnvFileInfo, EnvPreset, EnvWriteResult, MissingEnvKey, ResolvedEnvEntry,
@@ -345,6 +346,7 @@ impl EnvResolver {
                         layer_kind: layer_kind.clone(),
                         is_secret: *is_secret,
                         is_unknown,
+                        detected_db_kind: DbConnectionTester::detect_db_kind(key, value),
                         overridden_sources: overridden_sources.clone(),
                     }
                 },

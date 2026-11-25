@@ -106,6 +106,18 @@ export interface EnvFileInfo {
   keyCount: number;
 }
 
+export type DbKind = "postgres" | "mysql" | "mongodb" | "redis";
+
+export interface DbTestResult {
+  key: string;
+  kind: DbKind;
+  ok: boolean;
+  latencyMs: number;
+  serverInfo: string | null;
+  error: string | null;
+  displayTarget: string;
+}
+
 export interface ResolvedEnvEntry {
   key: string;
   value: string;
@@ -113,6 +125,7 @@ export interface ResolvedEnvEntry {
   layerKind: "shell" | "file" | "project_preset" | "service_preset" | "port" | string;
   isSecret: boolean;
   isUnknown: boolean;
+  detectedDbKind: DbKind | null;
   overriddenSources: string[];
 }
 
@@ -165,6 +178,7 @@ export interface ProjectPresetEnvEntry {
   value: string;
   source: string;
   isSecret: boolean;
+  detectedDbKind: DbKind | null;
   overriddenSources: string[];
 }
 
@@ -493,6 +507,30 @@ export async function inspectProjectSharedEnv(
   projectId: string,
 ): Promise<ProjectEnvSummary> {
   return invoke<ProjectEnvSummary>("inspect_project_shared_env", { projectId });
+}
+
+export async function testServiceDbConnection(
+  serviceId: string,
+  key: string,
+  mode?: string,
+  valueOverride?: string,
+): Promise<DbTestResult> {
+  return invoke<DbTestResult>("test_service_db_connection", {
+    serviceId,
+    key,
+    mode: mode ?? null,
+    valueOverride: valueOverride ?? null,
+  });
+}
+
+export async function testProjectDbConnection(
+  projectId: string,
+  key: string,
+): Promise<DbTestResult> {
+  return invoke<DbTestResult>("test_project_db_connection", {
+    projectId,
+    key,
+  });
 }
 
 export async function analyzeServiceStorage(

@@ -22,9 +22,11 @@ import {
   detachPresetFromService,
   inspectServiceEnv,
   reorderServicePresets,
+  testServiceDbConnection,
   updateServiceEnvKey,
   writeServiceEnv,
 } from "@/lib/tauri";
+import { DbTestButton } from "@/components/workbench/DbTestButton";
 import { useAppStore } from "@/store/appStore";
 import { cn } from "@/lib/cn";
 
@@ -724,26 +726,41 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                       ) : null}
                     </td>
                     <td className="px-3.5 py-2 text-right align-middle">
-                      <button
-                        type="button"
-                        disabled={!isDirty}
-                        onClick={() =>
-                          void handleSaveSingleKey(
-                            entry.key,
-                            entry.layerKind === "file" ? entry.source : ".env.local",
-                            draftVal,
-                          )
-                        }
-                        title={
-                          entry.layerKind === "file"
-                            ? `Simpan perubahan ke ${entry.source}`
-                            : "Simpan sebagai override ke .env.local"
-                        }
-                        className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] border border-border-strong bg-surface-2 px-2 text-[11.5px] font-medium text-fg hover:bg-surface-hover disabled:opacity-35"
-                      >
-                        <Save className="h-3 w-3" aria-hidden="true" />
-                        <span>Simpan</span>
-                      </button>
+                      <div className="inline-flex items-start justify-end gap-1.5">
+                        {entry.detectedDbKind ? (
+                          <DbTestButton
+                            envKey={entry.key}
+                            onTest={() =>
+                              testServiceDbConnection(
+                                service.id,
+                                entry.key,
+                                mode,
+                                isDirty ? draftVal : undefined,
+                              )
+                            }
+                          />
+                        ) : null}
+                        <button
+                          type="button"
+                          disabled={!isDirty}
+                          onClick={() =>
+                            void handleSaveSingleKey(
+                              entry.key,
+                              entry.layerKind === "file" ? entry.source : ".env.local",
+                              draftVal,
+                            )
+                          }
+                          title={
+                            entry.layerKind === "file"
+                              ? `Simpan perubahan ke ${entry.source}`
+                              : "Simpan sebagai override ke .env.local"
+                          }
+                          className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] border border-border-strong bg-surface-2 px-2 text-[11.5px] font-medium text-fg hover:bg-surface-hover disabled:opacity-35"
+                        >
+                          <Save className="h-3 w-3" aria-hidden="true" />
+                          <span>Simpan</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

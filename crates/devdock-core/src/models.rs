@@ -194,6 +194,38 @@ pub struct EnvFileInfo {
     pub key_count: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DbKind {
+    Postgres,
+    Mysql,
+    Mongodb,
+    Redis,
+}
+
+impl DbKind {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Postgres => "PostgreSQL",
+            Self::Mysql => "MySQL",
+            Self::Mongodb => "MongoDB",
+            Self::Redis => "Redis",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DbTestResult {
+    pub key: String,
+    pub kind: DbKind,
+    pub ok: bool,
+    pub latency_ms: u64,
+    pub server_info: Option<String>,
+    pub error: Option<String>,
+    pub display_target: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolvedEnvEntry {
@@ -203,6 +235,7 @@ pub struct ResolvedEnvEntry {
     pub layer_kind: String,
     pub is_secret: bool,
     pub is_unknown: bool,
+    pub detected_db_kind: Option<DbKind>,
     pub overridden_sources: Vec<String>,
 }
 
@@ -269,6 +302,7 @@ pub struct ProjectPresetEnvEntry {
     pub value: String,
     pub source: String,
     pub is_secret: bool,
+    pub detected_db_kind: Option<DbKind>,
     pub overridden_sources: Vec<String>,
 }
 

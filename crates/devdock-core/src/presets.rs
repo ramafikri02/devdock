@@ -1,4 +1,5 @@
 use crate::db::Database;
+use crate::db_tester::DbConnectionTester;
 use crate::env_resolver::EnvResolver;
 use crate::error::{CoreError, CoreResult};
 use crate::models::{
@@ -622,6 +623,7 @@ impl<'a> PresetStore<'a> {
             .into_iter()
             .map(
                 |(key, (value, source, is_secret, overridden_sources))| ProjectPresetEnvEntry {
+                    detected_db_kind: DbConnectionTester::detect_db_kind(&key, &value),
                     key,
                     value,
                     source,
