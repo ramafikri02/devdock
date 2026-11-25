@@ -1,5 +1,4 @@
 import { useEffect, useMemo } from "react";
-import { Network } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { CommandPaletteModal } from "@/components/ui/CommandPaletteModal";
 import { AddProjectModal } from "@/components/projects/AddProjectModal";
@@ -7,10 +6,10 @@ import { ScanFolderModal } from "@/components/projects/ScanFolderModal";
 import { SidebarProjects } from "@/components/projects/SidebarProjects";
 import { OverviewView } from "@/views/OverviewView";
 import { SettingsView } from "@/views/SettingsView";
-import { PlaceholderView } from "@/views/PlaceholderView";
 import { ServiceWorkbenchView } from "@/views/ServiceWorkbenchView";
 import { ProjectOverviewView } from "@/views/ProjectOverviewView";
 import { EnvPresetsView } from "@/views/EnvPresetsView";
+import { PortInspectorView } from "@/views/PortInspectorView";
 import { onProcessStatus, onProjectsChanged } from "@/lib/tauri";
 import { useAppStore } from "@/store/appStore";
 
@@ -18,6 +17,7 @@ export default function App() {
   const init = useAppStore((s) => s.init);
   const loadProjects = useAppStore((s) => s.loadProjects);
   const upsertProcess = useAppStore((s) => s.upsertProcess);
+  const refreshPorts = useAppStore((s) => s.refreshPorts);
   const projects = useAppStore((s) => s.projects);
   const route = useAppStore((s) => s.route);
   const setRoute = useAppStore((s) => s.setRoute);
@@ -39,6 +39,7 @@ export default function App() {
     });
     void onProcessStatus((info) => {
       upsertProcess(info);
+      void refreshPorts();
     }).then((fn) => {
       unlistenProcess = fn;
     });
@@ -46,7 +47,7 @@ export default function App() {
       if (unlistenProjects) unlistenProjects();
       if (unlistenProcess) unlistenProcess();
     };
-  }, [loadProjects, upsertProcess]);
+  }, [loadProjects, upsertProcess, refreshPorts]);
 
   const totalServices = useMemo(
     () => projects.reduce((sum, p) => sum + p.services.length, 0),
@@ -102,14 +103,7 @@ export default function App() {
           />
         );
       case "ports":
-        return (
-          <PlaceholderView
-            title="Port Inspector"
-            description="Daftar semua port aktif dan resolusi bentrok port akan hadir di Wave 4."
-            waveLabel="Wave 4"
-            icon={Network}
-          />
-        );
+        return <PortInspectorView />;
       case "presets":
         return <EnvPresetsView />;
       case "settings":

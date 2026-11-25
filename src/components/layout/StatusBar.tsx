@@ -6,6 +6,8 @@ export function StatusBar() {
   const logDrawerOpen = useAppStore((s) => s.logDrawerOpen);
   const toggleLogDrawer = useAppStore((s) => s.toggleLogDrawer);
   const processes = useAppStore((s) => s.processes);
+  const portConflictCount = useAppStore((s) => s.portSnapshot?.conflictCount ?? 0);
+  const setRoute = useAppStore((s) => s.setRoute);
 
   const procList = Object.values(processes);
   const runningCount = procList.filter(
@@ -32,6 +34,18 @@ export function StatusBar() {
             <span className="h-2 w-2 rounded-full bg-danger" aria-hidden="true" />
             <span className="font-mono tabular-nums">{crashedCount} crash</span>
           </span>
+        ) : null}
+        {portConflictCount > 0 ? (
+          <button
+            type="button"
+            onClick={() => setRoute({ kind: "ports" })}
+            className="flex items-center gap-1.5 rounded px-1 text-warn hover:bg-warn-soft"
+          >
+            <span className="h-2 w-2 rounded-full bg-warn" aria-hidden="true" />
+            <span className="font-mono tabular-nums">
+              {portConflictCount} bentrok port
+            </span>
+          </button>
         ) : null}
       </div>
 

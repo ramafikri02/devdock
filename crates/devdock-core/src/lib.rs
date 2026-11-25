@@ -5,6 +5,7 @@ pub mod env_resolver;
 pub mod error;
 pub mod log_buffer;
 pub mod models;
+pub mod ports;
 pub mod presets;
 pub mod process_manager;
 pub mod registry;
@@ -24,10 +25,12 @@ use crate::log_buffer::DEFAULT_LOG_CAPACITY;
 use crate::models::{
     AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
     GlobalStorageSummary, LogExportScope, LogLine, NodeInstallProgress, NodeInstallResult,
-    PackageManager, PresetEntryInput, ProcessInfo, Project, ProjectEnvSummary,
-    ProjectStorageSummary, ScanResult, Service, ServiceDescriptor, ServiceEnvInspection,
-    ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
+    PackageManager, PortCheckResult, PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput,
+    ProcessInfo, Project, ProjectEnvSummary, ProjectStorageSummary, ScanResult, Service,
+    ServiceDescriptor, ServiceEnvInspection, ServiceNodeRuntime, ServiceStorageReport,
+    StorageCleanResult,
 };
+use crate::ports::PortManager;
 use crate::presets::PresetStore;
 use crate::process_manager::{
     ProcessEventListener, ProcessManager, DEFAULT_STOP_GRACE_PERIOD,
@@ -220,6 +223,142 @@ impl DevDockCore {
 
     pub fn set_service_port(&self, service_id: &str, port: Option<u16>) -> CoreResult<Service> {
         self.registry().set_service_port(service_id, port)
+    }
+
+    pub fn set_service_port_injection(
+        &self,
+        service_id: &str,
+        method: Option<PortInjectionMethod>,
+    ) -> CoreResult<Service> {
+        self.registry()
+            .set_service_port_injection(service_id, method)
+    }
+
+    pub fn ensure_service_port(&self, service_id: &str) -> CoreResult<u16> {
+        self.registry().ensure_service_port(service_id)
+    }
+
+    pub fn check_service_port(&self, service_id: &str) -> CoreResult<PortCheckResult> {
+        let service = self.get_service(service_id)?;
+        let port = match service.port {
+            Some(p) => p,
+            None => self
+                .adapters
+                .get(&service.adapter)
+                .map(|a| a.port_strategy(&service.detected_framework).default_port)
+                .unwrap_or(3000),
+        };
+        let all_services: Vec<Service> = self
+            .list_projects()?
+            .into_iter()
+            .flat_map(|p| p.services)
+            .collect();
+        let processes = self.list_processes();
+        PortManager::check_service_port(&service, port, &all_services, &processes)
+    }
+
+    pub fn assign_next_free_port(&self, service_id: &str) -> CoreResult<Service> {
+        let service = self.get_service(service_id)?;
+        let all_services: Vec<Service> = self
+            .list_projects()?
+            .into_iter()
+            .flat_map(|p| p.services)
+            .collect();
+        let reserved: std::collections::HashSet<u16> = all_services
+            .iter()
+            .filter(|s| s.id != service.id)
+            .filter_map(|s| s.port)
+            .collect();
+        let base = service
+            .port
+            .map(|p| p.saturating_add(1))
+            .unwrap_or_else(|| {
+                self.adapters
+                    .get(&service.adapter)
+                    .map(|a| a.port_strategy(&service.detected_framework).default_port)
+                    .unwrap_or(3000)
+            });
+        let next = PortManager::find_next_free_port(base, &reserved).ok_or_else(|| {
+            CoreError::Adapter("No free local TCP port available".to_string())
+        })?;
+        self.set_service_port(service_id, Some(next))
+    }
+
+    pub fn inspect_listening_ports(&self) -> CoreResult<PortInspectorSnapshot> {
+        let all_services: Vec<Service> = self
+            .list_projects()?
+            .into_iter()
+            .flat_map(|p| p.services)
+            .collect();
+        let processes = self.list_processes();
+        PortManager::inspect_listening_ports(&all_services, &processes)
+    }
+
+    pub fn kill_port_owner(&self, pid: u32) -> CoreResult<()> {
+        // If this PID belongs to an active DevDock process, stop it cleanly via ProcessManager
+        if let Some(proc) = self
+            .list_processes()
+            .into_iter()
+            .find(|p| p.status.is_active() && p.pid == Some(pid))
+        {
+            self.stop_process(&proc.id)?;
+            return Ok(());
+        }
+        PortManager::kill_pid(pid)
+    }
+
+    pub fn preview_service_run_spec(
+        &self,
+        service_id: &str,
+        script: &str,
+    ) -> CoreResult<(crate::models::RunCommandSpec, std::collections::BTreeMap<String, String>)> {
+        let service = self.get_service(service_id)?;
+        let adapter = self.adapters.get(&service.adapter).ok_or_else(|| {
+            CoreError::Adapter(format!("Unknown adapter '{}'", service.adapter))
+        })?;
+        let mut env_map = self.resolve_service_runtime_env(service_id, None)?;
+        let base_path = env_map
+            .get("PATH")
+            .cloned()
+            .filter(|p| !p.is_empty())
+            .unwrap_or_else(|| self.shell_env.get_path().unwrap_or_default());
+
+        let runtime_bin_dir = self
+            .runtime
+            .resolve_runtime_bin_dir(&service, &base_path)
+            .ok()
+            .flatten();
+
+        if let Some(bin_dir) = &runtime_bin_dir {
+            let updated_path = prepend_dir_to_path(bin_dir, &base_path);
+            env_map.insert("PATH".to_string(), updated_path);
+        } else if !env_map.contains_key("PATH") && !base_path.is_empty() {
+            env_map.insert("PATH".to_string(), base_path);
+        }
+
+        let mut spec = adapter.build_run_command(&service, script, runtime_bin_dir.as_deref())?;
+
+        if let Some(port) = service.port {
+            let strategy = adapter.port_strategy(&service.detected_framework);
+            let method = service
+                .port_injection
+                .clone()
+                .unwrap_or(strategy.method);
+            let pm = service
+                .pm_override
+                .as_ref()
+                .unwrap_or(&service.detected_pm);
+            PortManager::apply_port_injection(
+                &mut spec,
+                &mut env_map,
+                pm,
+                port,
+                method,
+                strategy.flag_name.as_deref(),
+            );
+        }
+
+        Ok((spec, env_map))
     }
 
     pub fn set_service_node_version_override(
@@ -575,30 +714,7 @@ impl DevDockCore {
             )));
         }
 
-        let adapter = self.adapters.get(&service.adapter).ok_or_else(|| {
-            CoreError::Adapter(format!("Unknown adapter '{}'", service.adapter))
-        })?;
-        let mut env_map = self.resolve_service_runtime_env(service_id, None)?;
-        let base_path = env_map
-            .get("PATH")
-            .cloned()
-            .filter(|p| !p.is_empty())
-            .unwrap_or_else(|| self.shell_env.get_path().unwrap_or_default());
-
-        let runtime_bin_dir = self
-            .runtime
-            .resolve_runtime_bin_dir(&service, &base_path)
-            .ok()
-            .flatten();
-
-        if let Some(bin_dir) = &runtime_bin_dir {
-            let updated_path = prepend_dir_to_path(bin_dir, &base_path);
-            env_map.insert("PATH".to_string(), updated_path);
-        } else if !env_map.contains_key("PATH") && !base_path.is_empty() {
-            env_map.insert("PATH".to_string(), base_path);
-        }
-
-        let spec = adapter.build_run_command(&service, script, runtime_bin_dir.as_deref())?;
+        let (spec, env_map) = self.preview_service_run_spec(service_id, script)?;
 
         self.processes
             .spawn_script(&service, script, &spec, &env_map)

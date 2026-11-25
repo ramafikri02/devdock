@@ -8,11 +8,13 @@ import {
   HardDrive,
   Layers,
   Loader2,
+  Network,
   Package,
   Play,
   RefreshCw,
   RotateCw,
   Settings,
+  Skull,
   Square,
   Terminal,
   TerminalSquare,
@@ -22,14 +24,18 @@ import {
   FRAMEWORK_LABELS,
   type NodeVersionSource,
   type PackageManager,
+  type PortCheckResult,
+  type PortInjectionMethod,
   type ProcessInfo,
   type Project,
   type Service,
   type ServiceNodeRuntime,
   type ServiceStorageReport,
   analyzeServiceStorage,
+  checkServicePort,
   inspectServiceNodeRuntime,
   installNodeVersion,
+  killPortOwner,
   onNodeInstallProgress,
   pickFolderDialog,
 } from "@/lib/tauri";
@@ -64,6 +70,10 @@ export function ServiceWorkbenchView({
   const renameProject = useAppStore((s) => s.renameProject);
   const setPmOverride = useAppStore((s) => s.setPmOverride);
   const setNodeVersionOverride = useAppStore((s) => s.setNodeVersionOverride);
+  const setServicePort = useAppStore((s) => s.setServicePort);
+  const setServicePortInjection = useAppStore((s) => s.setServicePortInjection);
+  const assignNextFreePort = useAppStore((s) => s.assignNextFreePort);
+  const refreshPorts = useAppStore((s) => s.refreshPorts);
   const relocateService = useAppStore((s) => s.relocateService);
   const removeService = useAppStore((s) => s.removeService);
   const removeProject = useAppStore((s) => s.removeProject);
@@ -91,17 +101,30 @@ export function ServiceWorkbenchView({
   );
   const [installingNode, setInstallingNode] = useState(false);
   const [installProgressLine, setInstallProgressLine] = useState<string | null>(null);
+  const [portInput, setPortInput] = useState(
+    service.port !== null ? String(service.port) : "",
+  );
+  const [portConflict, setPortConflict] = useState<{
+    scriptName: string;
+    check: PortCheckResult;
+  } | null>(null);
+  const [confirmKillConflictPid, setConfirmKillConflictPid] = useState<number | null>(
+    null,
+  );
 
   useEffect(() => {
     setServiceNameInput(service.name);
     setProjectNameInput(project.name);
     setRelocateInput(service.path);
     setNodeOverrideInput(service.nodeVersionOverride ?? "");
+    setPortInput(service.port !== null ? String(service.port) : "");
+    setPortConflict(null);
   }, [
     service.id,
     service.name,
     service.path,
     service.nodeVersionOverride,
+    service.port,
     project.name,
   ]);
 
@@ -186,9 +209,18 @@ export function ServiceWorkbenchView({
       ? service.defaultScript
       : scriptEntries[0]?.[0]) ?? null;
 
-  const handleRunScript = async (scriptName: string) => {
+  const handleRunScript = async (scriptName: string, skipPortCheck = false) => {
     setBusyAction(`run:${scriptName}`);
     try {
+      if (!skipPortCheck && service.port !== null) {
+        const check = await checkServicePort(service.id);
+        const ownedBySelf = check.owner?.devdockServiceId === service.id;
+        if (!check.isAvailable && !ownedBySelf) {
+          setPortConflict({ scriptName, check });
+          return;
+        }
+      }
+      setPortConflict(null);
       await runScript(service.id, scriptName);
     } catch (err) {
       pushToast({
@@ -199,6 +231,71 @@ export function ServiceWorkbenchView({
     } finally {
       setBusyAction(null);
     }
+  };
+
+  const handleResolveConflictUseNextPort = async () => {
+    if (!portConflict?.check.suggestedPort) return;
+    const { scriptName, check } = portConflict;
+    const nextPort = check.suggestedPort!;
+    setBusyAction(`resolve:${scriptName}`);
+    try {
+      await setServicePort(service.id, nextPort);
+      setPortConflict(null);
+      await runScript(service.id, scriptName);
+    } catch (err) {
+      pushToast({
+        title: "Gagal mengganti port dan menjalankan script",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleResolveConflictKillPid = async (pid: number) => {
+    const scriptName = portConflict?.scriptName;
+    setConfirmKillConflictPid(null);
+    setBusyAction(`kill:${pid}`);
+    try {
+      await killPortOwner(pid);
+      await refreshPorts();
+      pushToast({
+        title: `Proses PID ${pid} berhasil dihentikan`,
+        variant: "success",
+      });
+      setPortConflict(null);
+      if (scriptName) {
+        await runScript(service.id, scriptName);
+      }
+    } catch (err) {
+      pushToast({
+        title: `Gagal menghentikan PID ${pid}`,
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleSavePort = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = portInput.trim();
+    if (!trimmed) {
+      await setServicePort(service.id, null);
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isInteger(parsed) || parsed < 1024 || parsed > 65535) {
+      pushToast({
+        title: "Port tidak valid",
+        description: "Masukkan angka port antara 1024 hingga 65535.",
+        variant: "warn",
+      });
+      return;
+    }
+    await setServicePort(service.id, parsed);
   };
 
   const handleStopProcess = async (processId: string) => {
@@ -436,6 +533,12 @@ export function ServiceWorkbenchView({
                     </span>
                   </span>
                 ) : null}
+                {service.port !== null ? (
+                  <span className="inline-flex items-center gap-1 rounded-[6px] bg-surface-2 px-2 py-0.5 font-mono text-[11.5px] text-info tabular-nums">
+                    <Network className="h-3 w-3" aria-hidden="true" />
+                    :{service.port}
+                  </span>
+                ) : null}
                 <span className="truncate font-mono text-[11.5px] text-fg-faint select-text">
                   {service.path}
                 </span>
@@ -568,6 +671,80 @@ export function ServiceWorkbenchView({
                   </span>
                 </button>
               ) : null}
+            </div>
+          ) : null}
+
+          {/* Inline port conflict resolution card */}
+          {portConflict ? (
+            <div
+              role="alert"
+              className="rounded-[10px] border border-warn/50 bg-warn-soft p-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle
+                    className="mt-0.5 h-4 w-4 shrink-0 text-warn"
+                    aria-hidden="true"
+                  />
+                  <div>
+                    <p className="text-[13px] font-semibold text-fg">
+                      Bentrok Port :{portConflict.check.port} sebelum menjalankan{" "}
+                      <span className="font-mono">{portConflict.scriptName}</span>
+                    </p>
+                    <p className="mt-0.5 text-[12px] text-fg-muted">
+                      {portConflict.check.owner ? (
+                        <>
+                          Sedang dipakai oleh{" "}
+                          <span className="font-mono font-medium text-fg">
+                            {portConflict.check.owner.processName}
+                          </span>{" "}
+                          (PID{" "}
+                          <span className="font-mono tabular-nums text-fg">
+                            {portConflict.check.owner.pid}
+                          </span>
+                          ).
+                        </>
+                      ) : (
+                        "Port sedang dipakai oleh proses lain di mesin lokal."
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {portConflict.check.suggestedPort ? (
+                    <button
+                      type="button"
+                      disabled={busyAction !== null}
+                      onClick={() => void handleResolveConflictUseNextPort()}
+                      className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
+                    >
+                      <Network className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>Pakai :{portConflict.check.suggestedPort}</span>
+                    </button>
+                  ) : null}
+                  {portConflict.check.owner ? (
+                    <button
+                      type="button"
+                      disabled={busyAction !== null}
+                      onClick={() =>
+                        setConfirmKillConflictPid(portConflict.check.owner!.pid)
+                      }
+                      className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-danger-solid px-3 text-[12px] font-semibold text-white hover:opacity-95 disabled:opacity-50"
+                    >
+                      <Skull className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>Kill PID {portConflict.check.owner.pid}</span>
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setPortConflict(null)}
+                    className="btn-press flex h-8 items-center rounded-[7px] border border-border-strong bg-surface px-3 text-[12px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
             </div>
           ) : null}
 
@@ -1043,6 +1220,64 @@ export function ServiceWorkbenchView({
                 ) : null}
               </form>
 
+              {/* Port & Injection Method */}
+              <form
+                onSubmit={(e) => void handleSavePort(e)}
+                className="rounded-[10px] border border-border bg-surface p-4"
+              >
+                <label
+                  htmlFor="service-port-input"
+                  className="block text-[13px] font-semibold text-fg"
+                >
+                  Port & Metode Injeksi
+                </label>
+                <p className="mt-0.5 text-[12px] text-fg-muted">
+                  Port persisten disuntikkan otomatis sesuai framework ({FRAMEWORK_LABELS[service.detectedFramework]}).
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <input
+                    id="service-port-input"
+                    type="number"
+                    min={1024}
+                    max={65535}
+                    value={portInput}
+                    onChange={(e) => setPortInput(e.target.value)}
+                    placeholder="Auto (default framework)"
+                    className="h-8 w-44 rounded-[7px] border border-border-strong bg-surface-2 px-2.5 font-mono text-[12.5px] text-fg tabular-nums"
+                  />
+                  <select
+                    aria-label="Metode injeksi port"
+                    value={service.portInjection ?? "auto"}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      void setServicePortInjection(
+                        service.id,
+                        val === "auto" ? null : (val as PortInjectionMethod),
+                      );
+                    }}
+                    className="h-8 rounded-[7px] border border-border-strong bg-surface-2 px-2.5 text-[12.5px] text-fg"
+                  >
+                    <option value="auto">Injeksi: Auto (Framework)</option>
+                    <option value="env">PORT env var saja</option>
+                    <option value="flag">--port CLI flag saja</option>
+                    <option value="both">PORT env + --port flag</option>
+                  </select>
+                  <button
+                    type="submit"
+                    className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg hover:bg-surface-hover"
+                  >
+                    Simpan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void assignNextFreePort(service.id)}
+                    className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface px-2.5 text-[12px] text-fg-2 hover:bg-surface-hover hover:text-fg"
+                  >
+                    Cari Port Kosong
+                  </button>
+                </div>
+              </form>
+
               {/* Relocate folder */}
               <form
                 onSubmit={(e) => void handleRelocateManual(e)}
@@ -1169,6 +1404,13 @@ export function ServiceWorkbenchView({
             </span>
           </div>
           <div className="flex items-center justify-between">
+            <span className="text-fg-muted">Port</span>
+            <span className="font-mono text-fg tabular-nums">
+              {service.port !== null ? `:${service.port}` : "auto"}
+              {service.portInjection ? ` (${service.portInjection})` : ""}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
             <span className="text-fg-muted">Total Scripts</span>
             <span className="font-mono text-fg tabular-nums">
               {scriptEntries.length}
@@ -1266,6 +1508,22 @@ export function ServiceWorkbenchView({
             void removeProject(project.id);
           } else if (target === "service") {
             void removeService(service.id);
+          }
+        }}
+      />
+      <ConfirmDialog
+        open={confirmKillConflictPid !== null}
+        title={
+          confirmKillConflictPid !== null
+            ? `Kill proses PID ${confirmKillConflictPid}?`
+            : ""
+        }
+        description="Proses pemilik port akan dihentikan (SIGTERM lalu SIGKILL) agar port dapat langsung digunakan oleh service ini."
+        confirmLabel="Kill & Jalankan"
+        onCancel={() => setConfirmKillConflictPid(null)}
+        onConfirm={() => {
+          if (confirmKillConflictPid !== null) {
+            void handleResolveConflictKillPid(confirmKillConflictPid);
           }
         }}
       />

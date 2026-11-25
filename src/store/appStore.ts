@@ -4,12 +4,16 @@ import {
   type EnvPreset,
   type GlobalStorageSummary,
   type PackageManager,
+  type PortInjectionMethod,
+  type PortInspectorSnapshot,
   type ProcessInfo,
   type Project,
   analyzeAllStorage,
+  assignNextFreePort as apiAssignNextFreePort,
   attachFolderToProject,
   getBootstrapInfo,
   getCachedGlobalStorage,
+  inspectListeningPorts,
   listPresets,
   listProcesses,
   listProjects,
@@ -27,6 +31,8 @@ import {
   setAppSetting,
   setServiceNodeVersionOverride,
   setServicePmOverride,
+  setServicePort as apiSetServicePort,
+  setServicePortInjection as apiSetServicePortInjection,
   stopProcess as apiStopProcess,
 } from "@/lib/tauri";
 
@@ -74,11 +80,14 @@ interface AppState {
   scanModalOpen: boolean;
   globalStorage: GlobalStorageSummary | null;
   storageLoading: boolean;
+  portSnapshot: PortInspectorSnapshot | null;
+  portsLoading: boolean;
 
   init: () => Promise<void>;
   loadProjects: () => Promise<void>;
   loadPresets: () => Promise<void>;
   loadProcesses: () => Promise<void>;
+  refreshPorts: () => Promise<void>;
   upsertProcess: (info: ProcessInfo) => void;
   runScript: (serviceId: string, script: string) => Promise<ProcessInfo>;
   stopProcess: (processId: string) => Promise<void>;
@@ -120,6 +129,12 @@ interface AppState {
   renameService: (serviceId: string, newName: string) => Promise<void>;
   setPmOverride: (serviceId: string, pm: PackageManager | null) => Promise<void>;
   setNodeVersionOverride: (serviceId: string, version: string | null) => Promise<void>;
+  setServicePort: (serviceId: string, port: number | null) => Promise<void>;
+  setServicePortInjection: (
+    serviceId: string,
+    method: PortInjectionMethod | null,
+  ) => Promise<void>;
+  assignNextFreePort: (serviceId: string) => Promise<number | null>;
   relocateService: (serviceId: string, newFolder: string) => Promise<void>;
   removeService: (serviceId: string) => Promise<void>;
   removeProject: (projectId: string) => Promise<void>;
@@ -160,15 +175,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   scanModalOpen: false,
   globalStorage: null,
   storageLoading: false,
+  portSnapshot: null,
+  portsLoading: false,
 
   init: async () => {
     try {
-      const [info, projects, presets, cachedStorage, procList] = await Promise.all([
+      const [info, projects, presets, cachedStorage, procList, ports] = await Promise.all([
         getBootstrapInfo(),
         listProjects(),
         listPresets(),
         getCachedGlobalStorage(),
         listProcesses(),
+        inspectListeningPorts(),
       ]);
       const theme: ThemeMode = info.theme === "light" ? "light" : "dark";
       applyThemeClass(theme);
@@ -183,6 +201,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         presets,
         processes,
         globalStorage: cachedStorage,
+        portSnapshot: ports,
       });
       // Gently warm storage cache in the background when services exist
       if (projects.some((p) => p.services.length > 0)) {
@@ -207,6 +226,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ processes: map });
     } catch {
       // Non-fatal
+    }
+  },
+
+  refreshPorts: async () => {
+    set({ portsLoading: true });
+    try {
+      const snapshot = await inspectListeningPorts();
+      set({ portSnapshot: snapshot });
+    } catch {
+      // Non-fatal
+    } finally {
+      set({ portsLoading: false });
     }
   },
 
@@ -476,6 +507,42 @@ export const useAppStore = create<AppState>((set, get) => ({
         : "Versi Node dikembalikan ke deteksi otomatis",
       variant: "success",
     });
+  },
+
+  setServicePort: async (serviceId, port) => {
+    await apiSetServicePort(serviceId, port);
+    await get().loadProjects();
+    void get().refreshPorts();
+    get().pushToast({
+      title: port
+        ? `Port service diatur ke :${port}`
+        : "Port service dikembalikan ke default",
+      variant: "success",
+    });
+  },
+
+  setServicePortInjection: async (serviceId, method) => {
+    await apiSetServicePortInjection(serviceId, method);
+    await get().loadProjects();
+    get().pushToast({
+      title: method
+        ? `Metode inject port diatur ke ${method}`
+        : "Metode inject port dikembalikan ke otomatis",
+      variant: "success",
+    });
+  },
+
+  assignNextFreePort: async (serviceId) => {
+    const updated = await apiAssignNextFreePort(serviceId);
+    await get().loadProjects();
+    void get().refreshPorts();
+    if (updated.port) {
+      get().pushToast({
+        title: `Port kosong :${updated.port} ditetapkan untuk ${updated.name}`,
+        variant: "success",
+      });
+    }
+    return updated.port;
   },
 
   relocateService: async (serviceId, newFolder) => {

@@ -70,6 +70,32 @@ impl<'a> ProjectRegistry<'a> {
         }
     }
 
+    fn port_injection_as_str(method: &PortInjectionMethod) -> &'static str {
+        match method {
+            PortInjectionMethod::Env => "env",
+            PortInjectionMethod::Flag => "flag",
+            PortInjectionMethod::Both => "both",
+        }
+    }
+
+    fn allocate_port_in_conn(
+        conn: &rusqlite::Connection,
+        default_port: u16,
+    ) -> CoreResult<u16> {
+        let mut stmt = conn.prepare("SELECT port FROM service WHERE port IS NOT NULL")?;
+        let reserved: std::collections::HashSet<u16> = stmt
+            .query_map([], |row| row.get::<_, i64>(0))?
+            .filter_map(Result::ok)
+            .filter_map(|p| u16::try_from(p).ok())
+            .collect();
+
+        let mut candidate = default_port.max(1024);
+        while reserved.contains(&candidate) && candidate < 65535 {
+            candidate += 1;
+        }
+        Ok(candidate)
+    }
+
     fn hydrate_service(&self, row: ServiceRow) -> Service {
         let folder = PathBuf::from(&row.path);
         let pm_override = row.pm_override.as_deref().and_then(PackageManager::parse);
@@ -629,6 +655,48 @@ impl<'a> ProjectRegistry<'a> {
         }
 
         self.get_service(service_id)
+    }
+
+    pub fn set_service_port_injection(
+        &self,
+        service_id: &str,
+        method: Option<PortInjectionMethod>,
+    ) -> CoreResult<Service> {
+        let now = Utc::now().to_rfc3339();
+        let method_str = method.as_ref().map(Self::port_injection_as_str);
+
+        let affected = self.db.with_conn(|conn| {
+            let count = conn.execute(
+                "UPDATE service SET port_injection = ?1, updated_at = ?2 WHERE id = ?3",
+                params![method_str, now, service_id],
+            )?;
+            Ok(count)
+        })?;
+
+        if affected == 0 {
+            return Err(CoreError::NotFound(format!(
+                "Service not found: {service_id}"
+            )));
+        }
+
+        self.get_service(service_id)
+    }
+
+    pub fn ensure_service_port(&self, service_id: &str) -> CoreResult<u16> {
+        let svc = self.get_service(service_id)?;
+        if let Some(port) = svc.port {
+            return Ok(port);
+        }
+        let default_port = self
+            .adapters
+            .get(&svc.adapter)
+            .map(|a| a.port_strategy(&svc.detected_framework).default_port)
+            .unwrap_or(3000);
+        let allocated = self
+            .db
+            .with_conn(|conn| Self::allocate_port_in_conn(conn, default_port))?;
+        self.set_service_port(service_id, Some(allocated))?;
+        Ok(allocated)
     }
 
     pub fn set_service_node_version_override(

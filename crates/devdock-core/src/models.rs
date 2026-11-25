@@ -529,3 +529,46 @@ pub struct NodeInstallResult {
     pub manager: String,
     pub output_lines: Vec<String>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PortOwnerInfo {
+    pub pid: u32,
+    pub process_name: String,
+    pub devdock_process_id: Option<String>,
+    pub devdock_service_id: Option<String>,
+    pub devdock_service_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PortCheckResult {
+    pub service_id: String,
+    pub port: u16,
+    pub is_available: bool,
+    pub owner: Option<PortOwnerInfo>,
+    pub suggested_port: Option<u16>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListeningPortEntry {
+    pub port: u16,
+    pub address: String,
+    pub pid: u32,
+    pub process_name: String,
+    pub is_devdock: bool,
+    pub devdock_process_id: Option<String>,
+    pub devdock_service_id: Option<String>,
+    pub devdock_service_name: Option<String>,
+    pub is_conflict: bool,
+    pub conflict_service_id: Option<String>,
+    pub conflict_service_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PortInspectorSnapshot {
+    pub entries: Vec<ListeningPortEntry>,
+    pub conflict_count: usize,
+}

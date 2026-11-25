@@ -1,9 +1,9 @@
 use devdock_core::models::{
     AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
     GlobalStorageSummary, LogExportScope, LogLine, NodeInstallResult, PackageManager,
-    PresetEntryInput, ProcessEvent, ProcessInfo, Project, ProjectEnvSummary,
-    ProjectStorageSummary, ScanResult, Service, ServiceEnvInspection, ServiceNodeRuntime,
-    ServiceStorageReport, StorageCleanResult,
+    PortCheckResult, PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput, ProcessEvent,
+    ProcessInfo, Project, ProjectEnvSummary, ProjectStorageSummary, ScanResult, Service,
+    ServiceEnvInspection, ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
 };
 use devdock_core::secret_store::OsKeychainSecretStore;
 use devdock_core::traits::InMemoryNotifier;
@@ -169,6 +169,88 @@ fn set_service_node_version_override(
         .core
         .set_service_node_version_override(&service_id, version.as_deref())
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_service_port(
+    state: State<'_, AppState>,
+    service_id: String,
+    port: Option<u16>,
+) -> Result<Service, String> {
+    state
+        .core
+        .set_service_port(&service_id, port)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_service_port_injection(
+    state: State<'_, AppState>,
+    service_id: String,
+    method: Option<PortInjectionMethod>,
+) -> Result<Service, String> {
+    state
+        .core
+        .set_service_port_injection(&service_id, method)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn ensure_service_port(state: State<'_, AppState>, service_id: String) -> Result<u16, String> {
+    state
+        .core
+        .ensure_service_port(&service_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn check_service_port(
+    state: State<'_, AppState>,
+    service_id: String,
+) -> Result<PortCheckResult, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.check_service_port(&service_id)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn assign_next_free_port(
+    state: State<'_, AppState>,
+    service_id: String,
+) -> Result<Service, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.assign_next_free_port(&service_id)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn inspect_listening_ports(
+    state: State<'_, AppState>,
+) -> Result<PortInspectorSnapshot, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.inspect_listening_ports().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn kill_port_owner(state: State<'_, AppState>, pid: u32) -> Result<(), String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.kill_port_owner(pid).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -737,6 +819,13 @@ pub fn run() {
             rename_service,
             set_service_pm_override,
             set_service_node_version_override,
+            set_service_port,
+            set_service_port_injection,
+            ensure_service_port,
+            check_service_port,
+            assign_next_free_port,
+            inspect_listening_ports,
+            kill_port_owner,
             inspect_service_node_runtime,
             install_node_version,
             relocate_service,

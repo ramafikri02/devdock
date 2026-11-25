@@ -19,29 +19,38 @@ export function Sidebar({ projectsSlot }: SidebarProps) {
   const route = useAppStore((s) => s.route);
   const setRoute = useAppStore((s) => s.setRoute);
   const presetCount = useAppStore((s) => s.presets.length);
+  const processes = useAppStore((s) => s.processes);
+  const portConflictCount = useAppStore((s) => s.portSnapshot?.conflictCount ?? 0);
 
   if (!sidebarOpen) {
     return null;
   }
+
+  const runningCount = Object.values(processes).filter(
+    (p) => p.status === "running" || p.status === "starting",
+  ).length;
 
   const navItems = [
     {
       id: "overview" as const,
       label: "Overview",
       icon: LayoutGrid,
-      badge: "0",
+      badge: String(runningCount),
+      badgeTone: runningCount > 0 ? "bg-accent-soft text-accent" : "bg-surface-2 text-fg-muted",
     },
     {
       id: "ports" as const,
       label: "Port Inspector",
       icon: Network,
-      badge: null,
+      badge: portConflictCount > 0 ? String(portConflictCount) : null,
+      badgeTone: "bg-warn-soft text-warn",
     },
     {
       id: "presets" as const,
       label: "Env Presets",
       icon: KeyRound,
       badge: presetCount > 0 ? String(presetCount) : null,
+      badgeTone: "bg-surface-2 text-fg-muted",
     },
   ];
 
@@ -81,7 +90,12 @@ export function Sidebar({ projectsSlot }: SidebarProps) {
                     <span>{item.label}</span>
                   </span>
                   {item.badge !== null ? (
-                    <span className="rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-muted tabular-nums">
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 py-0.5 font-mono text-[11px] tabular-nums",
+                        item.badgeTone,
+                      )}
+                    >
                       {item.badge}
                     </span>
                   ) : null}

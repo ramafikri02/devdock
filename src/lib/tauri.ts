@@ -340,6 +340,43 @@ export interface NodeInstallResult {
   outputLines: string[];
 }
 
+export type PortInjectionMethod = "env" | "flag" | "both";
+
+export interface PortOwnerInfo {
+  pid: number;
+  processName: string;
+  devdockProcessId: string | null;
+  devdockServiceId: string | null;
+  devdockServiceName: string | null;
+}
+
+export interface PortCheckResult {
+  serviceId: string;
+  port: number;
+  isAvailable: boolean;
+  owner: PortOwnerInfo | null;
+  suggestedPort: number | null;
+}
+
+export interface ListeningPortEntry {
+  port: number;
+  address: string;
+  pid: number;
+  processName: string;
+  isDevdock: boolean;
+  devdockProcessId: string | null;
+  devdockServiceId: string | null;
+  devdockServiceName: string | null;
+  isConflict: boolean;
+  conflictServiceId: string | null;
+  conflictServiceName: string | null;
+}
+
+export interface PortInspectorSnapshot {
+  entries: ListeningPortEntry[];
+  conflictCount: number;
+}
+
 export function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
@@ -441,6 +478,54 @@ export async function setServiceNodeVersionOverride(
     serviceId,
     version: version?.trim() ? version.trim() : null,
   });
+}
+
+export async function setServicePort(
+  serviceId: string,
+  port: number | null,
+): Promise<Service> {
+  return invoke<Service>("set_service_port", { serviceId, port });
+}
+
+export async function setServicePortInjection(
+  serviceId: string,
+  method: PortInjectionMethod | null,
+): Promise<Service> {
+  return invoke<Service>("set_service_port_injection", { serviceId, method });
+}
+
+export async function ensureServicePort(serviceId: string): Promise<number> {
+  return invoke<number>("ensure_service_port", { serviceId });
+}
+
+export async function checkServicePort(
+  serviceId: string,
+): Promise<PortCheckResult> {
+  if (!isTauriRuntime()) {
+    return {
+      serviceId,
+      port: 3000,
+      isAvailable: true,
+      owner: null,
+      suggestedPort: null,
+    };
+  }
+  return invoke<PortCheckResult>("check_service_port", { serviceId });
+}
+
+export async function assignNextFreePort(serviceId: string): Promise<Service> {
+  return invoke<Service>("assign_next_free_port", { serviceId });
+}
+
+export async function inspectListeningPorts(): Promise<PortInspectorSnapshot> {
+  if (!isTauriRuntime()) {
+    return { entries: [], conflictCount: 0 };
+  }
+  return invoke<PortInspectorSnapshot>("inspect_listening_ports");
+}
+
+export async function killPortOwner(pid: number): Promise<void> {
+  await invoke("kill_port_owner", { pid });
 }
 
 export async function inspectServiceNodeRuntime(
