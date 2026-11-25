@@ -9,6 +9,7 @@ pub mod monitor;
 pub mod ports;
 pub mod presets;
 pub mod process_manager;
+pub mod proxy;
 pub mod registry;
 pub mod runtime;
 pub mod scanner;
@@ -25,19 +26,24 @@ use crate::error::{CoreError, CoreResult};
 use crate::log_buffer::DEFAULT_LOG_CAPACITY;
 use crate::models::{
     AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
-    GlobalStorageSummary, LogExportScope, LogLine, MetricsSnapshot, NodeInstallProgress,
-    NodeInstallResult, OrchestrationStepState, PackageManager, PortCheckResult,
-    PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput, ProcessEvent, ProcessInfo,
-    ProcessStatus, Project, ProjectAggregateStatus, ProjectEnvSummary,
+    GlobalStorageSummary, HostsSyncPreview, HostsSyncResult, LogExportScope, LogLine,
+    MetricsSnapshot, NodeInstallProgress, NodeInstallResult, OrchestrationStepState,
+    PackageManager, PortCheckResult, PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput,
+    ProcessEvent, ProcessInfo, ProcessStatus, Project, ProjectAggregateStatus, ProjectEnvSummary,
     ProjectOrchestrationResult, ProjectOrchestrationStep, ProjectStatusSummary,
-    ProjectStorageSummary, ScanResult, Service, ServiceDescriptor, ServiceEnvInspection,
-    ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult, StorageEntryKind,
+    ProjectStorageSummary, ProxyStatus, ScanResult, Service, ServiceDescriptor,
+    ServiceEnvInspection, ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
+    StorageEntryKind,
 };
 use crate::monitor::ResourceMonitor;
 use crate::ports::PortManager;
 use crate::presets::PresetStore;
 use crate::process_manager::{
     AutoRestartPolicy, ProcessEventListener, ProcessManager, DEFAULT_STOP_GRACE_PERIOD,
+};
+use crate::proxy::{
+    open_url_in_browser, preview_hosts_sync_at, sync_hosts_file_elevated, system_hosts_path,
+    LocalDomainProxy, DEFAULT_PROXY_FALLBACK_PORT, DEFAULT_PROXY_PREFERRED_PORT,
 };
 use crate::registry::ProjectRegistry;
 use crate::runtime::{prepend_dir_to_path, RuntimeResolver};
@@ -63,6 +69,7 @@ pub struct DevDockCore {
     processes: ProcessManager,
     runtime: RuntimeResolver,
     monitor: ResourceMonitor,
+    proxy: LocalDomainProxy,
 }
 
 impl DevDockCore {
@@ -88,6 +95,7 @@ impl DevDockCore {
             processes,
             runtime: RuntimeResolver::new(),
             monitor: ResourceMonitor::default(),
+            proxy: LocalDomainProxy::new(),
         })
     }
 
@@ -126,6 +134,7 @@ impl DevDockCore {
             processes,
             runtime: RuntimeResolver::new(),
             monitor: ResourceMonitor::default(),
+            proxy: LocalDomainProxy::new(),
         })
     }
 
@@ -149,6 +158,7 @@ impl DevDockCore {
             processes,
             runtime: RuntimeResolver::new(),
             monitor: ResourceMonitor::default(),
+            proxy: LocalDomainProxy::new(),
         })
     }
 
@@ -170,6 +180,7 @@ impl DevDockCore {
             processes,
             runtime: RuntimeResolver::new(),
             monitor: ResourceMonitor::default(),
+            proxy: LocalDomainProxy::new(),
         })
     }
 
@@ -1170,5 +1181,63 @@ impl DevDockCore {
     ) -> CoreResult<usize> {
         self.processes
             .export_logs_to_file(scope, path, filter, stderr_only, strip_ansi)
+    }
+
+    pub fn sync_proxy_routes(&self) -> CoreResult<ProxyStatus> {
+        let projects = self.list_projects()?;
+        let processes = self.list_processes();
+        self.proxy.set_routes_from_projects(&projects, &processes);
+        Ok(self.proxy.status())
+    }
+
+    pub fn get_proxy_status(&self) -> CoreResult<ProxyStatus> {
+        let enabled = self
+            .get_setting("proxy_enabled")?
+            .map(|v| v != "false")
+            .unwrap_or(true);
+        self.proxy.set_enabled_flag(enabled);
+        self.sync_proxy_routes()
+    }
+
+    pub fn start_proxy(&self) -> CoreResult<ProxyStatus> {
+        let _ = self.sync_proxy_routes()?;
+        self.proxy
+            .start(DEFAULT_PROXY_PREFERRED_PORT, DEFAULT_PROXY_FALLBACK_PORT)
+    }
+
+    pub fn start_proxy_on_port(&self, port: u16) -> CoreResult<ProxyStatus> {
+        let _ = self.sync_proxy_routes()?;
+        self.proxy.start(port, DEFAULT_PROXY_FALLBACK_PORT)
+    }
+
+    pub fn stop_proxy(&self) -> CoreResult<ProxyStatus> {
+        self.proxy.stop();
+        self.sync_proxy_routes()
+    }
+
+    pub fn set_proxy_enabled(&self, enabled: bool) -> CoreResult<ProxyStatus> {
+        self.set_setting("proxy_enabled", if enabled { "true" } else { "false" })?;
+        self.proxy.set_enabled_flag(enabled);
+        if enabled {
+            self.start_proxy()
+        } else {
+            self.stop_proxy()
+        }
+    }
+
+    pub fn preview_hosts_sync(&self) -> CoreResult<HostsSyncPreview> {
+        let status = self.sync_proxy_routes()?;
+        let domains: Vec<String> = status.routes.into_iter().map(|r| r.domain).collect();
+        preview_hosts_sync_at(&system_hosts_path(), &domains)
+    }
+
+    pub fn sync_etc_hosts(&self) -> CoreResult<HostsSyncResult> {
+        let status = self.sync_proxy_routes()?;
+        let domains: Vec<String> = status.routes.into_iter().map(|r| r.domain).collect();
+        sync_hosts_file_elevated(&domains)
+    }
+
+    pub fn open_external_url(&self, url: &str) -> CoreResult<()> {
+        open_url_in_browser(url)
     }
 }

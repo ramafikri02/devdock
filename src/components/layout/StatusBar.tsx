@@ -9,6 +9,7 @@ export function StatusBar() {
   const processes = useAppStore((s) => s.processes);
   const portConflictCount = useAppStore((s) => s.portSnapshot?.conflictCount ?? 0);
   const metrics = useAppStore((s) => s.metrics);
+  const proxyStatus = useAppStore((s) => s.proxyStatus);
   const setRoute = useAppStore((s) => s.setRoute);
 
   const procList = Object.values(processes);
@@ -83,10 +84,28 @@ export function StatusBar() {
           <span>{totalRam > 0 ? formatBytes(totalRam) : "0 MB"}</span>
         </span>
 
-        <span className="hidden items-center gap-1 font-mono text-fg-faint sm:flex">
+        <button
+          type="button"
+          onClick={() => setRoute({ kind: "settings" })}
+          title={
+            proxyStatus?.running
+              ? `Reverse proxy *.localhost aktif di port ${proxyStatus.boundPort}`
+              : "Buka pengaturan reverse proxy"
+          }
+          className={cn(
+            "hidden items-center gap-1 rounded px-1 font-mono sm:flex",
+            proxyStatus?.running
+              ? "text-info hover:bg-info-soft"
+              : "text-fg-faint hover:bg-surface-hover hover:text-fg",
+          )}
+        >
           <Globe className="h-3 w-3" aria-hidden="true" />
-          <span>proxy off</span>
-        </span>
+          <span>
+            {proxyStatus?.running && proxyStatus.boundPort
+              ? `proxy *.localhost :${proxyStatus.boundPort}`
+              : "proxy off"}
+          </span>
+        </button>
       </div>
     </footer>
   );

@@ -1,10 +1,11 @@
 use devdock_core::models::{
     AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
-    GlobalStorageSummary, LogExportScope, LogLine, MetricsSnapshot, NodeInstallResult,
-    PackageManager, PortCheckResult, PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput,
-    ProcessEvent, ProcessInfo, Project, ProjectEnvSummary, ProjectOrchestrationResult,
-    ProjectStatusSummary, ProjectStorageSummary, ScanResult, Service, ServiceEnvInspection,
-    ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
+    GlobalStorageSummary, HostsSyncPreview, HostsSyncResult, LogExportScope, LogLine,
+    MetricsSnapshot, NodeInstallResult, PackageManager, PortCheckResult, PortInjectionMethod,
+    PortInspectorSnapshot, PresetEntryInput, ProcessEvent, ProcessInfo, Project,
+    ProjectEnvSummary, ProjectOrchestrationResult, ProjectStatusSummary, ProjectStorageSummary,
+    ProxyStatus, ScanResult, Service, ServiceEnvInspection, ServiceNodeRuntime,
+    ServiceStorageReport, StorageCleanResult,
 };
 use devdock_core::monitor::DEFAULT_MONITOR_INTERVAL;
 use devdock_core::secret_store::OsKeychainSecretStore;
@@ -77,6 +78,12 @@ impl AppState {
             }
         }
     }
+
+    pub fn sync_proxy_and_emit(&self, app: &AppHandle) {
+        if let Ok(status) = self.core.sync_proxy_routes() {
+            let _ = app.emit("proxy:status", status);
+        }
+    }
 }
 
 #[tauri::command]
@@ -109,6 +116,7 @@ fn list_projects(state: State<'_, AppState>) -> Result<Vec<Project>, String> {
 
 #[tauri::command]
 fn register_folder_as_project(
+    app: AppHandle,
     state: State<'_, AppState>,
     folder: String,
     project_name: Option<String>,
@@ -118,11 +126,13 @@ fn register_folder_as_project(
         .register_folder_as_project(PathBuf::from(folder).as_path(), project_name.as_deref())
         .map_err(|e| e.to_string())?;
     state.sync_watchers();
+    state.sync_proxy_and_emit(&app);
     Ok(project)
 }
 
 #[tauri::command]
 fn attach_folder_to_project(
+    app: AppHandle,
     state: State<'_, AppState>,
     project_id: String,
     folder: String,
@@ -137,6 +147,7 @@ fn attach_folder_to_project(
         )
         .map_err(|e| e.to_string())?;
     state.sync_watchers();
+    state.sync_proxy_and_emit(&app);
     Ok(service)
 }
 
@@ -302,14 +313,17 @@ async fn clean_project_build_caches(
 
 #[tauri::command]
 fn set_service_port(
+    app: AppHandle,
     state: State<'_, AppState>,
     service_id: String,
     port: Option<u16>,
 ) -> Result<Service, String> {
-    state
+    let svc = state
         .core
         .set_service_port(&service_id, port)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    state.sync_proxy_and_emit(&app);
+    Ok(svc)
 }
 
 #[tauri::command]
@@ -348,16 +362,19 @@ async fn check_service_port(
 
 #[tauri::command]
 async fn assign_next_free_port(
+    app: AppHandle,
     state: State<'_, AppState>,
     service_id: String,
 ) -> Result<Service, String> {
     let core = Arc::clone(&state.core);
-    tauri::async_runtime::spawn_blocking(move || {
+    let svc = tauri::async_runtime::spawn_blocking(move || {
         core.assign_next_free_port(&service_id)
             .map_err(|e| e.to_string())
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    state.sync_proxy_and_emit(&app);
+    Ok(svc)
 }
 
 #[tauri::command]
@@ -432,22 +449,32 @@ fn relocate_service(
 }
 
 #[tauri::command]
-fn remove_service(state: State<'_, AppState>, service_id: String) -> Result<(), String> {
+fn remove_service(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    service_id: String,
+) -> Result<(), String> {
     state
         .core
         .remove_service(&service_id)
         .map_err(|e| e.to_string())?;
     state.sync_watchers();
+    state.sync_proxy_and_emit(&app);
     Ok(())
 }
 
 #[tauri::command]
-fn remove_project(state: State<'_, AppState>, project_id: String) -> Result<(), String> {
+fn remove_project(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<(), String> {
     state
         .core
         .remove_project(&project_id)
         .map_err(|e| e.to_string())?;
     state.sync_watchers();
+    state.sync_proxy_and_emit(&app);
     Ok(())
 }
 
@@ -468,6 +495,7 @@ async fn scan_folder(
 
 #[tauri::command]
 fn register_grouped_project(
+    app: AppHandle,
     state: State<'_, AppState>,
     project_name: String,
     folders: Vec<String>,
@@ -480,6 +508,7 @@ fn register_grouped_project(
         .register_grouped_project(&project_name, &paths, root_pb.as_deref())
         .map_err(|e| e.to_string())?;
     state.sync_watchers();
+    state.sync_proxy_and_emit(&app);
     Ok(project)
 }
 
@@ -877,6 +906,45 @@ fn export_logs_to_file(
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn get_proxy_status(state: State<'_, AppState>) -> Result<ProxyStatus, String> {
+    state.core.get_proxy_status().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn set_proxy_enabled(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<ProxyStatus, String> {
+    let core = Arc::clone(&state.core);
+    let status = tauri::async_runtime::spawn_blocking(move || {
+        core.set_proxy_enabled(enabled).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    let _ = app.emit("proxy:status", &status);
+    Ok(status)
+}
+
+#[tauri::command]
+fn preview_hosts_sync(state: State<'_, AppState>) -> Result<HostsSyncPreview, String> {
+    state.core.preview_hosts_sync().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn sync_etc_hosts(state: State<'_, AppState>) -> Result<HostsSyncResult, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || core.sync_etc_hosts().map_err(|e| e.to_string()))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn open_external_url(state: State<'_, AppState>, url: String) -> Result<(), String> {
+    state.core.open_external_url(&url).map_err(|e| e.to_string())
+}
+
 fn create_package_json_watcher(app_handle: AppHandle) -> Option<WatcherState> {
     let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
         if let Ok(event) = res {
@@ -918,9 +986,13 @@ pub fn run() {
             );
 
             let event_handle = app.handle().clone();
+            let event_core = Arc::clone(&core);
             core.subscribe_process_events(Arc::new(move |event| match event {
                 ProcessEvent::StatusChanged(info) => {
                     let _ = event_handle.emit("process:status", info);
+                    if let Ok(proxy_status) = event_core.sync_proxy_routes() {
+                        let _ = event_handle.emit("proxy:status", proxy_status);
+                    }
                 }
                 ProcessEvent::LogLine(line) => {
                     let _ = event_handle.emit("process:log", line);
@@ -938,6 +1010,19 @@ pub fn run() {
                     let _ = event_handle.emit("project:orchestration", step);
                 }
             }));
+
+            // Start *.localhost reverse proxy unless disabled in Settings
+            let proxy_enabled = core
+                .get_setting("proxy_enabled")
+                .ok()
+                .flatten()
+                .map(|v| v != "false")
+                .unwrap_or(true);
+            if proxy_enabled {
+                let _ = core.start_proxy();
+            } else {
+                let _ = core.get_proxy_status();
+            }
 
             // Background 2-second CPU/RAM process-tree sampler
             let monitor_core = Arc::clone(&core);
@@ -1029,6 +1114,11 @@ pub fn run() {
             clear_process_logs,
             clear_project_logs,
             export_logs_to_file,
+            get_proxy_status,
+            set_proxy_enabled,
+            preview_hosts_sync,
+            sync_etc_hosts,
+            open_external_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running DevDock Tauri application");

@@ -10,6 +10,7 @@ import {
   type ProcessInfo,
   type Project,
   type ProjectOrchestrationStep,
+  type ProxyStatus,
   analyzeAllStorage,
   assignNextFreePort as apiAssignNextFreePort,
   attachFolderToProject,
@@ -17,6 +18,7 @@ import {
   getBootstrapInfo,
   getCachedGlobalStorage,
   getMetricsSnapshot,
+  getProxyStatus,
   inspectListeningPorts,
   listPresets,
   listProcesses,
@@ -35,6 +37,7 @@ import {
   restartProjectAll as apiRestartProjectAll,
   runServiceScript as apiRunServiceScript,
   setAppSetting,
+  setProxyEnabled as apiSetProxyEnabled,
   setScriptAutoRestart as apiSetScriptAutoRestart,
   setServiceDefaultScript as apiSetServiceDefaultScript,
   setServiceNodeVersionOverride,
@@ -93,6 +96,7 @@ interface AppState {
   portSnapshot: PortInspectorSnapshot | null;
   portsLoading: boolean;
   metrics: MetricsSnapshot | null;
+  proxyStatus: ProxyStatus | null;
   orchestrationSteps: Record<string, Record<string, ProjectOrchestrationStep>>;
   orchestratingProjectIds: Record<string, boolean>;
 
@@ -102,6 +106,8 @@ interface AppState {
   loadProcesses: () => Promise<void>;
   refreshPorts: () => Promise<void>;
   setMetricsSnapshot: (snapshot: MetricsSnapshot) => void;
+  setProxyStatus: (status: ProxyStatus) => void;
+  setProxyEnabled: (enabled: boolean) => Promise<void>;
   upsertProcess: (info: ProcessInfo) => void;
   runScript: (serviceId: string, script: string) => Promise<ProcessInfo>;
   stopProcess: (processId: string) => Promise<void>;
@@ -210,20 +216,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   portSnapshot: null,
   portsLoading: false,
   metrics: null,
+  proxyStatus: null,
   orchestrationSteps: {},
   orchestratingProjectIds: {},
 
   init: async () => {
     try {
-      const [info, projects, presets, cachedStorage, procList, ports, metrics] = await Promise.all([
-        getBootstrapInfo(),
-        listProjects(),
-        listPresets(),
-        getCachedGlobalStorage(),
-        listProcesses(),
-        inspectListeningPorts(),
-        getMetricsSnapshot(),
-      ]);
+      const [info, projects, presets, cachedStorage, procList, ports, metrics, proxyStatus] =
+        await Promise.all([
+          getBootstrapInfo(),
+          listProjects(),
+          listPresets(),
+          getCachedGlobalStorage(),
+          listProcesses(),
+          inspectListeningPorts(),
+          getMetricsSnapshot(),
+          getProxyStatus(),
+        ]);
       const theme: ThemeMode = info.theme === "light" ? "light" : "dark";
       applyThemeClass(theme);
       const processes: Record<string, ProcessInfo> = {};
@@ -239,6 +248,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         globalStorage: cachedStorage,
         portSnapshot: ports,
         metrics,
+        proxyStatus,
       });
       // Gently warm storage cache in the background when services exist
       if (projects.some((p) => p.services.length > 0)) {
@@ -280,6 +290,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setMetricsSnapshot: (snapshot) => {
     set({ metrics: snapshot });
+  },
+
+  setProxyStatus: (proxyStatus) => {
+    set({ proxyStatus });
+  },
+
+  setProxyEnabled: async (enabled) => {
+    const status = await apiSetProxyEnabled(enabled);
+    set({ proxyStatus: status });
+    get().pushToast({
+      title: status.running
+        ? `Reverse proxy *.localhost aktif di :${status.boundPort}`
+        : "Reverse proxy *.localhost dimatikan",
+      variant: status.running ? "success" : "info",
+    });
   },
 
   upsertProcess: (info) => {

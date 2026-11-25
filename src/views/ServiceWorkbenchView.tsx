@@ -5,6 +5,7 @@ import {
   Download,
   FileCode2,
   FolderOpen,
+  Globe,
   HardDrive,
   Layers,
   Loader2,
@@ -37,6 +38,7 @@ import {
   installNodeVersion,
   killPortOwner,
   onNodeInstallProgress,
+  openExternalUrl,
   pickFolderDialog,
 } from "@/lib/tauri";
 import { formatBytes, formatDuration } from "@/lib/format";
@@ -83,6 +85,7 @@ export function ServiceWorkbenchView({
   const pushToast = useAppStore((s) => s.pushToast);
   const processes = useAppStore((s) => s.processes);
   const metrics = useAppStore((s) => s.metrics);
+  const proxyStatus = useAppStore((s) => s.proxyStatus);
   const runScript = useAppStore((s) => s.runScript);
   const stopProcess = useAppStore((s) => s.stopProcess);
   const restartProcess = useAppStore((s) => s.restartProcess);
@@ -205,6 +208,10 @@ export function ServiceWorkbenchView({
   const effectivePm = service.pmOverride ?? service.detectedPm;
   const scriptEntries = Object.entries(service.scripts);
   const isSingleServiceProject = project.services.length === 1;
+  const serviceProxyRoute = useMemo(
+    () => proxyStatus?.routes.find((r) => r.serviceId === service.id) ?? null,
+    [proxyStatus, service.id],
+  );
 
   const serviceProcesses = useMemo(
     () =>
@@ -588,6 +595,19 @@ export function ServiceWorkbenchView({
                     <Network className="h-3 w-3" aria-hidden="true" />
                     :{service.port}
                   </span>
+                ) : null}
+                {proxyStatus?.running &&
+                serviceProxyRoute &&
+                activeServiceProcesses.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => void openExternalUrl(serviceProxyRoute.url)}
+                    title={`Buka ${serviceProxyRoute.url}`}
+                    className="btn-press inline-flex items-center gap-1 rounded-[6px] border border-info/35 bg-info-soft px-2 py-0.5 font-mono text-[11.5px] font-medium text-info hover:opacity-90"
+                  >
+                    <Globe className="h-3 w-3" aria-hidden="true" />
+                    <span>{serviceProxyRoute.domain}</span>
+                  </button>
                 ) : null}
                 <span className="truncate font-mono text-[11.5px] text-fg-faint select-text">
                   {service.path}

@@ -45,8 +45,20 @@ fn samples_and_aggregates_real_child_spawning_process_tree() {
     let svc_id = &proj.services[0].id;
     let proc = core.run_service_script(svc_id, "dev").unwrap();
 
-    // Give shell a moment to spawn its 2 child `sleep` processes
-    std::thread::sleep(Duration::from_millis(250));
+    // Wait until the shell has spawned its 2 child `sleep` processes
+    let root_pid = proc.pid.expect("running process pid");
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    loop {
+        let stats = devdock_core::monitor::collect_os_process_stats();
+        let tree_len = stats
+            .iter()
+            .filter(|s| s.pid == root_pid || s.ppid == root_pid || s.pgid == root_pid)
+            .count();
+        if tree_len >= 3 || std::time::Instant::now() >= deadline {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(40));
+    }
 
     let snap1 = core.sample_metrics();
     let proc_metrics = snap1

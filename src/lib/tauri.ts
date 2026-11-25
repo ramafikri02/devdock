@@ -1168,6 +1168,39 @@ export async function cleanProjectBuildCaches(
   });
 }
 
+export interface ProxyRouteInfo {
+  serviceId: string;
+  serviceName: string;
+  projectId: string;
+  domain: string;
+  targetPort: number;
+  url: string;
+  isRunning: boolean;
+}
+
+export interface ProxyStatus {
+  enabled: boolean;
+  running: boolean;
+  preferredPort: number;
+  boundPort: number | null;
+  usedFallback: boolean;
+  fallbackPort: number;
+  error: string | null;
+  routes: ProxyRouteInfo[];
+}
+
+export interface HostsSyncPreview {
+  hostsPath: string;
+  domains: string[];
+  alreadySynced: boolean;
+  managedBlock: string;
+}
+
+export interface HostsSyncResult {
+  hostsPath: string;
+  domainsWritten: number;
+}
+
 export async function onProjectOrchestration(
   handler: (step: ProjectOrchestrationStep) => void,
 ): Promise<UnlistenFn> {
@@ -1175,6 +1208,53 @@ export async function onProjectOrchestration(
     return () => {};
   }
   return listen<ProjectOrchestrationStep>("project:orchestration", (event) => {
+    handler(event.payload);
+  });
+}
+
+export async function getProxyStatus(): Promise<ProxyStatus> {
+  if (!isTauriRuntime()) {
+    return {
+      enabled: false,
+      running: false,
+      preferredPort: 80,
+      boundPort: null,
+      usedFallback: false,
+      fallbackPort: 2999,
+      error: null,
+      routes: [],
+    };
+  }
+  return invoke<ProxyStatus>("get_proxy_status");
+}
+
+export async function setProxyEnabled(enabled: boolean): Promise<ProxyStatus> {
+  return invoke<ProxyStatus>("set_proxy_enabled", { enabled });
+}
+
+export async function previewHostsSync(): Promise<HostsSyncPreview> {
+  return invoke<HostsSyncPreview>("preview_hosts_sync");
+}
+
+export async function syncEtcHosts(): Promise<HostsSyncResult> {
+  return invoke<HostsSyncResult>("sync_etc_hosts");
+}
+
+export async function openExternalUrl(url: string): Promise<void> {
+  if (!isTauriRuntime()) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  await invoke("open_external_url", { url });
+}
+
+export async function onProxyStatus(
+  handler: (status: ProxyStatus) => void,
+): Promise<UnlistenFn> {
+  if (!isTauriRuntime()) {
+    return () => {};
+  }
+  return listen<ProxyStatus>("proxy:status", (event) => {
     handler(event.payload);
   });
 }

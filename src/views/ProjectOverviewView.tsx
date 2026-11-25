@@ -7,6 +7,7 @@ import {
   Eye,
   EyeOff,
   FolderGit2,
+  Globe,
   HardDrive,
   KeyRound,
   Layers,
@@ -32,6 +33,7 @@ import {
   attachPresetToProject,
   detachPresetFromProject,
   inspectProjectSharedEnv,
+  openExternalUrl,
   reorderProjectPresets,
   testProjectDbConnection,
 } from "@/lib/tauri";
@@ -73,6 +75,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
   const loadPresets = useAppStore((s) => s.loadPresets);
   const processes = useAppStore((s) => s.processes);
   const metrics = useAppStore((s) => s.metrics);
+  const proxyStatus = useAppStore((s) => s.proxyStatus);
   const orchestrationSteps = useAppStore((s) => s.orchestrationSteps[project.id]);
   const isOrchestrating = useAppStore((s) => Boolean(s.orchestratingProjectIds[project.id]));
   const pushToast = useAppStore((s) => s.pushToast);
@@ -627,7 +630,29 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                           )}
                         </td>
                         <td className="px-3 py-3 font-mono text-[12px] text-info tabular-nums">
-                          {svc.port !== null ? `:${svc.port}` : "auto"}
+                          {(() => {
+                            const route = proxyStatus?.routes.find(
+                              (r) => r.serviceId === svc.id,
+                            );
+                            const isUp = statusEntry?.state === "running";
+                            return (
+                              <div className="flex flex-col items-start gap-1">
+                                <span>
+                                  {svc.port !== null ? `:${svc.port}` : "auto"}
+                                </span>
+                                {proxyStatus?.running && route && isUp ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => void openExternalUrl(route.url)}
+                                    className="inline-flex items-center gap-1 rounded bg-info-soft px-1.5 py-0.5 text-[10.5px] font-medium text-info hover:opacity-90"
+                                  >
+                                    <Globe className="h-2.5 w-2.5" aria-hidden="true" />
+                                    <span>{route.domain}</span>
+                                  </button>
+                                ) : null}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-3 py-3">
                           {isOrchestrating && orchStep ? (

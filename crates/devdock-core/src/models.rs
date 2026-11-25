@@ -707,3 +707,44 @@ pub struct MetricsSnapshot {
     pub by_service: std::collections::HashMap<String, ServiceMetricSeries>,
     pub by_project: std::collections::HashMap<String, ProjectMetricSeries>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProxyRouteInfo {
+    pub service_id: String,
+    pub service_name: String,
+    pub project_id: String,
+    pub domain: String,
+    pub target_port: u16,
+    pub url: String,
+    pub is_running: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProxyStatus {
+    pub enabled: bool,
+    pub running: bool,
+    pub preferred_port: u16,
+    pub bound_port: Option<u16>,
+    pub used_fallback: bool,
+    pub fallback_port: u16,
+    pub error: Option<String>,
+    pub routes: Vec<ProxyRouteInfo>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostsSyncPreview {
+    pub hosts_path: String,
+    pub domains: Vec<String>,
+    pub already_synced: bool,
+    pub managed_block: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostsSyncResult {
+    pub hosts_path: String,
+    pub domains_written: usize,
+}
