@@ -296,6 +296,50 @@ export interface ProcessInfo {
 
 export type LogExportScopeKind = "process" | "project" | "all";
 
+export type NodeVersionSource =
+  | "nvmrc"
+  | "node_version_file"
+  | "engines_node"
+  | "manual_override"
+  | "none";
+
+export type NodeRuntimeStatus =
+  | "no_requirement"
+  | "matched"
+  | "missing_in_manager"
+  | "mismatch_no_manager";
+
+export interface ServiceNodeRuntime {
+  serviceId: string;
+  requiredVersion: string | null;
+  source: NodeVersionSource;
+  detectedVersion: string | null;
+  detectedSource: NodeVersionSource;
+  manualOverride: string | null;
+  versionManager: string | null;
+  installedVersions: string[];
+  matchedInstalledVersion: string | null;
+  activeNodeVersion: string | null;
+  status: NodeRuntimeStatus;
+  warning: string | null;
+  canInstall: boolean;
+  installTarget: string | null;
+}
+
+export interface NodeInstallProgress {
+  version: string;
+  manager: string;
+  line: string;
+  done: boolean;
+  ok: boolean | null;
+}
+
+export interface NodeInstallResult {
+  version: string;
+  manager: string;
+  outputLines: string[];
+}
+
 export function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
@@ -387,6 +431,59 @@ export async function setServicePmOverride(
   pmOverride: PackageManager | null,
 ): Promise<Service> {
   return invoke<Service>("set_service_pm_override", { serviceId, pmOverride });
+}
+
+export async function setServiceNodeVersionOverride(
+  serviceId: string,
+  version: string | null,
+): Promise<Service> {
+  return invoke<Service>("set_service_node_version_override", {
+    serviceId,
+    version: version?.trim() ? version.trim() : null,
+  });
+}
+
+export async function inspectServiceNodeRuntime(
+  serviceId: string,
+): Promise<ServiceNodeRuntime> {
+  if (!isTauriRuntime()) {
+    return {
+      serviceId,
+      requiredVersion: null,
+      source: "none",
+      detectedVersion: null,
+      detectedSource: "none",
+      manualOverride: null,
+      versionManager: null,
+      installedVersions: [],
+      matchedInstalledVersion: null,
+      activeNodeVersion: null,
+      status: "no_requirement",
+      warning: null,
+      canInstall: false,
+      installTarget: null,
+    };
+  }
+  return invoke<ServiceNodeRuntime>("inspect_service_node_runtime", {
+    serviceId,
+  });
+}
+
+export async function installNodeVersion(
+  version: string,
+): Promise<NodeInstallResult> {
+  return invoke<NodeInstallResult>("install_node_version", { version });
+}
+
+export async function onNodeInstallProgress(
+  handler: (progress: NodeInstallProgress) => void,
+): Promise<UnlistenFn> {
+  if (!isTauriRuntime()) {
+    return () => {};
+  }
+  return listen<NodeInstallProgress>("node:install-progress", (event) => {
+    handler(event.payload);
+  });
 }
 
 export async function relocateService(serviceId: string, newFolder: string): Promise<Service> {

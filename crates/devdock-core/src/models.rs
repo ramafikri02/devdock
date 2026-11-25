@@ -473,3 +473,59 @@ pub enum LogExportScope {
     Project(String),
     All,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NodeVersionSource {
+    Nvmrc,
+    NodeVersionFile,
+    EnginesNode,
+    ManualOverride,
+    None,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NodeRuntimeStatus {
+    NoRequirement,
+    Matched,
+    MissingInManager,
+    MismatchNoManager,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceNodeRuntime {
+    pub service_id: String,
+    pub required_version: Option<String>,
+    pub source: NodeVersionSource,
+    pub detected_version: Option<String>,
+    pub detected_source: NodeVersionSource,
+    pub manual_override: Option<String>,
+    pub version_manager: Option<String>,
+    pub installed_versions: Vec<String>,
+    pub matched_installed_version: Option<String>,
+    pub active_node_version: Option<String>,
+    pub status: NodeRuntimeStatus,
+    pub warning: Option<String>,
+    pub can_install: bool,
+    pub install_target: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeInstallProgress {
+    pub version: String,
+    pub manager: String,
+    pub line: String,
+    pub done: bool,
+    pub ok: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeInstallResult {
+    pub version: String,
+    pub manager: String,
+    pub output_lines: Vec<String>,
+}

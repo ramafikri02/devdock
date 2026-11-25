@@ -8,6 +8,7 @@ pub mod models;
 pub mod presets;
 pub mod process_manager;
 pub mod registry;
+pub mod runtime;
 pub mod scanner;
 pub mod secret_store;
 pub mod shell_env;
@@ -22,15 +23,17 @@ use crate::error::{CoreError, CoreResult};
 use crate::log_buffer::DEFAULT_LOG_CAPACITY;
 use crate::models::{
     AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
-    GlobalStorageSummary, LogExportScope, LogLine, PackageManager, PresetEntryInput, ProcessInfo,
-    Project, ProjectEnvSummary, ProjectStorageSummary, ScanResult, Service, ServiceDescriptor,
-    ServiceEnvInspection, ServiceStorageReport, StorageCleanResult,
+    GlobalStorageSummary, LogExportScope, LogLine, NodeInstallProgress, NodeInstallResult,
+    PackageManager, PresetEntryInput, ProcessInfo, Project, ProjectEnvSummary,
+    ProjectStorageSummary, ScanResult, Service, ServiceDescriptor, ServiceEnvInspection,
+    ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
 };
 use crate::presets::PresetStore;
 use crate::process_manager::{
     ProcessEventListener, ProcessManager, DEFAULT_STOP_GRACE_PERIOD,
 };
 use crate::registry::ProjectRegistry;
+use crate::runtime::{prepend_dir_to_path, RuntimeResolver};
 use crate::scanner::FolderScanner;
 use crate::shell_env::LoginShellEnvProvider;
 use crate::storage::StorageAnalyzer;
@@ -51,6 +54,7 @@ pub struct DevDockCore {
     adapters: AdapterRegistry,
     storage: StorageAnalyzer,
     processes: ProcessManager,
+    runtime: RuntimeResolver,
 }
 
 impl DevDockCore {
@@ -69,6 +73,7 @@ impl DevDockCore {
             adapters: AdapterRegistry::default(),
             storage: StorageAnalyzer::new(),
             processes: ProcessManager::new(DEFAULT_LOG_CAPACITY, DEFAULT_STOP_GRACE_PERIOD),
+            runtime: RuntimeResolver::new(),
         })
     }
 
@@ -99,6 +104,7 @@ impl DevDockCore {
             adapters: AdapterRegistry::default(),
             storage: StorageAnalyzer::new(),
             processes: ProcessManager::new(DEFAULT_LOG_CAPACITY, DEFAULT_STOP_GRACE_PERIOD),
+            runtime: RuntimeResolver::new(),
         })
     }
 
@@ -116,6 +122,7 @@ impl DevDockCore {
             adapters: AdapterRegistry::default(),
             storage: StorageAnalyzer::new(),
             processes: ProcessManager::new(log_capacity, stop_grace_period),
+            runtime: RuntimeResolver::new(),
         })
     }
 
@@ -213,6 +220,31 @@ impl DevDockCore {
 
     pub fn set_service_port(&self, service_id: &str, port: Option<u16>) -> CoreResult<Service> {
         self.registry().set_service_port(service_id, port)
+    }
+
+    pub fn set_service_node_version_override(
+        &self,
+        service_id: &str,
+        version: Option<&str>,
+    ) -> CoreResult<Service> {
+        self.registry()
+            .set_service_node_version_override(service_id, version)
+    }
+
+    pub fn inspect_service_node_runtime(&self, service_id: &str) -> CoreResult<ServiceNodeRuntime> {
+        let service = self.get_service(service_id)?;
+        let path_env = self.shell_env.get_path()?;
+        Ok(self.runtime.inspect_service(&service, &path_env))
+    }
+
+    pub fn install_node_version(
+        &self,
+        version: &str,
+        on_progress: Option<Arc<dyn Fn(NodeInstallProgress) + Send + Sync>>,
+    ) -> CoreResult<NodeInstallResult> {
+        let path_env = self.shell_env.get_path()?;
+        self.runtime
+            .install_version(version, &path_env, on_progress)
     }
 
     pub fn register_folder_as_project(
@@ -546,14 +578,27 @@ impl DevDockCore {
         let adapter = self.adapters.get(&service.adapter).ok_or_else(|| {
             CoreError::Adapter(format!("Unknown adapter '{}'", service.adapter))
         })?;
-        let spec = adapter.build_run_command(&service, script, None)?;
         let mut env_map = self.resolve_service_runtime_env(service_id, None)?;
-        if !env_map.contains_key("PATH") {
-            let path = self.shell_env.get_path()?;
-            if !path.is_empty() {
-                env_map.insert("PATH".to_string(), path);
-            }
+        let base_path = env_map
+            .get("PATH")
+            .cloned()
+            .filter(|p| !p.is_empty())
+            .unwrap_or_else(|| self.shell_env.get_path().unwrap_or_default());
+
+        let runtime_bin_dir = self
+            .runtime
+            .resolve_runtime_bin_dir(&service, &base_path)
+            .ok()
+            .flatten();
+
+        if let Some(bin_dir) = &runtime_bin_dir {
+            let updated_path = prepend_dir_to_path(bin_dir, &base_path);
+            env_map.insert("PATH".to_string(), updated_path);
+        } else if !env_map.contains_key("PATH") && !base_path.is_empty() {
+            env_map.insert("PATH".to_string(), base_path);
         }
+
+        let spec = adapter.build_run_command(&service, script, runtime_bin_dir.as_deref())?;
 
         self.processes
             .spawn_script(&service, script, &spec, &env_map)

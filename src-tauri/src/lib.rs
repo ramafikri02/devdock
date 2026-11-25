@@ -1,8 +1,9 @@
 use devdock_core::models::{
     AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
-    GlobalStorageSummary, LogExportScope, LogLine, PackageManager, PresetEntryInput, ProcessEvent,
-    ProcessInfo, Project, ProjectEnvSummary, ProjectStorageSummary, ScanResult, Service,
-    ServiceEnvInspection, ServiceStorageReport, StorageCleanResult,
+    GlobalStorageSummary, LogExportScope, LogLine, NodeInstallResult, PackageManager,
+    PresetEntryInput, ProcessEvent, ProcessInfo, Project, ProjectEnvSummary,
+    ProjectStorageSummary, ScanResult, Service, ServiceEnvInspection, ServiceNodeRuntime,
+    ServiceStorageReport, StorageCleanResult,
 };
 use devdock_core::secret_store::OsKeychainSecretStore;
 use devdock_core::traits::InMemoryNotifier;
@@ -156,6 +157,53 @@ fn set_service_pm_override(
         .core
         .set_service_pm_override(&service_id, pm_override)
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_service_node_version_override(
+    state: State<'_, AppState>,
+    service_id: String,
+    version: Option<String>,
+) -> Result<Service, String> {
+    state
+        .core
+        .set_service_node_version_override(&service_id, version.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn inspect_service_node_runtime(
+    state: State<'_, AppState>,
+    service_id: String,
+) -> Result<ServiceNodeRuntime, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.inspect_service_node_runtime(&service_id)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn install_node_version(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    version: String,
+) -> Result<NodeInstallResult, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        let handle = app.clone();
+        core.install_node_version(
+            &version,
+            Some(Arc::new(move |progress| {
+                let _ = handle.emit("node:install-progress", progress);
+            })),
+        )
+        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -688,6 +736,9 @@ pub fn run() {
             rename_project,
             rename_service,
             set_service_pm_override,
+            set_service_node_version_override,
+            inspect_service_node_runtime,
+            install_node_version,
             relocate_service,
             remove_service,
             remove_project,

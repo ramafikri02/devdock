@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Cpu,
+  Download,
   FileCode2,
   FolderOpen,
   HardDrive,
   Layers,
+  Loader2,
   Package,
   Play,
   RefreshCw,
@@ -17,12 +20,17 @@ import {
 } from "lucide-react";
 import {
   FRAMEWORK_LABELS,
+  type NodeVersionSource,
   type PackageManager,
   type ProcessInfo,
   type Project,
   type Service,
+  type ServiceNodeRuntime,
   type ServiceStorageReport,
   analyzeServiceStorage,
+  inspectServiceNodeRuntime,
+  installNodeVersion,
+  onNodeInstallProgress,
   pickFolderDialog,
 } from "@/lib/tauri";
 import { formatBytes, formatDuration } from "@/lib/format";
@@ -39,6 +47,14 @@ interface ServiceWorkbenchViewProps {
 
 type WorkbenchTab = "scripts" | "env" | "storage" | "settings";
 
+const NODE_SOURCE_LABELS: Record<NodeVersionSource, string> = {
+  nvmrc: ".nvmrc",
+  node_version_file: ".node-version",
+  engines_node: "engines.node",
+  manual_override: "override",
+  none: "system",
+};
+
 export function ServiceWorkbenchView({
   project,
   service,
@@ -47,6 +63,7 @@ export function ServiceWorkbenchView({
   const renameService = useAppStore((s) => s.renameService);
   const renameProject = useAppStore((s) => s.renameProject);
   const setPmOverride = useAppStore((s) => s.setPmOverride);
+  const setNodeVersionOverride = useAppStore((s) => s.setNodeVersionOverride);
   const relocateService = useAppStore((s) => s.relocateService);
   const removeService = useAppStore((s) => s.removeService);
   const removeProject = useAppStore((s) => s.removeProject);
@@ -68,12 +85,52 @@ export function ServiceWorkbenchView({
   >(null);
   const [storageSummary, setStorageSummary] =
     useState<ServiceStorageReport | null>(null);
+  const [nodeRuntime, setNodeRuntime] = useState<ServiceNodeRuntime | null>(null);
+  const [nodeOverrideInput, setNodeOverrideInput] = useState(
+    service.nodeVersionOverride ?? "",
+  );
+  const [installingNode, setInstallingNode] = useState(false);
+  const [installProgressLine, setInstallProgressLine] = useState<string | null>(null);
 
   useEffect(() => {
     setServiceNameInput(service.name);
     setProjectNameInput(project.name);
     setRelocateInput(service.path);
-  }, [service.id, service.name, service.path, project.name]);
+    setNodeOverrideInput(service.nodeVersionOverride ?? "");
+  }, [
+    service.id,
+    service.name,
+    service.path,
+    service.nodeVersionOverride,
+    project.name,
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void inspectServiceNodeRuntime(service.id)
+      .then((rt) => {
+        if (!cancelled) setNodeRuntime(rt);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [service.id, service.path, service.nodeVersionOverride, service.updatedAt]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void onNodeInstallProgress((prog) => {
+      setInstallProgressLine(prog.line);
+      if (prog.done) {
+        setInstallingNode(false);
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
 
   useEffect(() => {
     if (service.isMissing) {
@@ -239,6 +296,46 @@ export function ServiceWorkbenchView({
     }
   };
 
+  const handleSaveNodeOverride = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await setNodeVersionOverride(
+        service.id,
+        nodeOverrideInput.trim() || null,
+      );
+      const updated = await inspectServiceNodeRuntime(service.id);
+      setNodeRuntime(updated);
+    } catch (err) {
+      pushToast({
+        title: "Gagal menyimpan override versi Node",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    }
+  };
+
+  const handleInstallNode = async (version: string) => {
+    setInstallingNode(true);
+    setInstallProgressLine(`Memasang Node ${version} via fnm…`);
+    try {
+      const res = await installNodeVersion(version);
+      pushToast({
+        title: `Node ${res.version} berhasil dipasang via ${res.manager}`,
+        variant: "success",
+      });
+      const updated = await inspectServiceNodeRuntime(service.id);
+      setNodeRuntime(updated);
+    } catch (err) {
+      pushToast({
+        title: `Gagal memasang Node ${version}`,
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    } finally {
+      setInstallingNode(false);
+    }
+  };
+
   return (
     <div className="animate-view-enter flex h-full min-h-0">
       {/* Main left column */}
@@ -315,6 +412,30 @@ export function ServiceWorkbenchView({
                     <span className="text-info">(override)</span>
                   ) : null}
                 </span>
+                {nodeRuntime &&
+                (nodeRuntime.requiredVersion || nodeRuntime.activeNodeVersion) ? (
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-[6px] px-2 py-0.5 font-mono text-[11.5px] tabular-nums",
+                      nodeRuntime.status === "missing_in_manager" ||
+                        nodeRuntime.status === "mismatch_no_manager"
+                        ? "bg-warn-soft text-warn"
+                        : "bg-surface-2 text-fg-2",
+                    )}
+                    title={nodeRuntime.warning ?? undefined}
+                  >
+                    <Cpu className="h-3 w-3" aria-hidden="true" />
+                    <span>
+                      Node{" "}
+                      {nodeRuntime.matchedInstalledVersion ??
+                        nodeRuntime.requiredVersion ??
+                        nodeRuntime.activeNodeVersion}
+                    </span>
+                    <span className="text-[10.5px] opacity-80">
+                      ({NODE_SOURCE_LABELS[nodeRuntime.source]})
+                    </span>
+                  </span>
+                ) : null}
                 <span className="truncate font-mono text-[11.5px] text-fg-faint select-text">
                   {service.path}
                 </span>
@@ -398,6 +519,55 @@ export function ServiceWorkbenchView({
                   <span>Hapus</span>
                 </button>
               </div>
+            </div>
+          ) : null}
+
+          {/* Node runtime warning / one-click fnm install banner */}
+          {!service.isMissing && nodeRuntime?.warning ? (
+            <div
+              role="status"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-warn/40 bg-warn-soft p-3.5"
+            >
+              <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                <AlertTriangle
+                  className="mt-0.5 h-4 w-4 shrink-0 text-warn"
+                  aria-hidden="true"
+                />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-fg">
+                    {nodeRuntime.status === "missing_in_manager"
+                      ? `Node ${nodeRuntime.requiredVersion} belum terpasang di ${nodeRuntime.versionManager ?? "fnm"}`
+                      : "Versi Node aktif tidak cocok"}
+                  </p>
+                  <p className="mt-0.5 text-[12px] text-fg-muted">
+                    {nodeRuntime.warning}
+                  </p>
+                  {installingNode && installProgressLine ? (
+                    <p className="mt-1 truncate font-mono text-[11px] text-info">
+                      {installProgressLine}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              {nodeRuntime.canInstall && nodeRuntime.installTarget ? (
+                <button
+                  type="button"
+                  disabled={installingNode}
+                  onClick={() => void handleInstallNode(nodeRuntime.installTarget!)}
+                  className="btn-press flex h-8 shrink-0 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12.5px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-55"
+                >
+                  {installingNode ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                  )}
+                  <span>
+                    {installingNode
+                      ? "Memasang…"
+                      : `Install Node ${nodeRuntime.installTarget} via ${nodeRuntime.versionManager ?? "fnm"}`}
+                  </span>
+                </button>
+              ) : null}
             </div>
           ) : null}
 
@@ -769,6 +939,110 @@ export function ServiceWorkbenchView({
                 </select>
               </div>
 
+              {/* Node Version Override */}
+              <form
+                onSubmit={(e) => void handleSaveNodeOverride(e)}
+                className="rounded-[10px] border border-border bg-surface p-4"
+              >
+                <label
+                  htmlFor="node-version-override-input"
+                  className="block text-[13px] font-semibold text-fg"
+                >
+                  Versi Node.js
+                </label>
+                <p className="mt-0.5 text-[12px] text-fg-muted">
+                  Prioritas deteksi:{" "}
+                  <span className="font-mono text-fg-2">.nvmrc</span> →{" "}
+                  <span className="font-mono text-fg-2">.node-version</span> →{" "}
+                  <span className="font-mono text-fg-2">engines.node</span>.
+                  {nodeRuntime?.detectedVersion ? (
+                    <>
+                      {" "}
+                      Terdeteksi:{" "}
+                      <span className="font-mono text-fg-2">
+                        {nodeRuntime.detectedVersion} (
+                        {NODE_SOURCE_LABELS[nodeRuntime.detectedSource]})
+                      </span>
+                      .
+                    </>
+                  ) : (
+                    " Tidak ada file versi Node di folder ini."
+                  )}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <input
+                    id="node-version-override-input"
+                    type="text"
+                    value={nodeOverrideInput}
+                    onChange={(e) => setNodeOverrideInput(e.target.value)}
+                    placeholder="Auto (kosongkan) atau mis. 20.11.1 / 22"
+                    className="h-8 w-64 rounded-[7px] border border-border-strong bg-surface-2 px-2.5 font-mono text-[12.5px] text-fg"
+                  />
+                  {nodeRuntime && nodeRuntime.installedVersions.length > 0 ? (
+                    <select
+                      aria-label="Pilih versi Node terpasang di fnm"
+                      value=""
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setNodeOverrideInput(e.target.value);
+                        }
+                      }}
+                      className="h-8 rounded-[7px] border border-border-strong bg-surface-2 px-2.5 font-mono text-[12px] text-fg-2"
+                    >
+                      <option value="">Terpasang di fnm…</option>
+                      {nodeRuntime.installedVersions.map((ver) => (
+                        <option key={ver} value={ver}>
+                          {ver}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                  <button
+                    type="submit"
+                    className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg hover:bg-surface-hover"
+                  >
+                    Simpan
+                  </button>
+                  {service.nodeVersionOverride ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNodeOverrideInput("");
+                        void setNodeVersionOverride(service.id, null);
+                      }}
+                      className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface px-2.5 text-[12px] text-fg-muted hover:bg-surface-hover hover:text-fg"
+                    >
+                      Reset ke Auto
+                    </button>
+                  ) : null}
+                </div>
+                {nodeRuntime?.canInstall && nodeRuntime.installTarget ? (
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={installingNode}
+                      onClick={() => void handleInstallNode(nodeRuntime.installTarget!)}
+                      className="btn-press inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-55"
+                    >
+                      {installingNode ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                      )}
+                      <span>
+                        Install Node {nodeRuntime.installTarget} via{" "}
+                        {nodeRuntime.versionManager ?? "fnm"}
+                      </span>
+                    </button>
+                    {installingNode && installProgressLine ? (
+                      <span className="truncate font-mono text-[11.5px] text-info">
+                        {installProgressLine}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+              </form>
+
               {/* Relocate folder */}
               <form
                 onSubmit={(e) => void handleRelocateManual(e)}
@@ -858,6 +1132,35 @@ export function ServiceWorkbenchView({
           <div className="flex items-center justify-between">
             <span className="text-fg-muted">Package Manager</span>
             <span className="font-mono text-fg">{effectivePm}</span>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-fg-muted">Node Version</span>
+            <span
+              className={cn(
+                "truncate font-mono text-[12px] tabular-nums",
+                nodeRuntime?.status === "missing_in_manager" ||
+                  nodeRuntime?.status === "mismatch_no_manager"
+                  ? "text-warn"
+                  : "text-fg",
+              )}
+              title={nodeRuntime?.warning ?? undefined}
+            >
+              {nodeRuntime
+                ? (nodeRuntime.matchedInstalledVersion ??
+                    nodeRuntime.requiredVersion ??
+                    nodeRuntime.activeNodeVersion ??
+                    "—") +
+                  (nodeRuntime.source !== "none"
+                    ? ` (${NODE_SOURCE_LABELS[nodeRuntime.source]})`
+                    : "")
+                : "—"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-fg-muted">Version Manager</span>
+            <span className="font-mono text-fg">
+              {nodeRuntime?.versionManager ?? "system"}
+            </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-fg-muted">Default Script</span>

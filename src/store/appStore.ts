@@ -25,6 +25,7 @@ import {
   restartProcess as apiRestartProcess,
   runServiceScript as apiRunServiceScript,
   setAppSetting,
+  setServiceNodeVersionOverride,
   setServicePmOverride,
   stopProcess as apiStopProcess,
 } from "@/lib/tauri";
@@ -118,6 +119,7 @@ interface AppState {
   renameProject: (projectId: string, newName: string) => Promise<void>;
   renameService: (serviceId: string, newName: string) => Promise<void>;
   setPmOverride: (serviceId: string, pm: PackageManager | null) => Promise<void>;
+  setNodeVersionOverride: (serviceId: string, version: string | null) => Promise<void>;
   relocateService: (serviceId: string, newFolder: string) => Promise<void>;
   removeService: (serviceId: string) => Promise<void>;
   removeProject: (projectId: string) => Promise<void>;
@@ -461,6 +463,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       title: pm
         ? `Package manager di-override ke ${pm}`
         : "Package manager dikembalikan ke deteksi otomatis",
+      variant: "success",
+    });
+  },
+
+  setNodeVersionOverride: async (serviceId, version) => {
+    await setServiceNodeVersionOverride(serviceId, version);
+    await get().loadProjects();
+    get().pushToast({
+      title: version?.trim()
+        ? `Versi Node di-override ke ${version.trim()}`
+        : "Versi Node dikembalikan ke deteksi otomatis",
       variant: "success",
     });
   },
