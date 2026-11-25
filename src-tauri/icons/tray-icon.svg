@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="44" height="44">
+  <!-- macOS Menu Bar monochrome template icon (44x44 @2x = 22pt) -->
+  <g fill="none" stroke="#000000" stroke-width="4.2" stroke-linejoin="round">
+    <!-- Back D (lighter alpha for clean depth in template mode) -->
+    <path d="M 9.5 8.5 L 16.5 8.5 C 23 8.5, 26.8 12.4, 26.8 18.8 C 26.8 25.2, 23 29.1, 16.5 29.1 L 9.5 29.1 Z"
+          stroke-opacity="0.52"/>
+    <!-- Front D (solid) -->
+    <path d="M 17.2 15.2 L 24.2 15.2 C 30.7 15.2, 34.5 19.1, 34.5 25.5 C 34.5 31.9, 30.7 35.8, 24.2 35.8 L 17.2 35.8 Z"
+          stroke-opacity="1"/>
+  </g>
+</svg>

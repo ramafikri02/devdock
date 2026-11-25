@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="96 96 832 832" width="64" height="64">
+  <defs>
+    <clipPath id="sq">
+      <rect x="100" y="100" width="824" height="824" rx="185" ry="185"/>
+    </clipPath>
+    <linearGradient id="bg" x1="512" y1="100" x2="512" y2="924" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#354257"/>
+      <stop offset="28%" stop-color="#111A2C"/>
+      <stop offset="100%" stop-color="#0B1324"/>
+    </linearGradient>
+    <linearGradient id="back-d" x1="280" y1="255" x2="590" y2="615" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="50%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#22C55E"/>
+    </linearGradient>
+  </defs>
+  <g clip-path="url(#sq)">
+    <rect x="100" y="100" width="824" height="824" fill="url(#bg)"/>
+  </g>
+  <g transform="translate(8, 6)" fill="none" stroke-width="64" stroke-linejoin="round">
+    <path d="M 326 282 L 434 282 C 536 282, 594 344, 594 446 C 594 548, 536 610, 434 610 L 326 610 Z" stroke="url(#back-d)"/>
+    <path d="M 442 402 L 550 402 C 652 402, 710 464, 710 566 C 710 668, 652 730, 550 730 L 442 730 Z" stroke="#F8FAFC"/>
+  </g>
+</svg>

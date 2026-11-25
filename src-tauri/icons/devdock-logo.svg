@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Apple HIG squircle clip path (824x824 centered at 512,512) -->
+    <clipPath id="squircle-clip">
+      <rect x="100" y="100" width="824" height="824" rx="185" ry="185"/>
+    </clipPath>
+
+    <!-- Glassy dark slate-navy background -->
+    <linearGradient id="bg-base" x1="512" y1="100" x2="512" y2="924" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#354257"/>
+      <stop offset="8%" stop-color="#212C40"/>
+      <stop offset="28%" stop-color="#111A2C"/>
+      <stop offset="68%" stop-color="#0A101E"/>
+      <stop offset="100%" stop-color="#0B1324"/>
+    </linearGradient>
+
+    <!-- Smooth top glass reflection -->
+    <radialGradient id="top-sheen" cx="490" cy="60" r="620" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#CBD5E1" stop-opacity="0.22"/>
+      <stop offset="35%" stop-color="#64748B" stop-opacity="0.10"/>
+      <stop offset="70%" stop-color="#1E293B" stop-opacity="0.03"/>
+      <stop offset="100%" stop-color="#0B1120" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Wide soft bottom ambient blue dock glow -->
+    <radialGradient id="bottom-glow" cx="512" cy="940" r="520" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.26"/>
+      <stop offset="35%" stop-color="#2563EB" stop-opacity="0.14"/>
+      <stop offset="70%" stop-color="#1E3A8A" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#070C17" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Crisp top-lit glass rim stroke -->
+    <linearGradient id="rim-grad" x1="512" y1="100" x2="512" y2="924" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F1F5F9" stop-opacity="0.48"/>
+      <stop offset="18%" stop-color="#94A3B8" stop-opacity="0.20"/>
+      <stop offset="70%" stop-color="#334155" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#60A5FA" stop-opacity="0.22"/>
+    </linearGradient>
+
+    <!-- Back D gradient: sky-blue (#38BDF8) to vivid emerald (#22C55E) -->
+    <linearGradient id="back-d-grad" x1="280" y1="255" x2="590" y2="615" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="50%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#22C55E"/>
+    </linearGradient>
+
+    <!-- Front D crisp frosted white gradient -->
+    <linearGradient id="front-d-grad" x1="420" y1="380" x2="730" y2="755" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="65%" stop-color="#F8FAFC"/>
+      <stop offset="100%" stop-color="#E2E8F0"/>
+    </linearGradient>
+
+    <!-- Soft outer icon drop shadow for macOS -->
+    <filter id="icon-shadow" x="-15%" y="-15%" width="130%" height="140%">
+      <feDropShadow dx="0" dy="20" stdDeviation="22" flood-color="#020617" flood-opacity="0.42"/>
+    </filter>
+
+    <!-- Subtle ambient glow behind Back D -->
+    <filter id="back-d-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="24"/>
+      <feColorMatrix type="matrix"
+        values="1 0 0 0 0
+                0 1 0 0 0
+                0 0 1 0 0
+                0 0 0 0.26 0"/>
+    </filter>
+
+    <!-- Depth shadow cast by Front D onto Back D & canvas -->
+    <filter id="front-d-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="-8" dy="14" stdDeviation="16" flood-color="#030712" flood-opacity="0.60"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#icon-shadow)">
+    <g clip-path="url(#squircle-clip)">
+      <rect x="100" y="100" width="824" height="824" fill="url(#bg-base)"/>
+      <rect x="100" y="100" width="824" height="824" fill="url(#top-sheen)"/>
+      <rect x="100" y="100" width="824" height="824" fill="url(#bottom-glow)"/>
+    </g>
+
+    <rect x="102" y="102" width="820" height="820" rx="183" ry="183"
+          fill="none" stroke="url(#rim-grad)" stroke-width="4"/>
+  </g>
+
+  <g transform="translate(8, 6)">
+    <path d="M 326 282
+             L 434 282
+             C 536 282, 594 344, 594 446
+             C 594 548, 536 610, 434 610
+             L 326 610
+             Z"
+          fill="none"
+          stroke="url(#back-d-grad)"
+          stroke-width="64"
+          stroke-linejoin="round"
+          filter="url(#back-d-glow)"/>
+
+    <path d="M 326 282
+             L 434 282
+             C 536 282, 594 344, 594 446
+             C 594 548, 536 610, 434 610
+             L 326 610
+             Z"
+          fill="none"
+          stroke="url(#back-d-grad)"
+          stroke-width="64"
+          stroke-linejoin="round"/>
+
+    <path d="M 442 402
+             L 550 402
+             C 652 402, 710 464, 710 566
+             C 710 668, 652 730, 550 730
+             L 442 730
+             Z"
+          fill="none"
+          stroke="url(#front-d-grad)"
+          stroke-width="64"
+          stroke-linejoin="round"
+          filter="url(#front-d-shadow)"/>
+  </g>
+</svg>
