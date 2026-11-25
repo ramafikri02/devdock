@@ -29,12 +29,23 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico",
       "icons/icon.png"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE5MEFBNUY5NkU2NEZFRkEKUldUNi9tUnUrYVVLR2VzR1BQcWZSMWFyUlJRTzl4SGFMbjU0elRqSWIwb1JnNFdJYUpqcjhuRFMK",
+      "endpoints": [
+        "https://github.com/ramafikri02/devdock/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

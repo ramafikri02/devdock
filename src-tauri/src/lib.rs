@@ -42,7 +42,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent};
+use tauri::{AppHandle, Emitter, Listener, Manager, RunEvent, State, WindowEvent};
 
 pub struct WatcherState {
     watcher: RecommendedWatcher,
@@ -1373,11 +1373,16 @@ fn create_package_json_watcher(app_handle: AppHandle) -> Option<WatcherState> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
-            let data_dir = app
-                .path()
-                .app_data_dir()
-                .expect("failed to resolve OS app data directory");
+            let data_dir = match std::env::var("DEVDOCK_DATA_DIR") {
+                Ok(custom) if !custom.trim().is_empty() => PathBuf::from(custom),
+                _ => app
+                    .path()
+                    .app_data_dir()
+                    .expect("failed to resolve OS app data directory"),
+            };
             let db_path = data_dir.join("devdock.sqlite");
 
             let core = Arc::new(
@@ -1477,6 +1482,26 @@ pub fn run() {
             let _ = tray_builder.build(app)?;
 
             app.manage(state);
+
+            // Automated E2E smoke test driver when DEVDOCK_SMOKE_TEST_FIXTURE is set
+            if let Ok(fixture_dir) = std::env::var("DEVDOCK_SMOKE_TEST_FIXTURE") {
+                if !fixture_dir.trim().is_empty() {
+                    let expected_marker = std::env::var("DEVDOCK_SMOKE_TEST_MARKER")
+                        .unwrap_or_else(|_| "DEVDOCK_E2E_OK".to_string());
+                    let smoke_handle = app.handle().clone();
+                    std::thread::Builder::new()
+                        .name("devdock-e2e-smoke".to_string())
+                        .spawn(move || {
+                            run_e2e_smoke_driver(
+                                smoke_handle,
+                                PathBuf::from(fixture_dir),
+                                expected_marker,
+                            );
+                        })
+                        .ok();
+                }
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -1591,4 +1616,61 @@ pub fn run() {
                 }
             }
         });
+}
+
+fn run_e2e_smoke_driver(app: AppHandle, fixture_dir: PathBuf, expected_marker: String) {
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    std::thread::sleep(Duration::from_millis(250));
+
+    let (tx, rx) = mpsc::channel::<String>();
+    let marker_clone = expected_marker.clone();
+    let listener_id = app.listen("process:log", move |event| {
+        if let Ok(val) = serde_json::from_str::<serde_json::Value>(event.payload()) {
+            if let Some(text) = val.get("text").and_then(|v| v.as_str()) {
+                if text.contains(&marker_clone) {
+                    let _ = tx.send(text.to_string());
+                }
+            }
+        }
+    });
+
+    let state = app.state::<AppState>();
+    let result = (|| -> Result<String, String> {
+        let project = state
+            .core
+            .register_folder_as_project(&fixture_dir, Some("SmokeTestProject"))
+            .map_err(|e| format!("register_folder_as_project failed: {e}"))?;
+        let service = project
+            .services
+            .first()
+            .ok_or_else(|| "SmokeTestProject has no services".to_string())?;
+        let proc = state
+            .core
+            .run_service_script(&service.id, "dev")
+            .map_err(|e| format!("run_service_script failed: {e}"))?;
+
+        let observed = rx
+            .recv_timeout(Duration::from_secs(12))
+            .map_err(|_| "Timed out waiting for live process:log event".to_string())?;
+
+        let _ = state.core.stop_process(&proc.id);
+        Ok(observed)
+    })();
+
+    app.unlisten(listener_id);
+    state.core.stop_all_processes();
+    state.allow_exit.store(true, Ordering::SeqCst);
+
+    match result {
+        Ok(observed) => {
+            println!("[E2E_SMOKE_OK] observed live log: {observed}");
+            app.exit(0);
+        }
+        Err(err) => {
+            eprintln!("[E2E_SMOKE_FAIL] {err}");
+            app.exit(1);
+        }
+    }
 }

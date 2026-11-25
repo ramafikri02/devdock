@@ -18,6 +18,11 @@ import {
   ImportConfigModal,
 } from "@/components/settings/ExportImportModal";
 import {
+  type AvailableUpdateInfo,
+  checkForAppUpdate,
+  installAppUpdateAndRelaunch,
+} from "@/lib/updater";
+import {
   type HostsSyncPreview,
   openExternalUrl,
   previewHostsSync,
@@ -44,6 +49,11 @@ export function SettingsView() {
   const [syncingHosts, setSyncingHosts] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [installingUpdate, setInstallingUpdate] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<number | null>(null);
+  const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdateInfo | null>(null);
+  const [updateCheckedEmpty, setUpdateCheckedEmpty] = useState(false);
 
   const loadHostsPreview = async () => {
     try {
@@ -414,6 +424,106 @@ export function SettingsView() {
             </button>
           </div>
         </div>
+      </section>
+
+      {/* App Auto-Updater */}
+      <section className="rounded-[10px] border border-border bg-surface p-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-[14px] font-semibold text-fg">
+              Pembaruan Aplikasi
+            </h2>
+            <p className="mt-0.5 text-[12.5px] text-fg-muted">
+              Versi terpasang:{" "}
+              <span className="font-mono font-medium text-fg">
+                v{bootstrap?.version ?? "0.1.0"}
+              </span>
+              . DevDock memeriksa rilis resmi di GitHub Releases secara otomatis saat diminta.
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={checkingUpdate || installingUpdate}
+            onClick={() => {
+              setCheckingUpdate(true);
+              setUpdateCheckedEmpty(false);
+              void checkForAppUpdate()
+                .then((res) => {
+                  setAvailableUpdate(res);
+                  if (!res) setUpdateCheckedEmpty(true);
+                })
+                .catch((err) => {
+                  pushToast({
+                    title: "Gagal memeriksa pembaruan",
+                    description: err instanceof Error ? err.message : String(err),
+                    variant: "danger",
+                  });
+                })
+                .finally(() => setCheckingUpdate(false));
+            }}
+            className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg disabled:opacity-50"
+          >
+            {checkingUpdate ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+            <span>{checkingUpdate ? "Memeriksa…" : "Periksa Pembaruan"}</span>
+          </button>
+        </div>
+
+        {updateCheckedEmpty && !availableUpdate ? (
+          <div className="mt-3 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12px] text-fg-muted">
+            Anda sudah menggunakan versi terbaru.
+          </div>
+        ) : null}
+
+        {availableUpdate ? (
+          <div className="mt-3 rounded-[8px] border border-info/40 bg-info-soft p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-[13px] font-semibold text-fg">
+                  Pembaruan tersedia: v{availableUpdate.version}
+                </div>
+                {availableUpdate.body ? (
+                  <p className="mt-0.5 text-[12px] text-fg-2">{availableUpdate.body}</p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                disabled={installingUpdate}
+                onClick={() => {
+                  setInstallingUpdate(true);
+                  setUpdateProgress(0);
+                  void installAppUpdateAndRelaunch(availableUpdate.raw, (pct) => {
+                    setUpdateProgress(pct);
+                  }).catch((err) => {
+                    setInstallingUpdate(false);
+                    pushToast({
+                      title: "Gagal memasang pembaruan",
+                      description: err instanceof Error ? err.message : String(err),
+                      variant: "danger",
+                    });
+                  });
+                }}
+                className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12.5px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
+              >
+                {installingUpdate ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                )}
+                <span>
+                  {installingUpdate
+                    ? updateProgress !== null
+                      ? `Mengunduh (${updateProgress}%)…`
+                      : "Mengunduh…"
+                    : "Install & Restart"}
+                </span>
+              </button>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <ExportConfigModal open={exportOpen} onClose={() => setExportOpen(false)} />
