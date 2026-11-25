@@ -395,6 +395,49 @@ export interface PortInspectorSnapshot {
   conflictCount: number;
 }
 
+export interface MetricPoint {
+  timestampMs: number;
+  cpuPercent: number;
+  memoryBytes: number;
+  processCount: number;
+}
+
+export interface ProcessMetricSeries {
+  processId: string;
+  projectId: string;
+  serviceId: string;
+  script: string;
+  currentCpuPercent: number;
+  currentMemoryBytes: number;
+  treeProcessCount: number;
+  history: MetricPoint[];
+}
+
+export interface ServiceMetricSeries {
+  serviceId: string;
+  projectId: string;
+  currentCpuPercent: number;
+  currentMemoryBytes: number;
+  history: MetricPoint[];
+}
+
+export interface ProjectMetricSeries {
+  projectId: string;
+  currentCpuPercent: number;
+  currentMemoryBytes: number;
+  history: MetricPoint[];
+}
+
+export interface MetricsSnapshot {
+  sampledAtMs: number;
+  totalCpuPercent: number;
+  totalMemoryBytes: number;
+  globalHistory: MetricPoint[];
+  byProcess: Record<string, ProcessMetricSeries>;
+  byService: Record<string, ServiceMetricSeries>;
+  byProject: Record<string, ProjectMetricSeries>;
+}
+
 export function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
@@ -1002,6 +1045,32 @@ export async function onProcessCrashed(
     return () => {};
   }
   return listen<CrashNotificationEvent>("process:crashed", (event) => {
+    handler(event.payload);
+  });
+}
+
+export async function getMetricsSnapshot(): Promise<MetricsSnapshot> {
+  if (!isTauriRuntime()) {
+    return {
+      sampledAtMs: Date.now(),
+      totalCpuPercent: 0,
+      totalMemoryBytes: 0,
+      globalHistory: [],
+      byProcess: {},
+      byService: {},
+      byProject: {},
+    };
+  }
+  return invoke<MetricsSnapshot>("get_metrics_snapshot");
+}
+
+export async function onMetricsSnapshot(
+  handler: (snapshot: MetricsSnapshot) => void,
+): Promise<UnlistenFn> {
+  if (!isTauriRuntime()) {
+    return () => {};
+  }
+  return listen<MetricsSnapshot>("metrics:snapshot", (event) => {
     handler(event.payload);
   });
 }

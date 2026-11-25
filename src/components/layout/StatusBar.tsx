@@ -1,4 +1,5 @@
 import { Cpu, MemoryStick, TerminalSquare, Globe } from "lucide-react";
+import { formatBytes } from "@/lib/format";
 import { useAppStore } from "@/store/appStore";
 import { cn } from "@/lib/cn";
 
@@ -7,13 +8,19 @@ export function StatusBar() {
   const toggleLogDrawer = useAppStore((s) => s.toggleLogDrawer);
   const processes = useAppStore((s) => s.processes);
   const portConflictCount = useAppStore((s) => s.portSnapshot?.conflictCount ?? 0);
+  const metrics = useAppStore((s) => s.metrics);
   const setRoute = useAppStore((s) => s.setRoute);
 
   const procList = Object.values(processes);
   const runningCount = procList.filter(
-    (p) => p.status === "running" || p.status === "starting",
+    (p) =>
+      p.status === "running" ||
+      p.status === "starting" ||
+      p.status === "restarting",
   ).length;
   const crashedCount = procList.filter((p) => p.status === "crashed").length;
+  const totalCpu = metrics ? metrics.totalCpuPercent : 0;
+  const totalRam = metrics ? metrics.totalMemoryBytes : 0;
 
   return (
     <footer className="flex h-[28px] shrink-0 items-center justify-between border-t border-border bg-bg-topbar px-3 text-[11.5px] text-fg-muted">
@@ -68,12 +75,12 @@ export function StatusBar() {
 
         <span className="flex items-center gap-1 font-mono tabular-nums">
           <Cpu className="h-3 w-3 text-fg-faint" aria-hidden="true" />
-          <span>0.0%</span>
+          <span>{totalCpu.toFixed(1)}%</span>
         </span>
 
         <span className="flex items-center gap-1 font-mono tabular-nums">
           <MemoryStick className="h-3 w-3 text-fg-faint" aria-hidden="true" />
-          <span>0 MB</span>
+          <span>{totalRam > 0 ? formatBytes(totalRam) : "0 MB"}</span>
         </span>
 
         <span className="hidden items-center gap-1 font-mono text-fg-faint sm:flex">

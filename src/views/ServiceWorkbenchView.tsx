@@ -42,6 +42,7 @@ import {
 import { formatBytes, formatDuration } from "@/lib/format";
 import { useAppStore } from "@/store/appStore";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { MetricChartCard } from "@/components/ui/MetricChart";
 import { ServiceEnvTab } from "@/components/workbench/ServiceEnvTab";
 import { ServiceStorageTab } from "@/components/workbench/ServiceStorageTab";
 import { cn } from "@/lib/cn";
@@ -81,6 +82,7 @@ export function ServiceWorkbenchView({
   const setRoute = useAppStore((s) => s.setRoute);
   const pushToast = useAppStore((s) => s.pushToast);
   const processes = useAppStore((s) => s.processes);
+  const metrics = useAppStore((s) => s.metrics);
   const runScript = useAppStore((s) => s.runScript);
   const stopProcess = useAppStore((s) => s.stopProcess);
   const restartProcess = useAppStore((s) => s.restartProcess);
@@ -112,6 +114,34 @@ export function ServiceWorkbenchView({
   const [confirmKillConflictPid, setConfirmKillConflictPid] = useState<number | null>(
     null,
   );
+  const [chartsPaused, setChartsPaused] = useState(false);
+  const [frozenMetrics, setFrozenMetrics] = useState<
+    { cpu: number[]; ram: number[]; currentCpu: number; currentRam: number } | null
+  >(null);
+
+  const liveServiceMetrics = metrics?.byService[service.id];
+  const chartData = useMemo(() => {
+    if (chartsPaused && frozenMetrics) {
+      return frozenMetrics;
+    }
+    const history = liveServiceMetrics?.history ?? [];
+    return {
+      cpu: history.map((p) => p.cpuPercent),
+      ram: history.map((p) => p.memoryBytes),
+      currentCpu: liveServiceMetrics?.currentCpuPercent ?? 0,
+      currentRam: liveServiceMetrics?.currentMemoryBytes ?? 0,
+    };
+  }, [chartsPaused, frozenMetrics, liveServiceMetrics]);
+
+  const handleToggleChartsPause = () => {
+    if (!chartsPaused) {
+      setFrozenMetrics(chartData);
+      setChartsPaused(true);
+    } else {
+      setChartsPaused(false);
+      setFrozenMetrics(null);
+    }
+  };
 
   useEffect(() => {
     setServiceNameInput(service.name);
@@ -1470,6 +1500,38 @@ export function ServiceWorkbenchView({
       {/* Right Inspector (280px) */}
       <aside className="hidden w-[280px] shrink-0 overflow-y-auto border-l border-border bg-bg-sidebar p-4 xl:block">
         <h2 className="text-[11px] font-semibold tracking-wider text-fg-faint uppercase">
+          Live Monitoring
+        </h2>
+        <div className="mt-3 space-y-2.5">
+          <MetricChartCard
+            title="CPU Pohon Proses"
+            currentText={`${chartData.currentCpu.toFixed(1)}%`}
+            peakText={`${Math.max(0, ...chartData.cpu).toFixed(1)}%`}
+            statusText={activeServiceProcesses.length > 0 ? "Aktif · 2s" : "Idle"}
+            values={chartData.cpu}
+            strokeColorVar="var(--info)"
+            paused={chartsPaused}
+            onTogglePause={handleToggleChartsPause}
+          />
+          <MetricChartCard
+            title="RAM Pohon Proses"
+            currentText={
+              chartData.currentRam > 0 ? formatBytes(chartData.currentRam) : "0 MB"
+            }
+            peakText={
+              Math.max(0, ...chartData.ram) > 0
+                ? formatBytes(Math.max(0, ...chartData.ram))
+                : "0 MB"
+            }
+            statusText={activeServiceProcesses.length > 0 ? "Aktif · 2s" : "Idle"}
+            values={chartData.ram}
+            strokeColorVar="var(--accent)"
+            paused={chartsPaused}
+            onTogglePause={handleToggleChartsPause}
+          />
+        </div>
+
+        <h2 className="mt-5 text-[11px] font-semibold tracking-wider text-fg-faint uppercase">
           Runtime Summary
         </h2>
         <div className="mt-3 space-y-2.5 rounded-[10px] border border-border bg-surface p-3.5 text-[12.5px]">

@@ -1,10 +1,11 @@
 use devdock_core::models::{
     AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
-    GlobalStorageSummary, LogExportScope, LogLine, NodeInstallResult, PackageManager,
-    PortCheckResult, PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput, ProcessEvent,
-    ProcessInfo, Project, ProjectEnvSummary, ProjectStorageSummary, ScanResult, Service,
-    ServiceEnvInspection, ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
+    GlobalStorageSummary, LogExportScope, LogLine, MetricsSnapshot, NodeInstallResult,
+    PackageManager, PortCheckResult, PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput,
+    ProcessEvent, ProcessInfo, Project, ProjectEnvSummary, ProjectStorageSummary, ScanResult,
+    Service, ServiceEnvInspection, ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
 };
+use devdock_core::monitor::DEFAULT_MONITOR_INTERVAL;
 use devdock_core::secret_store::OsKeychainSecretStore;
 use devdock_core::traits::Notifier;
 use devdock_core::DevDockCore;
@@ -696,6 +697,14 @@ fn list_processes(state: State<'_, AppState>) -> Result<Vec<ProcessInfo>, String
 }
 
 #[tauri::command]
+async fn get_metrics_snapshot(state: State<'_, AppState>) -> Result<MetricsSnapshot, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || core.get_metrics_snapshot())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn get_process_logs(
     state: State<'_, AppState>,
     process_id: String,
@@ -835,6 +844,18 @@ pub fn run() {
                 }
             }));
 
+            // Background 2-second CPU/RAM process-tree sampler
+            let monitor_core = Arc::clone(&core);
+            let monitor_handle = app.handle().clone();
+            std::thread::Builder::new()
+                .name("devdock-metrics-monitor".to_string())
+                .spawn(move || loop {
+                    let snapshot = monitor_core.sample_metrics();
+                    let _ = monitor_handle.emit("metrics:snapshot", snapshot);
+                    std::thread::sleep(DEFAULT_MONITOR_INTERVAL);
+                })
+                .ok();
+
             let watcher_state = create_package_json_watcher(app.handle().clone());
             let state = AppState {
                 core,
@@ -899,6 +920,7 @@ pub fn run() {
             stop_process,
             restart_process,
             list_processes,
+            get_metrics_snapshot,
             get_process_logs,
             get_project_logs,
             get_all_logs,

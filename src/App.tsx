@@ -10,7 +10,12 @@ import { ServiceWorkbenchView } from "@/views/ServiceWorkbenchView";
 import { ProjectOverviewView } from "@/views/ProjectOverviewView";
 import { EnvPresetsView } from "@/views/EnvPresetsView";
 import { PortInspectorView } from "@/views/PortInspectorView";
-import { onProcessCrashed, onProcessStatus, onProjectsChanged } from "@/lib/tauri";
+import {
+  onMetricsSnapshot,
+  onProcessCrashed,
+  onProcessStatus,
+  onProjectsChanged,
+} from "@/lib/tauri";
 import { useAppStore } from "@/store/appStore";
 
 export default function App() {
@@ -18,6 +23,7 @@ export default function App() {
   const loadProjects = useAppStore((s) => s.loadProjects);
   const upsertProcess = useAppStore((s) => s.upsertProcess);
   const refreshPorts = useAppStore((s) => s.refreshPorts);
+  const setMetricsSnapshot = useAppStore((s) => s.setMetricsSnapshot);
   const pushToast = useAppStore((s) => s.pushToast);
   const projects = useAppStore((s) => s.projects);
   const route = useAppStore((s) => s.route);
@@ -34,6 +40,7 @@ export default function App() {
     let unlistenProjects: (() => void) | undefined;
     let unlistenProcess: (() => void) | undefined;
     let unlistenCrash: (() => void) | undefined;
+    let unlistenMetrics: (() => void) | undefined;
     void onProjectsChanged(() => {
       void loadProjects();
     }).then((fn) => {
@@ -56,12 +63,18 @@ export default function App() {
     }).then((fn) => {
       unlistenCrash = fn;
     });
+    void onMetricsSnapshot((snapshot) => {
+      setMetricsSnapshot(snapshot);
+    }).then((fn) => {
+      unlistenMetrics = fn;
+    });
     return () => {
       if (unlistenProjects) unlistenProjects();
       if (unlistenProcess) unlistenProcess();
       if (unlistenCrash) unlistenCrash();
+      if (unlistenMetrics) unlistenMetrics();
     };
-  }, [loadProjects, upsertProcess, refreshPorts, pushToast]);
+  }, [loadProjects, upsertProcess, refreshPorts, setMetricsSnapshot, pushToast]);
 
   const totalServices = useMemo(
     () => projects.reduce((sum, p) => sum + p.services.length, 0),

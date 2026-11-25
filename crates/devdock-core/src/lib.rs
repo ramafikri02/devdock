@@ -5,6 +5,7 @@ pub mod env_resolver;
 pub mod error;
 pub mod log_buffer;
 pub mod models;
+pub mod monitor;
 pub mod ports;
 pub mod presets;
 pub mod process_manager;
@@ -24,12 +25,13 @@ use crate::error::{CoreError, CoreResult};
 use crate::log_buffer::DEFAULT_LOG_CAPACITY;
 use crate::models::{
     AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
-    GlobalStorageSummary, LogExportScope, LogLine, NodeInstallProgress, NodeInstallResult,
-    PackageManager, PortCheckResult, PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput,
-    ProcessInfo, Project, ProjectEnvSummary, ProjectStorageSummary, ScanResult, Service,
-    ServiceDescriptor, ServiceEnvInspection, ServiceNodeRuntime, ServiceStorageReport,
-    StorageCleanResult,
+    GlobalStorageSummary, LogExportScope, LogLine, MetricsSnapshot, NodeInstallProgress,
+    NodeInstallResult, PackageManager, PortCheckResult, PortInjectionMethod,
+    PortInspectorSnapshot, PresetEntryInput, ProcessInfo, Project, ProjectEnvSummary,
+    ProjectStorageSummary, ScanResult, Service, ServiceDescriptor, ServiceEnvInspection,
+    ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
 };
+use crate::monitor::ResourceMonitor;
 use crate::ports::PortManager;
 use crate::presets::PresetStore;
 use crate::process_manager::{
@@ -58,6 +60,7 @@ pub struct DevDockCore {
     storage: StorageAnalyzer,
     processes: ProcessManager,
     runtime: RuntimeResolver,
+    monitor: ResourceMonitor,
 }
 
 impl DevDockCore {
@@ -82,6 +85,7 @@ impl DevDockCore {
             storage: StorageAnalyzer::new(),
             processes,
             runtime: RuntimeResolver::new(),
+            monitor: ResourceMonitor::default(),
         })
     }
 
@@ -119,6 +123,7 @@ impl DevDockCore {
             storage: StorageAnalyzer::new(),
             processes,
             runtime: RuntimeResolver::new(),
+            monitor: ResourceMonitor::default(),
         })
     }
 
@@ -141,6 +146,7 @@ impl DevDockCore {
             storage: StorageAnalyzer::new(),
             processes,
             runtime: RuntimeResolver::new(),
+            monitor: ResourceMonitor::default(),
         })
     }
 
@@ -161,7 +167,19 @@ impl DevDockCore {
             storage: StorageAnalyzer::new(),
             processes,
             runtime: RuntimeResolver::new(),
+            monitor: ResourceMonitor::default(),
         })
+    }
+
+    pub fn sample_metrics(&self) -> MetricsSnapshot {
+        let procs = self.list_processes();
+        self.monitor.sample_now(&procs)
+    }
+
+    pub fn get_metrics_snapshot(&self) -> MetricsSnapshot {
+        self.monitor
+            .last_snapshot()
+            .unwrap_or_else(|| self.sample_metrics())
     }
 
     pub fn set_auto_restart_policy(&self, policy: AutoRestartPolicy) {

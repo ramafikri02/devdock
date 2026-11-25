@@ -596,3 +596,56 @@ pub struct PortInspectorSnapshot {
     pub entries: Vec<ListeningPortEntry>,
     pub conflict_count: usize,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetricPoint {
+    pub timestamp_ms: i64,
+    pub cpu_percent: f32,
+    pub memory_bytes: u64,
+    pub process_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessMetricSeries {
+    pub process_id: String,
+    pub project_id: String,
+    pub service_id: String,
+    pub script: String,
+    pub current_cpu_percent: f32,
+    pub current_memory_bytes: u64,
+    pub tree_process_count: usize,
+    pub history: Vec<MetricPoint>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceMetricSeries {
+    pub service_id: String,
+    pub project_id: String,
+    pub current_cpu_percent: f32,
+    pub current_memory_bytes: u64,
+    pub history: Vec<MetricPoint>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectMetricSeries {
+    pub project_id: String,
+    pub current_cpu_percent: f32,
+    pub current_memory_bytes: u64,
+    pub history: Vec<MetricPoint>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetricsSnapshot {
+    pub sampled_at_ms: i64,
+    pub total_cpu_percent: f32,
+    pub total_memory_bytes: u64,
+    pub global_history: Vec<MetricPoint>,
+    pub by_process: std::collections::HashMap<String, ProcessMetricSeries>,
+    pub by_service: std::collections::HashMap<String, ServiceMetricSeries>,
+    pub by_project: std::collections::HashMap<String, ProjectMetricSeries>,
+}

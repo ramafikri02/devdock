@@ -3,6 +3,7 @@ import {
   type AppBootstrapInfo,
   type EnvPreset,
   type GlobalStorageSummary,
+  type MetricsSnapshot,
   type PackageManager,
   type PortInjectionMethod,
   type PortInspectorSnapshot,
@@ -13,6 +14,7 @@ import {
   attachFolderToProject,
   getBootstrapInfo,
   getCachedGlobalStorage,
+  getMetricsSnapshot,
   inspectListeningPorts,
   listPresets,
   listProcesses,
@@ -83,12 +85,14 @@ interface AppState {
   storageLoading: boolean;
   portSnapshot: PortInspectorSnapshot | null;
   portsLoading: boolean;
+  metrics: MetricsSnapshot | null;
 
   init: () => Promise<void>;
   loadProjects: () => Promise<void>;
   loadPresets: () => Promise<void>;
   loadProcesses: () => Promise<void>;
   refreshPorts: () => Promise<void>;
+  setMetricsSnapshot: (snapshot: MetricsSnapshot) => void;
   upsertProcess: (info: ProcessInfo) => void;
   runScript: (serviceId: string, script: string) => Promise<ProcessInfo>;
   stopProcess: (processId: string) => Promise<void>;
@@ -183,16 +187,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   storageLoading: false,
   portSnapshot: null,
   portsLoading: false,
+  metrics: null,
 
   init: async () => {
     try {
-      const [info, projects, presets, cachedStorage, procList, ports] = await Promise.all([
+      const [info, projects, presets, cachedStorage, procList, ports, metrics] = await Promise.all([
         getBootstrapInfo(),
         listProjects(),
         listPresets(),
         getCachedGlobalStorage(),
         listProcesses(),
         inspectListeningPorts(),
+        getMetricsSnapshot(),
       ]);
       const theme: ThemeMode = info.theme === "light" ? "light" : "dark";
       applyThemeClass(theme);
@@ -208,6 +214,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         processes,
         globalStorage: cachedStorage,
         portSnapshot: ports,
+        metrics,
       });
       // Gently warm storage cache in the background when services exist
       if (projects.some((p) => p.services.length > 0)) {
@@ -245,6 +252,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     } finally {
       set({ portsLoading: false });
     }
+  },
+
+  setMetricsSnapshot: (snapshot) => {
+    set({ metrics: snapshot });
   },
 
   upsertProcess: (info) => {
