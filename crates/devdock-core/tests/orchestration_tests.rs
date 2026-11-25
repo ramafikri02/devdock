@@ -55,8 +55,9 @@ fn start_all_respects_reordered_sequence_and_default_script() {
     let svc_a_dir = temp.path().join("svc-frontend");
     let svc_b_dir = temp.path().join("svc-backend");
 
-    let order_log_a = order_log.to_string_lossy().replace('\\', "\\\\");
-    let order_log_b = order_log.to_string_lossy().replace('\\', "\\\\");
+    // Use forward slashes so the path stays valid across JSON, cmd.exe, and JS string literals on Windows.
+    let order_log_a = order_log.to_string_lossy().replace('\\', "/");
+    let order_log_b = order_log.to_string_lossy().replace('\\', "/");
 
     write_service_fixture(
         &svc_a_dir,
