@@ -2,13 +2,15 @@ pub mod adapter;
 pub mod db;
 pub mod error;
 pub mod models;
+pub mod registry;
 pub mod shell_env;
 pub mod traits;
 
 use crate::adapter::{AdapterRegistry, ProjectAdapter};
 use crate::db::Database;
 use crate::error::{CoreError, CoreResult};
-use crate::models::{AppBootstrapInfo, ServiceDescriptor};
+use crate::models::{AppBootstrapInfo, PackageManager, Project, Service, ServiceDescriptor};
+use crate::registry::ProjectRegistry;
 use crate::shell_env::LoginShellEnvProvider;
 use crate::traits::{
     InMemoryNotifier, InMemorySecretStore, InMemoryShellEnvProvider, Notifier, SecretStore,
@@ -153,5 +155,73 @@ impl DevDockCore {
             theme,
             adapters: self.list_adapters(),
         })
+    }
+
+    fn registry(&self) -> ProjectRegistry<'_> {
+        ProjectRegistry::new(&self.db, &self.adapters)
+    }
+
+    pub fn register_folder_as_project(
+        &self,
+        folder: &Path,
+        project_name: Option<&str>,
+    ) -> CoreResult<Project> {
+        self.registry()
+            .register_folder_as_project(folder, project_name)
+    }
+
+    pub fn attach_folder_to_project(
+        &self,
+        project_id: &str,
+        folder: &Path,
+        service_name: Option<&str>,
+    ) -> CoreResult<Service> {
+        self.registry()
+            .attach_folder_to_project(project_id, folder, service_name)
+    }
+
+    pub fn list_projects(&self) -> CoreResult<Vec<Project>> {
+        self.registry().list_projects()
+    }
+
+    pub fn get_project(&self, project_id: &str) -> CoreResult<Project> {
+        self.registry().get_project(project_id)
+    }
+
+    pub fn get_service(&self, service_id: &str) -> CoreResult<Service> {
+        self.registry().get_service(service_id)
+    }
+
+    pub fn refresh_service(&self, service_id: &str) -> CoreResult<Service> {
+        self.registry().refresh_service(service_id)
+    }
+
+    pub fn rename_project(&self, project_id: &str, new_name: &str) -> CoreResult<Project> {
+        self.registry().rename_project(project_id, new_name)
+    }
+
+    pub fn rename_service(&self, service_id: &str, new_name: &str) -> CoreResult<Service> {
+        self.registry().rename_service(service_id, new_name)
+    }
+
+    pub fn set_service_pm_override(
+        &self,
+        service_id: &str,
+        pm_override: Option<PackageManager>,
+    ) -> CoreResult<Service> {
+        self.registry()
+            .set_service_pm_override(service_id, pm_override)
+    }
+
+    pub fn relocate_service(&self, service_id: &str, new_folder: &Path) -> CoreResult<Service> {
+        self.registry().relocate_service(service_id, new_folder)
+    }
+
+    pub fn remove_service(&self, service_id: &str) -> CoreResult<()> {
+        self.registry().remove_service(service_id)
+    }
+
+    pub fn remove_project(&self, project_id: &str) -> CoreResult<()> {
+        self.registry().remove_project(project_id)
     }
 }

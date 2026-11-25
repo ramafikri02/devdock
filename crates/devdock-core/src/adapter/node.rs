@@ -5,7 +5,7 @@ use crate::models::{
     ServiceDescriptor,
 };
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
 #[derive(Debug, Default)]
@@ -14,6 +14,84 @@ pub struct NodeAdapter;
 impl NodeAdapter {
     pub fn new() -> Self {
         Self
+    }
+
+    fn detect_package_manager(folder: &Path, pkg_json: &Value) -> PackageManager {
+        // 1. Check `packageManager` field in package.json (e.g. "pnpm@9.15.0")
+        if let Some(pm_field) = pkg_json.get("packageManager").and_then(|v| v.as_str()) {
+            let name = pm_field.split('@').next().unwrap_or(pm_field);
+            if let Some(pm) = PackageManager::parse(name) {
+                return pm;
+            }
+        }
+
+        // 2. Check lockfiles in folder (and up to 2 ancestors for workspace setups)
+        let mut cursor = Some(folder);
+        for _ in 0..3 {
+            let Some(dir) = cursor else { break };
+            if dir.join("pnpm-lock.yaml").is_file() {
+                return PackageManager::Pnpm;
+            }
+            if dir.join("yarn.lock").is_file() {
+                return PackageManager::Yarn;
+            }
+            if dir.join("bun.lockb").is_file() || dir.join("bun.lock").is_file() {
+                return PackageManager::Bun;
+            }
+            if dir.join("package-lock.json").is_file() || dir.join("npm-shrinkwrap.json").is_file() {
+                return PackageManager::Npm;
+            }
+            cursor = dir.parent();
+        }
+
+        PackageManager::Npm
+    }
+
+    fn detect_framework(pkg_json: &Value) -> Framework {
+        let mut deps: HashSet<&str> = HashSet::new();
+        for section in ["dependencies", "devDependencies", "peerDependencies"] {
+            if let Some(obj) = pkg_json.get(section).and_then(|v| v.as_object()) {
+                for key in obj.keys() {
+                    deps.insert(key.as_str());
+                }
+            }
+        }
+
+        if deps.contains("next") {
+            return Framework::NextJs;
+        }
+        if deps.contains("nuxt") || deps.contains("nuxt3") {
+            return Framework::Nuxt;
+        }
+        if deps.contains("astro") {
+            return Framework::Astro;
+        }
+        if deps.contains("@sveltejs/kit") {
+            return Framework::SvelteKit;
+        }
+        if deps.contains("@remix-run/node")
+            || deps.contains("@remix-run/react")
+            || deps.contains("remix")
+        {
+            return Framework::Remix;
+        }
+        if deps.contains("@nestjs/core") {
+            return Framework::NestJs;
+        }
+        if deps.contains("fastify") {
+            return Framework::Fastify;
+        }
+        if deps.contains("hono") {
+            return Framework::Hono;
+        }
+        if deps.contains("express") {
+            return Framework::Express;
+        }
+        if deps.contains("vite") {
+            return Framework::Vite;
+        }
+
+        Framework::Unknown
     }
 }
 
@@ -51,6 +129,9 @@ impl ProjectAdapter for NodeAdapter {
             .map(ToString::to_string)
             .unwrap_or(fallback_name);
 
+        let package_manager = Self::detect_package_manager(folder, &json);
+        let framework = Self::detect_framework(&json);
+
         let mut scripts = BTreeMap::new();
         if let Some(obj) = json.get("scripts").and_then(|v| v.as_object()) {
             for (k, v) in obj {
@@ -63,8 +144,8 @@ impl ProjectAdapter for NodeAdapter {
         Ok(ServiceDescriptor {
             adapter: self.id().to_string(),
             name,
-            package_manager: PackageManager::Npm,
-            framework: Framework::Unknown,
+            package_manager,
+            framework,
             scripts,
             workspace_packages: Vec::new(),
         })
@@ -81,12 +162,7 @@ impl ProjectAdapter for NodeAdapter {
             .as_ref()
             .unwrap_or(&service.detected_pm);
         let program = pm.as_str().to_string();
-        let args = match pm {
-            PackageManager::Npm => vec!["run".to_string(), script.to_string()],
-            PackageManager::Pnpm => vec!["run".to_string(), script.to_string()],
-            PackageManager::Yarn => vec!["run".to_string(), script.to_string()],
-            PackageManager::Bun => vec!["run".to_string(), script.to_string()],
-        };
+        let args = vec!["run".to_string(), script.to_string()];
         Ok(RunCommandSpec {
             program,
             args,
