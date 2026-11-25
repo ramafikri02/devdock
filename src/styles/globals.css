@@ -1,0 +1,196 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #F8FAFC;
+  --bg-sidebar: #F1F5F9;
+  --bg-topbar: #FFFFFF;
+  --surface: #FFFFFF;
+  --surface-2: #F8FAFC;
+  --surface-hover: #E2E8F0;
+  --border: #E2E8F0;
+  --border-strong: #CBD5E1;
+  --fg: #0F172A;
+  --fg-2: #334155;
+  --fg-muted: #475569;
+  --fg-faint: #64748B;
+  --accent: #16A34A;
+  --accent-fg: #FFFFFF;
+  --accent-soft: rgba(22, 163, 74, 0.12);
+  --info: #0284C7;
+  --info-soft: rgba(2, 132, 199, 0.12);
+  --warn: #B45309;
+  --warn-soft: rgba(180, 83, 9, 0.12);
+  --danger: #DC2626;
+  --danger-solid: #DC2626;
+  --danger-soft: rgba(220, 38, 38, 0.12);
+  --log-bg: #0F172A;
+
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-panel: 220ms;
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+.dark {
+  --bg: #0B1120;
+  --bg-sidebar: #080D1A;
+  --bg-topbar: #0A101E;
+  --surface: #111827;
+  --surface-2: #172033;
+  --surface-hover: #1E293B;
+  --border: #1F2A3F;
+  --border-strong: #334155;
+  --fg: #F8FAFC;
+  --fg-2: #CBD5E1;
+  --fg-muted: #94A3B8;
+  --fg-faint: #64748B;
+  --accent: #22C55E;
+  --accent-fg: #052E16;
+  --accent-soft: rgba(34, 197, 94, 0.14);
+  --info: #38BDF8;
+  --info-soft: rgba(56, 189, 248, 0.14);
+  --warn: #F59E0B;
+  --warn-soft: rgba(245, 158, 11, 0.14);
+  --danger: #F87171;
+  --danger-solid: #EF4444;
+  --danger-soft: rgba(239, 68, 68, 0.14);
+  --log-bg: #060A14;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-sidebar: var(--bg-sidebar);
+  --color-bg-topbar: var(--bg-topbar);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-faint: var(--fg-faint);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-solid: var(--danger-solid);
+  --color-danger-soft: var(--danger-soft);
+  --color-log-bg: var(--log-bg);
+
+  --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  border-color: var(--border);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Focus ring accessible across dark & light modes */
+:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+}
+
+/* Subtle view transition */
+@keyframes view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes modal-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-view-enter {
+  animation: view-enter 160ms var(--ease-enter) both;
+}
+
+.animate-toast-enter {
+  animation: toast-enter var(--dur-base) var(--ease-enter) both;
+}
+
+.animate-modal-enter {
+  animation: modal-enter var(--dur-base) var(--ease-enter) both;
+}
+
+.btn-press {
+  transition:
+    background-color var(--dur-fast) var(--ease-enter),
+    border-color var(--dur-fast) var(--ease-enter),
+    color var(--dur-fast) var(--ease-enter),
+    transform var(--dur-fast) var(--ease-enter);
+}
+
+.btn-press:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-view-enter,
+  .animate-toast-enter,
+  .animate-modal-enter {
+    animation: none;
+  }
+
+  .btn-press,
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .btn-press:active:not(:disabled) {
+    transform: none;
+  }
+}

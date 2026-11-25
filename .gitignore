@@ -1,2 +1,9 @@
 .scratch/
 .DS_Store
+node_modules/
+dist/
+target/
+src-tauri/target/
+*.db
+*.sqlite
+*.sqlite3
