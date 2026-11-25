@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   Code2,
   Database,
+  Download,
   Globe,
   Loader2,
   Moon,
@@ -10,7 +11,12 @@ import {
   ShieldCheck,
   Sun,
   Terminal,
+  Upload,
 } from "lucide-react";
+import {
+  ExportConfigModal,
+  ImportConfigModal,
+} from "@/components/settings/ExportImportModal";
 import {
   type HostsSyncPreview,
   openExternalUrl,
@@ -36,6 +42,8 @@ export function SettingsView() {
   const [proxyBusy, setProxyBusy] = useState(false);
   const [hostsPreview, setHostsPreview] = useState<HostsSyncPreview | null>(null);
   const [syncingHosts, setSyncingHosts] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const loadHostsPreview = async () => {
     try {
@@ -375,6 +383,41 @@ export function SettingsView() {
           <div>Adapters: {bootstrap?.adapters.join(", ") ?? "—"}</div>
         </div>
       </section>
+
+      {/* Export / Import */}
+      <section className="rounded-[10px] border border-border bg-surface p-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-[14px] font-semibold text-fg">
+              Export & Import Konfigurasi
+            </h2>
+            <p className="mt-0.5 text-[12.5px] text-fg-muted">
+              Cadangkan atau pindahkan seluruh project, service, preset (termasuk secret terenkripsi), dan settings antar macOS dan Windows dengan remap path otomatis.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setExportOpen(true)}
+              className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Export…</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setImportOpen(true)}
+              className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12.5px] font-semibold text-accent-fg hover:opacity-95"
+            >
+              <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Import…</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <ExportConfigModal open={exportOpen} onClose={() => setExportOpen(false)} />
+      <ImportConfigModal open={importOpen} onClose={() => setImportOpen(false)} />
     </div>
   );
 }

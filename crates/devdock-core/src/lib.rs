@@ -3,6 +3,7 @@ pub mod db;
 pub mod db_tester;
 pub mod env_resolver;
 pub mod error;
+pub mod export_import;
 pub mod git_info;
 pub mod log_buffer;
 pub mod models;
@@ -25,13 +26,15 @@ use crate::db::Database;
 use crate::db_tester::{DbConnectionTester, DEFAULT_DB_TIMEOUT};
 use crate::env_resolver::EnvResolver;
 use crate::error::{CoreError, CoreResult};
+use crate::export_import::{validate_relocated_folder, ExportImportManager};
 use crate::log_buffer::DEFAULT_LOG_CAPACITY;
 use crate::models::{
     AppBootstrapInfo, AttachedPreset, DbTestResult, DesktopToolSettings, EnvPreset, EnvWriteResult,
-    GitStatusInfo, GlobalStorageSummary, HostsSyncPreview, HostsSyncResult, LogExportScope,
-    LogLine, MetricsSnapshot, NodeInstallProgress, NodeInstallResult, OrchestrationStepState,
-    PackageManager, PortCheckResult, PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput,
-    ProcessEvent, ProcessInfo, ProcessStatus, Project, ProjectAggregateStatus, ProjectEnvSummary,
+    ExportSummary, FolderRelocationCheck, GitStatusInfo, GlobalStorageSummary, HostsSyncPreview,
+    HostsSyncResult, ImportPreview, ImportResult, LogExportScope, LogLine, MetricsSnapshot,
+    NodeInstallProgress, NodeInstallResult, OrchestrationStepState, PackageManager,
+    PortCheckResult, PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput, ProcessEvent,
+    ProcessInfo, ProcessStatus, Project, ProjectAggregateStatus, ProjectEnvSummary,
     ProjectOrchestrationResult, ProjectOrchestrationStep, ProjectStatusSummary,
     ProjectStorageSummary, ProxyStatus, QuickActionTarget, ScanResult, Service, ServiceDescriptor,
     ServiceEnvInspection, ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
@@ -1345,5 +1348,73 @@ impl DevDockCore {
                 open_url_in_browser(&url)
             }
         }
+    }
+
+    pub fn export_config_bundle(
+        &self,
+        include_secrets: bool,
+        passphrase: Option<&str>,
+    ) -> CoreResult<String> {
+        let projects = self.list_projects()?;
+        let (json, _, _) =
+            ExportImportManager::new(&self.db, &self.secrets).export_bundle(
+                &projects,
+                include_secrets,
+                passphrase,
+            )?;
+        Ok(json)
+    }
+
+    pub fn export_config_to_file(
+        &self,
+        output_path: &Path,
+        include_secrets: bool,
+        passphrase: Option<&str>,
+    ) -> CoreResult<ExportSummary> {
+        let projects = self.list_projects()?;
+        ExportImportManager::new(&self.db, &self.secrets).export_to_file(
+            &projects,
+            output_path,
+            include_secrets,
+            passphrase,
+        )
+    }
+
+    pub fn preview_import_bundle(
+        &self,
+        raw_json: &str,
+        passphrase: Option<&str>,
+        parent_remap: Option<(&str, &str)>,
+        path_overrides: &std::collections::HashMap<String, String>,
+    ) -> CoreResult<ImportPreview> {
+        ExportImportManager::new(&self.db, &self.secrets).preview_import(
+            raw_json,
+            passphrase,
+            parent_remap,
+            path_overrides,
+        )
+    }
+
+    pub fn apply_import_bundle(
+        &self,
+        raw_json: &str,
+        passphrase: Option<&str>,
+        parent_remap: Option<(&str, &str)>,
+        path_overrides: &std::collections::HashMap<String, String>,
+    ) -> CoreResult<ImportResult> {
+        ExportImportManager::new(&self.db, &self.secrets).apply_import(
+            raw_json,
+            passphrase,
+            parent_remap,
+            path_overrides,
+        )
+    }
+
+    pub fn validate_relocation_folder(
+        &self,
+        folder: &Path,
+        expected_package_name: Option<&str>,
+    ) -> FolderRelocationCheck {
+        validate_relocated_folder(folder, expected_package_name)
     }
 }

@@ -784,3 +784,68 @@ pub enum QuickActionTarget {
     Browser,
     FileManager,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportSummary {
+    pub format_version: u32,
+    pub project_count: usize,
+    pub service_count: usize,
+    pub preset_count: usize,
+    pub secret_count: usize,
+    pub includes_secrets: bool,
+    pub output_path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderRelocationCheck {
+    pub path: String,
+    pub exists: bool,
+    pub package_name: Option<String>,
+    pub expected_package_name: Option<String>,
+    pub matches_package_name: bool,
+    pub warning: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportServiceResolution {
+    pub project_name: String,
+    pub service_key: String,
+    pub service_name: String,
+    pub expected_package_name: Option<String>,
+    pub original_path: String,
+    pub resolved_path: String,
+    pub exists_on_disk: bool,
+    pub package_name_matches: bool,
+    pub detected_package_name: Option<String>,
+    pub warning: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportPreview {
+    pub format_version: u32,
+    pub exported_at: String,
+    pub source_os: String,
+    pub includes_secrets: bool,
+    pub passphrase_verified: bool,
+    pub project_count: usize,
+    pub service_count: usize,
+    pub preset_count: usize,
+    pub secret_count: usize,
+    pub suggested_common_parent: Option<String>,
+    pub missing_count: usize,
+    pub services: Vec<ImportServiceResolution>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportResult {
+    pub projects_imported: usize,
+    pub services_imported: usize,
+    pub presets_imported: usize,
+    pub secrets_stored: usize,
+    pub missing_services: usize,
+}

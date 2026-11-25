@@ -1324,6 +1324,61 @@ export async function confirmAppQuit(stopProcesses: boolean): Promise<void> {
   await invoke("confirm_app_quit", { stopProcesses });
 }
 
+export interface ExportSummary {
+  formatVersion: number;
+  projectCount: number;
+  serviceCount: number;
+  presetCount: number;
+  secretCount: number;
+  includesSecrets: boolean;
+  outputPath: string;
+}
+
+export interface FolderRelocationCheck {
+  path: string;
+  exists: boolean;
+  packageName: string | null;
+  expectedPackageName: string | null;
+  matchesPackageName: boolean;
+  warning: string | null;
+}
+
+export interface ImportServiceResolution {
+  projectName: string;
+  serviceKey: string;
+  serviceName: string;
+  expectedPackageName: string | null;
+  originalPath: string;
+  resolvedPath: string;
+  existsOnDisk: boolean;
+  packageNameMatches: boolean;
+  detectedPackageName: string | null;
+  warning: string | null;
+}
+
+export interface ImportPreview {
+  formatVersion: number;
+  exportedAt: string;
+  sourceOs: string;
+  includesSecrets: boolean;
+  passphraseVerified: boolean;
+  projectCount: number;
+  serviceCount: number;
+  presetCount: number;
+  secretCount: number;
+  suggestedCommonParent: string | null;
+  missingCount: number;
+  services: ImportServiceResolution[];
+}
+
+export interface ImportResult {
+  projectsImported: number;
+  servicesImported: number;
+  presetsImported: number;
+  secretsStored: number;
+  missingServices: number;
+}
+
 export async function onQuitRequested(
   handler: (payload: { activeCount: number }) => void,
 ): Promise<UnlistenFn> {
@@ -1332,5 +1387,85 @@ export async function onQuitRequested(
   }
   return listen<{ activeCount: number }>("app:quit-requested", (event) => {
     handler(event.payload);
+  });
+}
+
+export async function pickExportSaveDialog(
+  defaultPath = "devdock-backup.json",
+): Promise<string | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+  const selected = await save({
+    title: "Export konfigurasi DevDock",
+    defaultPath,
+    filters: [{ name: "DevDock Backup", extensions: ["json"] }],
+  });
+  return typeof selected === "string" ? selected : null;
+}
+
+export async function pickImportOpenDialog(): Promise<string | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+  const selected = await open({
+    title: "Pilih file konfigurasi DevDock",
+    multiple: false,
+    filters: [{ name: "DevDock Backup", extensions: ["json"] }],
+  });
+  return typeof selected === "string" ? selected : null;
+}
+
+export async function exportConfigToFile(
+  outputPath: string,
+  includeSecrets: boolean,
+  passphrase?: string | null,
+): Promise<ExportSummary> {
+  return invoke<ExportSummary>("export_config_to_file", {
+    outputPath,
+    includeSecrets,
+    passphrase: passphrase?.trim() ? passphrase : null,
+  });
+}
+
+export async function previewImportFile(
+  inputPath: string,
+  passphrase?: string | null,
+  oldParent?: string | null,
+  newParent?: string | null,
+  pathOverrides: Record<string, string> = {},
+): Promise<ImportPreview> {
+  return invoke<ImportPreview>("preview_import_file", {
+    inputPath,
+    passphrase: passphrase?.trim() ? passphrase : null,
+    oldParent: oldParent?.trim() ? oldParent : null,
+    newParent: newParent?.trim() ? newParent : null,
+    pathOverrides,
+  });
+}
+
+export async function applyImportFile(
+  inputPath: string,
+  passphrase?: string | null,
+  oldParent?: string | null,
+  newParent?: string | null,
+  pathOverrides: Record<string, string> = {},
+): Promise<ImportResult> {
+  return invoke<ImportResult>("apply_import_file", {
+    inputPath,
+    passphrase: passphrase?.trim() ? passphrase : null,
+    oldParent: oldParent?.trim() ? oldParent : null,
+    newParent: newParent?.trim() ? newParent : null,
+    pathOverrides,
+  });
+}
+
+export async function validateRelocationFolder(
+  folder: string,
+  expectedPackageName?: string | null,
+): Promise<FolderRelocationCheck> {
+  return invoke<FolderRelocationCheck>("validate_relocation_folder", {
+    folder,
+    expectedPackageName: expectedPackageName ?? null,
   });
 }

@@ -1,11 +1,12 @@
 use devdock_core::models::{
     AppBootstrapInfo, AttachedPreset, DbTestResult, DesktopToolSettings, EnvPreset, EnvWriteResult,
-    GitStatusInfo, GlobalStorageSummary, HostsSyncPreview, HostsSyncResult, LogExportScope,
-    LogLine, MetricsSnapshot, NodeInstallResult, PackageManager, PortCheckResult,
-    PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput, ProcessEvent, ProcessInfo,
-    Project, ProjectEnvSummary, ProjectOrchestrationResult, ProjectStatusSummary,
-    ProjectStorageSummary, ProxyStatus, QuickActionTarget, ScanResult, Service,
-    ServiceEnvInspection, ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
+    ExportSummary, FolderRelocationCheck, GitStatusInfo, GlobalStorageSummary, HostsSyncPreview,
+    HostsSyncResult, ImportPreview, ImportResult, LogExportScope, LogLine, MetricsSnapshot,
+    NodeInstallResult, PackageManager, PortCheckResult, PortInjectionMethod, PortInspectorSnapshot,
+    PresetEntryInput, ProcessEvent, ProcessInfo, Project, ProjectEnvSummary,
+    ProjectOrchestrationResult, ProjectStatusSummary, ProjectStorageSummary, ProxyStatus,
+    QuickActionTarget, ScanResult, Service, ServiceEnvInspection, ServiceNodeRuntime,
+    ServiceStorageReport, StorageCleanResult,
 };
 use devdock_core::monitor::DEFAULT_MONITOR_INTERVAL;
 use devdock_core::secret_store::OsKeychainSecretStore;
@@ -1266,6 +1267,88 @@ async fn confirm_app_quit(
     Ok(())
 }
 
+#[tauri::command]
+async fn export_config_to_file(
+    state: State<'_, AppState>,
+    output_path: String,
+    include_secrets: bool,
+    passphrase: Option<String>,
+) -> Result<ExportSummary, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.export_config_to_file(
+            PathBuf::from(output_path).as_path(),
+            include_secrets,
+            passphrase.as_deref(),
+        )
+        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn preview_import_file(
+    state: State<'_, AppState>,
+    input_path: String,
+    passphrase: Option<String>,
+    old_parent: Option<String>,
+    new_parent: Option<String>,
+    path_overrides: HashMap<String, String>,
+) -> Result<ImportPreview, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        let raw_json = std::fs::read_to_string(&input_path).map_err(|e| e.to_string())?;
+        let remap = match (old_parent.as_deref(), new_parent.as_deref()) {
+            (Some(o), Some(n)) if !o.trim().is_empty() && !n.trim().is_empty() => Some((o, n)),
+            _ => None,
+        };
+        core.preview_import_bundle(&raw_json, passphrase.as_deref(), remap, &path_overrides)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn apply_import_file(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    input_path: String,
+    passphrase: Option<String>,
+    old_parent: Option<String>,
+    new_parent: Option<String>,
+    path_overrides: HashMap<String, String>,
+) -> Result<ImportResult, String> {
+    let core = Arc::clone(&state.core);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let raw_json = std::fs::read_to_string(&input_path).map_err(|e| e.to_string())?;
+        let remap = match (old_parent.as_deref(), new_parent.as_deref()) {
+            (Some(o), Some(n)) if !o.trim().is_empty() && !n.trim().is_empty() => Some((o, n)),
+            _ => None,
+        };
+        core.apply_import_bundle(&raw_json, passphrase.as_deref(), remap, &path_overrides)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    state.sync_watchers();
+    state.sync_proxy_and_emit(&app);
+    Ok(result)
+}
+
+#[tauri::command]
+fn validate_relocation_folder(
+    state: State<'_, AppState>,
+    folder: String,
+    expected_package_name: Option<String>,
+) -> FolderRelocationCheck {
+    state.core.validate_relocation_folder(
+        PathBuf::from(folder).as_path(),
+        expected_package_name.as_deref(),
+    )
+}
+
 fn create_package_json_watcher(app_handle: AppHandle) -> Option<WatcherState> {
     let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
         if let Ok(event) = res {
@@ -1485,6 +1568,10 @@ pub fn run() {
             set_default_terminal,
             open_service_quick_action,
             confirm_app_quit,
+            export_config_to_file,
+            preview_import_file,
+            apply_import_file,
+            validate_relocation_folder,
         ])
         .build(tauri::generate_context!())
         .expect("error while building DevDock Tauri application")
