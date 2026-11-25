@@ -1,0 +1,2131 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DevDock — Unified Design Proposal (v2)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* UI/UX Pro Max — Dark Mode (OLED) + Developer Tool / IDE + User-Friendly Hierarchy */
+    :root[data-theme="dark"] {
+      --bg: #0B1120;
+      --bg-sidebar: #080D1A;
+      --bg-topbar: #0A101E;
+      --surface: #111827;
+      --surface-2: #172033;
+      --surface-hover: #1E293B;
+      --border: #1F2A3F;
+      --border-strong: #334155;
+      --fg: #F8FAFC;
+      --fg-2: #CBD5E1;
+      --fg-muted: #94A3B8;
+      --fg-faint: #64748B;
+      --accent: #22C55E;
+      --accent-fg: #052E16;
+      --accent-soft: rgba(34, 197, 94, 0.13);
+      --accent-border: rgba(34, 197, 94, 0.35);
+      --info: #38BDF8;
+      --info-soft: rgba(56, 189, 248, 0.13);
+      --warn: #F59E0B;
+      --warn-soft: rgba(245, 158, 11, 0.13);
+      --warn-border: rgba(245, 158, 11, 0.38);
+      --danger: #F87171;
+      --danger-solid: #EF4444;
+      --danger-soft: rgba(239, 68, 68, 0.14);
+      --danger-border: rgba(239, 68, 68, 0.38);
+      --log-bg: #060A14;
+      --ring: #38BDF8;
+    }
+    :root[data-theme="light"] {
+      --bg: #F8FAFC;
+      --bg-sidebar: #F1F5F9;
+      --bg-topbar: #FFFFFF;
+      --surface: #FFFFFF;
+      --surface-2: #F8FAFC;
+      --surface-hover: #E2E8F0;
+      --border: #E2E8F0;
+      --border-strong: #CBD5E1;
+      --fg: #0F172A;
+      --fg-2: #334155;
+      --fg-muted: #475569;
+      --fg-faint: #64748B;
+      --accent: #16A34A;
+      --accent-fg: #FFFFFF;
+      --accent-soft: rgba(22, 163, 74, 0.11);
+      --accent-border: rgba(22, 163, 74, 0.35);
+      --info: #0284C7;
+      --info-soft: rgba(2, 132, 199, 0.11);
+      --warn: #B45309;
+      --warn-soft: rgba(180, 83, 9, 0.11);
+      --warn-border: rgba(180, 83, 9, 0.35);
+      --danger: #DC2626;
+      --danger-solid: #DC2626;
+      --danger-soft: rgba(220, 38, 38, 0.11);
+      --danger-border: rgba(220, 38, 38, 0.32);
+      --log-bg: #0F172A;
+      --ring: #0284C7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      font-size: 13.5px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    button, input, select { font: inherit; color: inherit; }
+    button { cursor: pointer; background: none; border: none; }
+    button:focus-visible, a:focus-visible, input:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+    }
+
+    /* ============ TOPBAR (Clean, Intentional, Proper) ============ */
+    header.topbar {
+      height: 46px;
+      background: var(--bg-topbar);
+      border-bottom: 1px solid var(--border);
+      padding: 0 14px;
+      display: grid;
+      grid-template-columns: 1fr minmax(260px, 420px) 1fr;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .tb-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .traffic { display: flex; gap: 7px; flex-shrink: 0; }
+    .traffic span { width: 11px; height: 11px; border-radius: 50%; display: block; }
+    .t-r { background: #EF4444; } .t-y { background: #F59E0B; } .t-g { background: #22C55E; }
+    .tb-divider { width: 1px; height: 16px; background: var(--border-strong); flex-shrink: 0; }
+    .icon-btn {
+      height: 30px;
+      min-width: 30px;
+      padding: 0 8px;
+      border-radius: 7px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      color: var(--fg-muted);
+      border: 1px solid transparent;
+      transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .icon-btn:hover { background: var(--surface-hover); color: var(--fg); border-color: var(--border); }
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--fg-muted);
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .breadcrumb strong { color: var(--fg); font-weight: 600; }
+    .breadcrumb .sep { color: var(--fg-faint); }
+
+    .cmd-bar {
+      width: 100%;
+      height: 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--fg-muted);
+      font-size: 12.5px;
+      transition: border-color 140ms ease, background 140ms ease;
+    }
+    .cmd-bar:hover { border-color: var(--border-strong); color: var(--fg); }
+    .cmd-bar-left { display: inline-flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kbd {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+      padding: 2px 6px;
+      border-radius: 5px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-strong);
+      color: var(--fg-muted);
+      flex-shrink: 0;
+    }
+
+    .tb-right {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .btn {
+      height: 30px;
+      padding: 0 11px;
+      border-radius: 7px;
+      font-size: 12.5px;
+      font-weight: 500;
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      color: var(--fg);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: background 140ms ease, border-color 140ms ease, filter 140ms ease;
+    }
+    .btn:hover { background: var(--surface-hover); }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--accent-fg);
+      border-color: transparent;
+      font-weight: 600;
+    }
+    .btn-primary:hover { background: var(--accent); filter: brightness(1.06); }
+    .btn-danger {
+      background: var(--danger-soft);
+      color: var(--danger);
+      border-color: var(--danger-border);
+    }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.22); }
+    .btn-sm { height: 26px; padding: 0 9px; font-size: 12px; }
+
+    /* ============ APP BODY SHELL ============ */
+    .shell {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    /* ============ SIDEBAR (Structured, Collapsible Groups + Monorepo Trees) ============ */
+    aside.sidebar {
+      width: 256px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      min-height: 0;
+      transition: width 160ms ease;
+    }
+    aside.sidebar.collapsed { width: 0; overflow: hidden; border-right: none; }
+    .sb-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 10px 16px;
+    }
+    .sb-group-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 8px 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--fg-faint);
+    }
+    .sb-group-head:first-child { padding-top: 2px; }
+    .sb-plus {
+      width: 20px; height: 20px; border-radius: 5px;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--fg-muted);
+    }
+    .sb-plus:hover { background: var(--surface-hover); color: var(--fg); }
+
+    .nav-item {
+      width: 100%;
+      height: 32px;
+      padding: 0 9px;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-2);
+      margin-bottom: 2px;
+      transition: background 120ms ease, color 120ms ease;
+    }
+    .nav-item:hover { background: var(--surface-2); color: var(--fg); }
+    .nav-item.active {
+      background: var(--surface-hover);
+      color: var(--fg);
+      font-weight: 600;
+    }
+    .nav-left {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Tree node for App Groups (Stacks) & Monorepos */
+    .tree-parent {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      margin-bottom: 2px;
+      position: relative;
+    }
+    .sb-quick {
+      display: none;
+      align-items: center;
+      gap: 2px;
+      margin-left: auto;
+    }
+    .tree-parent:hover .sb-quick { display: inline-flex; }
+    .tree-parent:hover .sb-count { display: none; }
+    .sb-qbtn {
+      width: 20px; height: 20px; border-radius: 5px;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--fg-muted); background: var(--surface-2); border: 1px solid var(--border);
+    }
+    .sb-qbtn:hover { color: var(--fg); border-color: var(--border-strong); }
+    .sb-qbtn.stop:hover { color: var(--danger); border-color: var(--danger-border); background: var(--danger-soft); }
+    .sb-qbtn.run:hover { color: var(--accent); border-color: var(--accent-border); background: var(--accent-soft); }
+    .chev-btn {
+      width: 22px; height: 28px; border-radius: 5px;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--fg-faint); flex-shrink: 0;
+      transition: transform 140ms ease, color 140ms ease;
+    }
+    .chev-btn:hover { color: var(--fg); background: var(--surface-2); }
+    .chev-btn.open svg { transform: rotate(90deg); }
+    .tree-parent .nav-item { margin-bottom: 0; padding-left: 6px; }
+
+    .tree-children {
+      margin-left: 11px;
+      padding-left: 11px;
+      border-left: 1px solid var(--border);
+      margin-bottom: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .tree-children.hidden { display: none; }
+    .tree-child {
+      height: 29px;
+      padding: 0 8px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      font-size: 12.5px;
+      color: var(--fg-muted);
+      transition: background 120ms ease, color 120ms ease;
+    }
+    .tree-child:hover { background: var(--surface-2); color: var(--fg); }
+    .tree-child.active { background: var(--surface-hover); color: var(--fg); font-weight: 600; }
+
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+    .d-run { background: var(--accent); box-shadow: 0 0 6px rgba(34,197,94,0.45); }
+    .d-warn { background: var(--warn); }
+    .d-err { background: var(--danger-solid); }
+    .d-idle { background: var(--fg-faint); opacity: 0.5; }
+
+    .pill {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+      padding: 2px 6px;
+      border-radius: 5px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--fg-muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .pill-run { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-border); }
+    .pill-warn { background: var(--warn-soft); color: var(--warn); border-color: var(--warn-border); }
+    .pill-err { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-border); }
+    .pill-info { background: var(--info-soft); color: var(--info); border-color: rgba(56,189,248,0.3); }
+
+    .sb-footer {
+      border-top: 1px solid var(--border);
+      padding: 10px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    /* ============ MAIN CONTENT AREA ============ */
+    .stage {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      position: relative;
+    }
+    .view { display: none; flex: 1; min-height: 0; }
+    .view.active { display: flex; flex-direction: column; }
+
+    /* ============ VIEW 1: GLOBAL OVERVIEW (Screenshot 2 Refined) ============ */
+    .overview-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 22px 26px 32px;
+    }
+    .ov-head {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .ov-head h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.02em; }
+    .ov-sub { font-size: 12.5px; color: var(--fg-muted); margin-top: 2px; }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(130px, 1fr));
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+    @media (max-width: 1180px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 720px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .kpi-label {
+      font-size: 11.5px;
+      color: var(--fg-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .kpi-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 21px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .kpi-note { font-size: 11.5px; color: var(--fg-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .sec-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      gap: 10px;
+    }
+    .sec-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+    }
+
+    /* Stack / App Group Strip */
+    .stack-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 22px;
+    }
+    .stack-strip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 11px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      transition: border-color 140ms ease;
+    }
+    .stack-strip:hover { border-color: var(--border-strong); }
+    .stack-chain {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .stack-name {
+      font-weight: 600;
+      font-size: 13.5px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin-right: 4px;
+    }
+    .seg-filter {
+      display: inline-flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .seg-f {
+      padding: 4px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+    .seg-f.active { background: var(--surface-hover); color: var(--fg); font-weight: 600; }
+
+    /* Project Cards Grid */
+    .proj-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(265px, 1fr));
+      gap: 13px;
+    }
+    .p-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      padding: 14px 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      cursor: pointer;
+      transition: border-color 150ms ease, background 150ms ease;
+    }
+    .p-card:hover { border-color: var(--border-strong); background: var(--surface-2); }
+    .p-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .p-card-title { font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 14px; }
+    .p-card-group { font-size: 11px; color: var(--fg-faint); margin-top: 1px; }
+    .p-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+    .p-stats { display: flex; gap: 18px; }
+    .p-stats .lbl { font-size: 10.5px; color: var(--fg-faint); text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
+    .p-stats .val { font-family: 'JetBrains Mono', monospace; font-size: 13.5px; font-weight: 600; }
+    .p-foot {
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      color: var(--fg-muted);
+    }
+
+    /* ============ VIEW 2: PROJECT WORKBENCH (Screenshot 1 Center + Right Stats Refined) ============ */
+    .wb-layout {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+    .wb-center {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+    /* Polished Non-Wrapping Project Header */
+    .wb-header {
+      padding: 14px 20px 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      flex-shrink: 0;
+    }
+    .wb-h-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .wb-id {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+    .wb-id h1 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 18px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .wb-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .domain-chip {
+      height: 30px;
+      padding: 0 10px;
+      border-radius: 7px;
+      background: var(--info-soft);
+      border: 1px solid rgba(56,189,248,0.28);
+      color: var(--info);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .domain-chip:hover { text-decoration: underline; }
+    .wb-meta-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .wb-tabs { display: flex; gap: 4px; }
+    .wb-tab {
+      padding: 8px 13px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fg-muted);
+      border-bottom: 2px solid transparent;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .wb-tab:hover { color: var(--fg); }
+    .wb-tab.active { color: var(--fg); font-weight: 600; border-bottom-color: var(--accent); }
+
+    .wb-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 20px;
+      min-height: 0;
+    }
+    .wb-pane { display: none; }
+    .wb-pane.active { display: block; }
+
+    /* Crisp Table */
+    table.clean-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    table.clean-table th, table.clean-table td {
+      padding: 10px 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: middle;
+    }
+    table.clean-table th {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--fg-faint);
+      font-weight: 600;
+    }
+    table.clean-table tbody tr:hover { background: var(--surface); }
+    table.clean-table tr:last-child td { border-bottom: none; }
+
+    /* Persistent Scoped Live Logs Drawer (Resizable, Maximizable, Hideable) */
+    .log-drawer {
+      height: 230px;
+      min-height: 110px;
+      border-top: 1px solid var(--border-strong);
+      background: var(--log-bg);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .log-drawer.resizing { transition: none; user-select: none; }
+    .log-drawer.hidden-panel { display: none; }
+    .log-drawer.maximized {
+      position: absolute;
+      inset: 0;
+      height: auto !important;
+      z-index: 20;
+      border-top: none;
+    }
+    .log-resizer {
+      position: absolute;
+      top: -3px; left: 0; right: 0;
+      height: 6px;
+      cursor: ns-resize;
+      z-index: 5;
+    }
+    .log-resizer:hover::after, .log-drawer.resizing .log-resizer::after {
+      content: "";
+      position: absolute;
+      left: 0; right: 0; top: 2px;
+      height: 2px;
+      background: var(--ring);
+    }
+    .log-drawer.maximized .log-resizer { display: none; }
+    .log-bar {
+      height: 38px;
+      padding: 0 10px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .log-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      flex: 1;
+    }
+    .log-scope {
+      height: 26px;
+      padding: 0 8px;
+      border-radius: 6px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-strong);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--fg);
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .log-tabs { display: flex; gap: 4px; overflow-x: auto; min-width: 0; scrollbar-width: none; }
+    .log-tabs::-webkit-scrollbar { display: none; }
+    .log-tab {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      color: var(--fg-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+    .log-tab:hover { background: var(--surface-2); color: var(--fg); }
+    .log-tab.active { background: var(--surface-hover); color: var(--fg); font-weight: 600; border-color: var(--border-strong); }
+    .log-tab .tab-x {
+      width: 15px; height: 15px; border-radius: 4px;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--fg-faint); font-size: 11px; opacity: 0;
+      transition: opacity 120ms ease, background 120ms ease;
+    }
+    .log-tab:hover .tab-x, .log-tab.active .tab-x { opacity: 1; }
+    .log-tab .tab-x:hover { background: var(--danger-soft); color: var(--danger); }
+    .log-tools { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .log-filter {
+      height: 25px;
+      width: 150px;
+      padding: 0 8px;
+      border-radius: 5px;
+      background: var(--bg);
+      border: 1px solid var(--border-strong);
+      font-size: 11.5px;
+    }
+    .log-stream {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.65;
+      color: #E2E8F0;
+    }
+    .ll { display: flex; gap: 10px; }
+    .ll .ts { color: #64748B; user-select: none; flex-shrink: 0; }
+    .ll .svc-tag {
+      font-size: 11px;
+      padding: 0 5px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      font-weight: 600;
+    }
+    .ll .svc-fe { background: rgba(56, 189, 248, 0.16); color: #38BDF8; }
+    .ll .svc-be { background: rgba(34, 197, 94, 0.16); color: #4ADE80; }
+    .ll .svc-wk { background: rgba(248, 113, 113, 0.16); color: #F87171; }
+    .ll .ok { color: #4ADE80; }
+    .ll .info { color: #38BDF8; }
+    .ll .warn { color: #FBBF24; }
+    .ll .err { color: #F87171; }
+    .wb-center { position: relative; }
+    .sb-log-toggle {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 2px 8px; border-radius: 5px;
+      color: var(--fg-2); background: var(--surface); border: 1px solid var(--border);
+      font-size: 11px; height: 20px;
+    }
+    .sb-log-toggle:hover { border-color: var(--border-strong); color: var(--fg); }
+    .sb-log-toggle.on { border-color: var(--accent-border); color: var(--accent); background: var(--accent-soft); }
+    .order-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 6px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--fg-muted);
+    }
+
+    /* ============ RIGHT STATISTICS PANEL (Screenshot 1 Beloved Column, Polished) ============ */
+    aside.stats-col {
+      width: 280px;
+      border-left: 1px solid var(--border);
+      background: var(--bg-sidebar);
+      overflow-y: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    @media (max-width: 1040px) { aside.stats-col { width: 240px; } }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .stat-card.alert {
+      border-color: var(--warn-border);
+      background: var(--warn-soft);
+    }
+    .sc-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--fg-muted);
+    }
+    .sc-big {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .sc-big strong {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 21px;
+      font-weight: 700;
+    }
+    .sc-big span { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--fg-muted); }
+    .kv-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 12.5px;
+      padding: 2px 0;
+    }
+    .kv-row .k { color: var(--fg-muted); }
+    .kv-row .v { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--fg); text-align: right; }
+
+    /* ============ STATUS BAR (Bottom Slim Telemetry) ============ */
+    footer.statusbar {
+      height: 28px;
+      background: var(--bg-topbar);
+      border-top: 1px solid var(--border);
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--fg-muted);
+      flex-shrink: 0;
+    }
+    .sb-cluster { display: flex; align-items: center; gap: 14px; }
+
+    /* ============ ⌘K MODAL ============ */
+    .scrim {
+      position: fixed; inset: 0; background: rgba(2,6,23,0.72);
+      display: none; align-items: flex-start; justify-content: center; padding-top: 12vh; z-index: 60;
+    }
+    .scrim.open { display: flex; }
+    .cmd-modal {
+      width: min(560px, 92vw);
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+    }
+    .cmd-modal input {
+      width: 100%; padding: 13px 15px; background: transparent;
+      border: none; border-bottom: 1px solid var(--border); font-size: 14px; outline: none;
+    }
+    .cmd-item {
+      width: 100%; text-align: left; padding: 10px 15px;
+      display: flex; justify-content: space-between; align-items: center; font-size: 13px;
+    }
+    .cmd-item:hover { background: var(--surface-hover); }
+
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="tb-left">
+      <div class="traffic" aria-hidden="true"><span class="t-r"></span><span class="t-y"></span><span class="t-g"></span></div>
+      <div class="tb-divider" aria-hidden="true"></div>
+      <button class="icon-btn" id="toggleSidebarBtn" aria-label="Toggle sidebar" title="Toggle Sidebar">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg>
+      </button>
+      <nav class="breadcrumb" aria-label="Breadcrumb" id="breadcrumb">
+        <strong>Overview</strong>
+      </nav>
+    </div>
+
+    <button class="cmd-bar" id="openCmd" aria-label="Buka command palette">
+      <span class="cmd-bar-left">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <span>Cari project, script, preset, atau port…</span>
+      </span>
+      <span class="kbd">⌘K</span>
+    </button>
+
+    <div class="tb-right">
+      <button class="btn" onclick="alert('Scan folder induk (kedalaman default 3, skip node_modules/.git)')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Scan
+      </button>
+      <button class="btn btn-primary" onclick="alert('Tambah project folder baru atau buat App Group / Stack')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Tambah
+      </button>
+      <button class="icon-btn" id="themeBtn" aria-label="Ganti tema terang atau gelap" title="Ganti Tema">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar" aria-label="Navigasi utama DevDock">
+      <div class="sb-scroll">
+        <!-- Global Navigation -->
+        <div class="sb-group-head"><span>Workspace</span></div>
+        <button class="nav-item active" data-nav="overview" onclick="openOverview(this)">
+          <span class="nav-left">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            Overview
+          </span>
+          <span class="pill pill-run">4 jalan</span>
+        </button>
+        <button class="nav-item" data-nav="ports" onclick="openPorts(this)">
+          <span class="nav-left">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
+            Port Inspector
+          </span>
+          <span class="pill pill-warn">1 bentrok</span>
+        </button>
+        <button class="nav-item" data-nav="presets" onclick="openPresets(this)">
+          <span class="nav-left">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>
+            Env Presets
+          </span>
+          <span class="pill">4</span>
+        </button>
+
+        <!-- Unified Projects (Multi-service, Monorepo, & Single-service) -->
+        <div class="sb-group-head">
+          <span>Projects</span>
+          <button class="sb-plus" title="Tambah atau buat project baru" aria-label="Tambah project baru" onclick="alert('Tambah folder project baru atau gabungkan beberapa folder (misal FE + BE) jadi 1 Project')">+</button>
+        </div>
+
+        <!-- Project 1: LMS App (Multi-folder) -->
+        <div class="tree-parent">
+          <button class="chev-btn open" aria-label="Expand LMS App" onclick="toggleTree(this, 'tree-lms')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <button class="nav-item" data-project="lms" onclick="openProjectHub('lms', this)">
+            <span class="nav-left"><span class="dot d-run"></span>LMS App</span>
+            <span class="pill pill-run sb-count">2/2</span>
+            <span class="sb-quick">
+              <span class="sb-qbtn stop" role="button" tabindex="0" title="Stop semua service LMS App" onclick="event.stopPropagation();alert('Stop semua service di LMS App')">■</span>
+            </span>
+          </button>
+        </div>
+        <div class="tree-children" id="tree-lms">
+          <button class="tree-child" data-service="lms-frontend" onclick="openService('lms', 'lms-frontend', this)">
+            <span class="nav-left"><span class="dot d-run"></span>lms-frontend</span>
+            <span class="mono" style="font-size:11px">:3002</span>
+          </button>
+          <button class="tree-child" data-service="lms-backend" onclick="openService('lms', 'lms-backend', this)">
+            <span class="nav-left"><span class="dot d-run"></span>lms-backend</span>
+            <span class="mono" style="font-size:11px">:4001</span>
+          </button>
+        </div>
+
+        <!-- Project 2: Toko Online (Multi-folder) -->
+        <div class="tree-parent">
+          <button class="chev-btn open" aria-label="Expand Toko Online" onclick="toggleTree(this, 'tree-toko')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <button class="nav-item" data-project="toko" onclick="openProjectHub('toko', this)">
+            <span class="nav-left"><span class="dot d-warn"></span>Toko Online</span>
+            <span class="pill pill-warn sb-count">2/3</span>
+            <span class="sb-quick">
+              <span class="sb-qbtn run" role="button" tabindex="0" title="Start semua service Toko Online" onclick="event.stopPropagation();alert('Start semua service di Toko Online sesuai urutan')">▶</span>
+            </span>
+          </button>
+        </div>
+        <div class="tree-children" id="tree-toko">
+          <button class="tree-child" data-service="toko-fe" onclick="openService('toko', 'toko-fe', this)">
+            <span class="nav-left"><span class="dot d-run"></span>toko-fe</span>
+            <span class="mono" style="font-size:11px">:3000</span>
+          </button>
+          <button class="tree-child" data-service="toko-api" onclick="openService('toko', 'toko-api', this)">
+            <span class="nav-left"><span class="dot d-run"></span>toko-api</span>
+            <span class="mono" style="font-size:11px">:4000</span>
+          </button>
+          <button class="tree-child" data-service="toko-worker" onclick="openService('toko', 'toko-worker', this)">
+            <span class="nav-left"><span class="dot d-err"></span>toko-worker</span>
+            <span class="mono" style="font-size:11px;color:var(--danger)">exit 1</span>
+          </button>
+        </div>
+
+        <!-- Project 3: h2o-platform (Monorepo) -->
+        <div class="tree-parent">
+          <button class="chev-btn open" aria-label="Expand h2o-platform" onclick="toggleTree(this, 'tree-h2o')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <button class="nav-item" data-project="h2o" onclick="openProjectHub('h2o', this)">
+            <span class="nav-left"><span class="dot d-warn"></span>h2o-platform</span>
+            <span class="pill sb-count">0/2</span>
+            <span class="sb-quick">
+              <span class="sb-qbtn run" role="button" tabindex="0" title="Start semua service h2o-platform" onclick="event.stopPropagation();alert('Start semua service di h2o-platform')">▶</span>
+            </span>
+          </button>
+        </div>
+        <div class="tree-children" id="tree-h2o">
+          <button class="tree-child" data-service="apps/admin" onclick="openService('h2o', 'apps/admin', this)">
+            <span class="nav-left"><span class="dot d-warn"></span>apps/admin</span>
+            <span class="mono" style="font-size:11px;color:var(--warn)">:5173</span>
+          </button>
+          <button class="tree-child" data-service="apps/web" onclick="openService('h2o', 'apps/web', this)">
+            <span class="nav-left"><span class="dot d-idle"></span>apps/web</span>
+            <span class="mono" style="font-size:11px">—</span>
+          </button>
+          <button class="tree-child" data-service="packages/ui" onclick="openService('h2o', 'packages/ui', this)">
+            <span class="nav-left"><span class="dot d-idle"></span>packages/ui</span>
+            <span class="mono" style="font-size:11px">lib</span>
+          </button>
+        </div>
+
+        <!-- Project 4: landing-page (Single-service — tampil datar) -->
+        <button class="nav-item" data-service="landing-page" onclick="openService('landing', 'landing-page', this)">
+          <span class="nav-left"><span class="dot d-idle"></span>landing-page</span>
+          <span class="mono" style="font-size:11px;color:var(--fg-faint)">:4321</span>
+        </button>
+      </div>
+
+      <div class="sb-footer">
+        <button class="icon-btn" style="font-size:12px" onclick="alert('App Settings: Editor, Terminal, Proxy *.localhost, Export/Import')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Settings
+        </button>
+        <span class="pill pill-run" title="Menutup window tetap menjalankan proses di tray">Tray aktif</span>
+      </div>
+    </aside>
+
+    <!-- MAIN STAGE -->
+    <div class="stage">
+
+      <!-- ==================== VIEW 1: OVERVIEW (Default Landing) ==================== -->
+      <section class="view active" id="view-overview">
+        <div class="overview-scroll">
+          <div class="ov-head">
+            <div>
+              <h1>Overview</h1>
+              <p class="ov-sub">4 project · 8 service · terakhir scan 2 jam lalu</p>
+            </div>
+            <div class="seg-filter" role="tablist" aria-label="Filter service">
+              <button class="seg-f active" onclick="filterCards('all', this)">Semua</button>
+              <button class="seg-f" onclick="filterCards('running', this)">Jalan (4)</button>
+              <button class="seg-f" onclick="filterCards('issue', this)">Bermasalah (2)</button>
+            </div>
+          </div>
+
+          <!-- Top 6 KPIs -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <span class="kpi-label"><span class="dot d-run"></span> Jalan</span>
+              <div class="kpi-val" style="color:var(--accent)">4</div>
+              <span class="kpi-note">dari 8 service</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label"><span class="dot d-err"></span> Crash</span>
+              <div class="kpi-val" style="color:var(--danger)">1</div>
+              <span class="kpi-note">toko-worker · exit 1</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label"><span class="dot d-warn"></span> Bentrok port</span>
+              <div class="kpi-val" style="color:var(--warn)">1</div>
+              <span class="kpi-note">:5173 apps/admin</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label">CPU total</span>
+              <div class="kpi-val">31%</div>
+              <span class="kpi-note">puncak 15m: 58%</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label">RAM total</span>
+              <div class="kpi-val">1.4 GB</div>
+              <span class="kpi-note">7 proses aktif</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label">node_modules</span>
+              <div class="kpi-val">4.8 GB</div>
+              <span class="kpi-note">bisa dibersihkan 2.1 GB</span>
+            </div>
+          </div>
+
+          <!-- Unified Projects (Multi-service orchestration) -->
+          <div class="sec-row">
+            <span class="sec-label">Projects</span>
+            <button class="btn btn-sm" onclick="alert('Tambah project baru (1 folder atau gabungkan beberapa folder)')">+ Project Baru</button>
+          </div>
+          <div class="stack-list">
+            <div class="stack-strip" style="cursor:pointer" onclick="openProjectHub('lms')">
+              <div class="stack-chain">
+                <span class="stack-name"><span class="dot d-run"></span> LMS App</span>
+                <span class="pill">multi-folder</span>
+                <button class="pill pill-run" onclick="event.stopPropagation();openService('lms','lms-backend')">1. lms-backend :4001</button>
+                <span style="color:var(--fg-faint)">→</span>
+                <button class="pill pill-run" onclick="event.stopPropagation();openService('lms','lms-frontend')">2. lms-frontend :3002</button>
+              </div>
+              <div style="display:flex;gap:6px" onclick="event.stopPropagation()">
+                <button class="btn btn-sm" onclick="openProjectHub('lms')">Buka Project</button>
+                <button class="btn btn-sm" onclick="alert('Restart LMS App sesuai urutan: lms-backend → lms-frontend')">Restart All</button>
+                <button class="btn btn-sm btn-danger" onclick="alert('Stop semua service di LMS App')">Stop All</button>
+              </div>
+            </div>
+
+            <div class="stack-strip" style="cursor:pointer" onclick="openProjectHub('toko')">
+              <div class="stack-chain">
+                <span class="stack-name"><span class="dot d-warn"></span> Toko Online</span>
+                <span class="pill">multi-folder</span>
+                <button class="pill pill-run" onclick="event.stopPropagation();openService('toko','toko-api')">1. toko-api :4000</button>
+                <span style="color:var(--fg-faint)">→</span>
+                <button class="pill pill-run" onclick="event.stopPropagation();openService('toko','toko-fe')">2. toko-fe :3000</button>
+                <span style="color:var(--fg-faint)">→</span>
+                <button class="pill pill-err" onclick="event.stopPropagation();openService('toko','toko-worker')">3. toko-worker · crash</button>
+              </div>
+              <div style="display:flex;gap:6px" onclick="event.stopPropagation()">
+                <button class="btn btn-sm" onclick="openProjectHub('toko')">Buka Project</button>
+                <button class="btn btn-sm" onclick="alert('Restart Toko Online')">Restart All</button>
+                <button class="btn btn-sm btn-danger" onclick="alert('Stop Toko Online')">Stop All</button>
+              </div>
+            </div>
+
+            <div class="stack-strip" style="cursor:pointer" onclick="openProjectHub('h2o')">
+              <div class="stack-chain">
+                <span class="stack-name"><span class="dot d-warn"></span> h2o-platform</span>
+                <span class="pill">monorepo</span>
+                <button class="pill pill-warn" onclick="event.stopPropagation();openService('h2o','apps/admin')">apps/admin · :5173 bentrok</button>
+                <button class="pill" onclick="event.stopPropagation();openService('h2o','apps/web')">apps/web · idle</button>
+              </div>
+              <div style="display:flex;gap:6px" onclick="event.stopPropagation()">
+                <button class="btn btn-sm" onclick="openProjectHub('h2o')">Buka Project</button>
+                <button class="btn btn-sm btn-primary" onclick="alert('Start semua service h2o-platform')">Start All</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active & Issue Services Grid -->
+          <div class="sec-row"><span class="sec-label">Services Aktif &amp; Perlu Perhatian</span></div>
+          <div class="proj-grid" id="projGrid">
+            <!-- toko-fe -->
+            <article class="p-card" data-state="running" onclick="openService('toko', 'toko-fe')">
+              <div class="p-card-top">
+                <div>
+                  <div class="p-card-title">toko-fe</div>
+                  <div class="p-card-group">Toko Online</div>
+                </div>
+                <span class="pill pill-run">running</span>
+              </div>
+              <div class="p-tags">
+                <span class="pill">Next.js 15</span><span class="pill">pnpm</span><span class="pill">node 20</span><span class="pill">feat/checkout •</span>
+              </div>
+              <div class="p-stats">
+                <div><div class="lbl">CPU</div><div class="val">18.4%</div></div>
+                <div><div class="lbl">RAM</div><div class="val">612 MB</div></div>
+              </div>
+              <svg viewBox="0 0 220 34" width="100%" height="34" aria-hidden="true">
+                <polyline fill="none" stroke="#22C55E" stroke-width="1.8" points="0,28 30,24 60,26 95,12 130,22 165,16 195,21 220,18"/>
+              </svg>
+              <div class="p-foot">
+                <span>toko-fe.localhost</span>
+                <span class="pill">:3000</span>
+              </div>
+            </article>
+
+            <!-- lms-frontend -->
+            <article class="p-card" data-state="running" onclick="openService('lms', 'lms-frontend')">
+              <div class="p-card-top">
+                <div>
+                  <div class="p-card-title">lms-frontend</div>
+                  <div class="p-card-group">LMS App</div>
+                </div>
+                <span class="pill pill-run">running</span>
+              </div>
+              <div class="p-tags">
+                <span class="pill">Vite</span><span class="pill">pnpm</span><span class="pill">node 22</span><span class="pill">main</span>
+              </div>
+              <div class="p-stats">
+                <div><div class="lbl">CPU</div><div class="val">4.2%</div></div>
+                <div><div class="lbl">RAM</div><div class="val">218 MB</div></div>
+              </div>
+              <svg viewBox="0 0 220 34" width="100%" height="34" aria-hidden="true">
+                <polyline fill="none" stroke="#22C55E" stroke-width="1.8" points="0,26 40,25 80,22 120,24 160,21 220,23"/>
+              </svg>
+              <div class="p-foot">
+                <span>lms-frontend.localhost</span>
+                <span class="pill">:3002</span>
+              </div>
+            </article>
+
+            <!-- toko-worker (crash) -->
+            <article class="p-card" data-state="issue" onclick="openService('toko', 'toko-worker')">
+              <div class="p-card-top">
+                <div>
+                  <div class="p-card-title">toko-worker</div>
+                  <div class="p-card-group">Toko Online</div>
+                </div>
+                <span class="pill pill-err">crash</span>
+              </div>
+              <div class="p-tags">
+                <span class="pill">Node</span><span class="pill">yarn</span><span class="pill">node 18</span>
+              </div>
+              <div style="font-size:12px;color:var(--danger);line-height:1.45">
+                Auto-restart berhenti setelah 3× dalam 60 detik.<br/>
+                <span class="mono" style="font-size:11px">Error: REDIS_URL undefined</span>
+              </div>
+              <div class="p-foot">
+                <span>exit 1 · 2m lalu</span>
+                <button class="btn btn-sm" onclick="event.stopPropagation();alert('Restart toko-worker')">Jalankan lagi</button>
+              </div>
+            </article>
+
+            <!-- h2o / admin (port conflict) -->
+            <article class="p-card" data-state="issue" onclick="openService('h2o', 'apps/admin')">
+              <div class="p-card-top">
+                <div>
+                  <div class="p-card-title">apps/admin</div>
+                  <div class="p-card-group">h2o-platform · monorepo</div>
+                </div>
+                <span class="pill pill-warn">bentrok port</span>
+              </div>
+              <div class="p-tags">
+                <span class="pill">Vite</span><span class="pill">pnpm ws</span><span class="pill">node 22</span>
+              </div>
+              <div style="font-size:12px;color:var(--warn)">
+                Port <span class="mono">:5173</span> dipakai <span class="mono">vite (PID 8812)</span>
+              </div>
+              <div class="p-foot" style="gap:6px">
+                <button class="btn btn-sm" onclick="event.stopPropagation();alert('Ganti ke port kosong :5174')">Pakai 5174</button>
+                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();alert('Kill PID 8812')">Kill PID</button>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== VIEW 2A: PROJECT HUB (Multi-service: LMS App, Toko Online, Monorepo) ==================== -->
+      <section class="view" id="view-project">
+        <div class="wb-layout">
+          <div class="wb-center">
+            <div class="wb-header">
+              <div class="wb-h-row">
+                <div class="wb-id">
+                  <h1 id="phTitle">LMS App</h1>
+                  <span class="pill pill-run" id="phStatus">2/2 running</span>
+                  <span class="pill" id="phKind">multi-folder</span>
+                </div>
+                <div class="wb-actions">
+                  <button class="btn" onclick="alert('Tambah folder service baru ke project ini')">+ Tambah Service</button>
+                  <button class="btn" onclick="alert('Restart semua service sesuai urutan')">Restart All</button>
+                  <button class="btn btn-danger" id="phMainBtn" onclick="toggleProjectAll(this)">Stop All</button>
+                </div>
+              </div>
+
+              <div class="wb-meta-line" id="phMeta">
+                <span class="pill">2 service</span>
+                <span class="pill pill-info">Shared Preset: DB Staging</span>
+                <span class="pill">Urutan: lms-backend → lms-frontend</span>
+              </div>
+
+              <div class="wb-tabs" role="tablist" aria-label="Tab project">
+                <button class="wb-tab active" role="tab" aria-selected="true" data-phtab="services">Services <span class="pill" id="phSvcCount">2</span></button>
+                <button class="wb-tab" role="tab" aria-selected="false" data-phtab="env">Shared Env &amp; Presets</button>
+                <button class="wb-tab" role="tab" aria-selected="false" data-phtab="storage">Storage &amp; Settings</button>
+              </div>
+            </div>
+
+            <div class="wb-body">
+              <!-- TAB: SERVICES -->
+              <div class="wb-pane active" id="phtab-services">
+                <table class="clean-table">
+                  <thead>
+                    <tr><th style="width:46px">#</th><th>Service</th><th>Default Script</th><th>Port &amp; Domain</th><th>Status</th><th style="text-align:right">Aksi</th></tr>
+                  </thead>
+                  <tbody id="phServicesBody"></tbody>
+                </table>
+                <p style="margin-top:12px;font-size:12px;color:var(--fg-faint)">
+                  Klik nama service untuk mengatur scripts lengkap, env override, port, atau versi Node masing-masing.
+                </p>
+              </div>
+
+              <!-- TAB: SHARED ENV -->
+              <div class="wb-pane" id="phtab-env">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+                  <p style="font-size:12.5px;color:var(--fg-muted)">Preset di level Project otomatis diwariskan ke semua service di bawahnya (bisa di-override per service).</p>
+                  <button class="btn btn-sm btn-primary" onclick="alert('Pilih preset untuk dipasang ke seluruh project')">+ Pasang Preset</button>
+                </div>
+                <table class="clean-table">
+                  <thead><tr><th>Urutan</th><th>Preset</th><th>Keys</th><th>Status</th><th style="text-align:right">Aksi</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="order-num">1</span></td>
+                      <td><strong>DB Staging</strong> <span class="pill pill-info" style="margin-left:6px">Keychain</span></td>
+                      <td class="mono" style="color:var(--fg-muted)">DATABASE_URL, DB_POOL_SIZE</td>
+                      <td><span class="pill pill-run">Aktif · 2 service</span></td>
+                      <td style="text-align:right"><button class="btn btn-sm" onclick="alert('Test koneksi DB Staging: OK (18ms)')">Test DB</button> <button class="btn btn-sm">Lepas</button></td>
+                    </tr>
+                    <tr>
+                      <td><span class="order-num">2</span></td>
+                      <td><strong>Redis Local</strong> <span class="pill" style="margin-left:6px">Plain</span></td>
+                      <td class="mono" style="color:var(--fg-muted)">REDIS_URL</td>
+                      <td><span class="pill pill-run">Aktif · 2 service</span></td>
+                      <td style="text-align:right"><button class="btn btn-sm" onclick="alert('Test koneksi Redis: OK (4ms)')">Test DB</button> <button class="btn btn-sm">Lepas</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- TAB: STORAGE & SETTINGS -->
+              <div class="wb-pane" id="phtab-storage">
+                <p style="color:var(--fg-muted);margin-bottom:12px">Total ukuran seluruh service di project ini: <strong class="mono" style="color:var(--fg)" id="phStorageTotal">1.38 GB</strong></p>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn btn-danger" onclick="alert('Konfirmasi hapus semua folder build (.next / dist) di project ini?')">Bersihkan Build Cache</button>
+                  <button class="btn" onclick="alert('Ubah nama project')">Rename Project</button>
+                  <button class="btn btn-danger" onclick="alert('Hapus project dari DevDock (file di disk tidak dihapus)')">Hapus dari DevDock</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT STATS COLUMN (Project Aggregate) -->
+          <aside class="stats-col" aria-label="Ringkasan statistik project">
+            <div class="stat-card">
+              <div class="sc-head"><span>CPU · Total Project</span><span id="phProcCount">4 proses</span></div>
+              <div class="sc-big"><strong id="phCpu">11.8%</strong><span>gabungan</span></div>
+              <svg viewBox="0 0 230 46" width="100%" height="46" role="img" aria-label="Grafik CPU project 15 menit">
+                <polyline fill="none" stroke="#22C55E" stroke-width="2" points="0,36 30,33 65,30 100,22 135,28 170,24 200,26 230,23"/>
+              </svg>
+            </div>
+            <div class="stat-card">
+              <div class="sc-head"><span>RAM · Total Project</span><span>15m window</span></div>
+              <div class="sc-big"><strong id="phRam">542 MB</strong><span>gabungan</span></div>
+              <svg viewBox="0 0 230 42" width="100%" height="42" role="img" aria-label="Grafik RAM project 15 menit">
+                <polyline fill="none" stroke="#38BDF8" stroke-width="2" points="0,30 40,28 80,27 120,25 160,24 200,22 230,21"/>
+              </svg>
+            </div>
+            <div class="stat-card">
+              <div class="sc-head"><span>Ports Aktif</span></div>
+              <div id="phPortsList"></div>
+            </div>
+            <div class="stat-card">
+              <div class="sc-head"><span>Storage Gabungan</span></div>
+              <div class="kv-row"><span class="k">node_modules</span><span class="v">1.12 GB</span></div>
+              <div class="kv-row"><span class="k">build cache</span><span class="v">260 MB</span></div>
+              <div class="kv-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px"><span class="k"><strong>Total</strong></span><span class="v"><strong>1.38 GB</strong></span></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ==================== VIEW 2B: SERVICE WORKBENCH (Center + Right Stats) ==================== -->
+      <section class="view" id="view-workbench">
+        <div class="wb-layout">
+          <!-- Center Column -->
+          <div class="wb-center">
+            <div class="wb-header">
+              <div class="wb-h-row">
+                <div class="wb-id">
+                  <h1 id="wbTitle">toko-fe</h1>
+                  <span class="pill pill-run" id="wbStatus">running</span>
+                  <span class="pill" id="wbGroupPill">Toko Online</span>
+                </div>
+                <div class="wb-actions">
+                  <a href="#" class="domain-chip" id="wbDomain" onclick="return false;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    <span>toko-fe.localhost</span>
+                  </a>
+                  <button class="icon-btn" title="Buka di Editor (VS Code)" aria-label="Buka di Editor">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                  </button>
+                  <button class="icon-btn" title="Buka di Terminal" aria-label="Buka di Terminal">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                  </button>
+                  <button class="btn btn-danger" id="wbStopBtn" onclick="toggleMainStop(this)">Stop</button>
+                </div>
+              </div>
+
+              <div class="wb-meta-line">
+                <span class="pill">Next.js 15</span>
+                <span class="pill">pnpm 9.12</span>
+                <span class="pill">node 20.11 · .nvmrc</span>
+                <span class="pill">git: feat/checkout •</span>
+              </div>
+
+              <div class="wb-tabs" role="tablist" aria-label="Tab detail project">
+                <button class="wb-tab active" role="tab" aria-selected="true" data-wbtab="scripts">Scripts <span class="pill">7</span></button>
+                <button class="wb-tab" role="tab" aria-selected="false" data-wbtab="env">Env <span class="pill pill-warn">2!</span></button>
+                <button class="wb-tab" role="tab" aria-selected="false" data-wbtab="storage">Storage</button>
+                <button class="wb-tab" role="tab" aria-selected="false" data-wbtab="settings">Settings</button>
+              </div>
+            </div>
+
+            <div class="wb-body">
+              <!-- TAB: SCRIPTS -->
+              <div class="wb-pane active" id="wbtab-scripts">
+                <table class="clean-table">
+                  <thead>
+                    <tr><th>Script</th><th>Command</th><th>Status</th><th style="text-align:right">Aksi</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="mono"><strong>dev</strong></td>
+                      <td class="mono" style="color:var(--fg-muted)">next dev --turbo</td>
+                      <td><span class="pill pill-run">running · 42m</span></td>
+                      <td style="text-align:right">
+                        <button class="btn btn-sm" onclick="alert('Restart dev')">Restart</button>
+                        <button class="btn btn-sm btn-danger" onclick="toggleRowScript(this)">Stop</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="mono"><strong>build</strong></td>
+                      <td class="mono" style="color:var(--fg-muted)">next build</td>
+                      <td class="mono" style="color:var(--fg-muted);font-size:12px">exit 0 · 1h ago</td>
+                      <td style="text-align:right"><button class="btn btn-sm" onclick="toggleRowScript(this)">Run</button></td>
+                    </tr>
+                    <tr>
+                      <td class="mono"><strong>start</strong></td>
+                      <td class="mono" style="color:var(--fg-muted)">next start</td>
+                      <td class="mono" style="color:var(--fg-faint);font-size:12px">idle</td>
+                      <td style="text-align:right"><button class="btn btn-sm" onclick="toggleRowScript(this)">Run</button></td>
+                    </tr>
+                    <tr>
+                      <td class="mono"><strong>lint</strong></td>
+                      <td class="mono" style="color:var(--fg-muted)">next lint</td>
+                      <td><span class="pill pill-err">exit 1 · 3 errors</span></td>
+                      <td style="text-align:right"><button class="btn btn-sm" onclick="toggleRowScript(this)">Run</button></td>
+                    </tr>
+                    <tr>
+                      <td class="mono"><strong>test</strong></td>
+                      <td class="mono" style="color:var(--fg-muted)">vitest</td>
+                      <td class="mono" style="color:var(--fg-faint);font-size:12px">idle</td>
+                      <td style="text-align:right"><button class="btn btn-sm" onclick="toggleRowScript(this)">Run</button></td>
+                    </tr>
+                    <tr>
+                      <td class="mono"><strong>db:migrate</strong></td>
+                      <td class="mono" style="color:var(--fg-muted)">prisma migrate dev</td>
+                      <td class="mono" style="color:var(--fg-faint);font-size:12px">idle</td>
+                      <td style="text-align:right"><button class="btn btn-sm" onclick="toggleRowScript(this)">Run</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- TAB: ENV -->
+              <div class="wb-pane" id="wbtab-env">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+                  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px">
+                    <span class="mono" style="color:var(--fg-muted)">Urutan:</span>
+                    <span class="pill">.env.local</span><span>→</span>
+                    <span class="pill pill-info">1. DB Staging</span><span>→</span>
+                    <span class="pill pill-info">2. Redis Local</span><span>→</span>
+                    <span class="pill pill-run">PORT=3000</span>
+                  </div>
+                  <div style="display:flex;gap:6px">
+                    <button class="btn btn-sm" id="revealSecretBtn">Reveal Secrets</button>
+                    <button class="btn btn-sm" onclick="alert('Backup .env.local ke .env.local.bak lalu tulis env final')">Tulis ke .env</button>
+                  </div>
+                </div>
+                <table class="clean-table">
+                  <thead><tr><th>Key</th><th>Nilai Final</th><th>Sumber</th><th>Cek</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td class="mono"><strong>DATABASE_URL</strong></td>
+                      <td class="mono"><span class="sec-val" data-real="postgres://dev:s3cr3t@staging:5432/toko">••••••••••••••••••••••••</span></td>
+                      <td><span class="pill pill-info">Preset: DB Staging</span></td>
+                      <td>
+                        <button class="btn btn-sm" id="dbTestBtn">Test DB</button>
+                        <span id="dbStatus" class="mono" style="font-size:11px;margin-left:6px;color:var(--fg-muted)"></span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="mono"><strong>REDIS_URL</strong></td>
+                      <td class="mono">redis://127.0.0.1:6379/0</td>
+                      <td><span class="pill pill-info">Preset: Redis Local</span></td>
+                      <td><span class="pill pill-run">OK · 4ms</span></td>
+                    </tr>
+                    <tr>
+                      <td class="mono"><strong>STRIPE_SECRET</strong></td>
+                      <td class="mono" style="color:var(--warn)">&lt;belum diisi&gt;</td>
+                      <td><span class="pill pill-warn">.env.example</span></td>
+                      <td><span class="pill pill-warn">Missing</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- TAB: STORAGE -->
+              <div class="wb-pane" id="wbtab-storage">
+                <p style="color:var(--fg-muted);margin-bottom:12px">Total ukuran folder project: <strong class="mono" style="color:var(--fg)">1.04 GB</strong> (di-cache &amp; refresh di background).</p>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn btn-danger" onclick="alert('Konfirmasi hapus .next (214 MB)?')">Hapus .next (214 MB)</button>
+                  <button class="btn btn-danger" onclick="alert('Konfirmasi hapus node_modules (812 MB)?')">Hapus node_modules (812 MB)</button>
+                </div>
+              </div>
+
+              <!-- TAB: SETTINGS -->
+              <div class="wb-pane" id="wbtab-settings">
+                <table class="clean-table">
+                  <tbody>
+                    <tr><td><strong>Folder Path</strong></td><td class="mono">/Users/fikri/H2o/toko-fe</td></tr>
+                    <tr><td><strong>Project</strong></td><td class="mono" id="wbSettingProject">Toko Online (pindah project)</td></tr>
+                    <tr><td><strong>Package Manager</strong></td><td class="mono">pnpm 9.12 (auto-detect · override)</td></tr>
+                    <tr><td><strong>Node Version</strong></td><td class="mono">20.11.1 via fnm (.nvmrc)</td></tr>
+                    <tr><td><strong>Port &amp; Metode</strong></td><td class="mono">3000 · env PORT</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT STATISTICS COLUMN (Screenshot 1 Beloved Panel, Polished) -->
+          <aside class="stats-col" aria-label="Statistik dan runtime project">
+            <!-- Inline Port Conflict Card -->
+            <div class="stat-card alert" id="conflictCard">
+              <div style="font-size:12px;color:var(--warn);font-weight:600;display:flex;align-items:center;gap:6px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                apps/admin: port 5173 bentrok
+              </div>
+              <div class="mono" style="font-size:11.5px;color:var(--fg-2)">Dipakai oleh vite (PID 8812)</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button class="btn btn-sm" onclick="document.getElementById('conflictCard').style.display='none'">Pakai 5174</button>
+                <button class="btn btn-sm btn-danger" onclick="document.getElementById('conflictCard').style.display='none'">Kill</button>
+                <button class="btn btn-sm" onclick="document.getElementById('conflictCard').style.display='none'">Batal</button>
+              </div>
+            </div>
+
+            <!-- CPU Process Tree -->
+            <div class="stat-card">
+              <div class="sc-head">
+                <span>CPU · Pohon Proses</span>
+                <button class="btn btn-sm" style="height:21px;padding:0 6px;font-size:10.5px" id="pauseCpu">Pause</button>
+              </div>
+              <div class="sc-big"><strong>18.4%</strong><span>3 proses</span></div>
+              <svg viewBox="0 0 230 46" width="100%" height="46" role="img" aria-label="Grafik CPU 15 menit">
+                <polyline fill="none" stroke="#22C55E" stroke-width="2" points="0,38 25,35 55,37 85,20 115,31 145,25 175,32 205,24 230,27"/>
+              </svg>
+            </div>
+
+            <!-- RAM -->
+            <div class="stat-card">
+              <div class="sc-head"><span>RAM</span><span>15m window</span></div>
+              <div class="sc-big"><strong>612 MB</strong><span>puncak 701 MB</span></div>
+              <svg viewBox="0 0 230 42" width="100%" height="42" role="img" aria-label="Grafik RAM 15 menit">
+                <polyline fill="none" stroke="#38BDF8" stroke-width="2" points="0,32 35,30 70,29 105,27 140,25 175,24 210,23 230,22"/>
+              </svg>
+            </div>
+
+            <!-- Runtime -->
+            <div class="stat-card">
+              <div class="sc-head"><span>Runtime</span></div>
+              <div class="kv-row"><span class="k">Port</span><span class="v">3000 · env PORT</span></div>
+              <div class="kv-row"><span class="k">Node</span><span class="v">20.11.1 (fnm)</span></div>
+              <div class="kv-row"><span class="k">PM</span><span class="v">pnpm 9.12</span></div>
+              <div class="kv-row"><span class="k">Auto-restart</span><span class="v">off</span></div>
+              <div class="kv-row"><span class="k">PID</span><span class="v">7741</span></div>
+            </div>
+
+            <!-- Storage -->
+            <div class="stat-card">
+              <div class="sc-head"><span>Storage</span><button class="btn btn-sm" style="height:21px;padding:0 6px;font-size:10.5px" onclick="alert('Refresh ukuran storage…')">Refresh</button></div>
+              <div class="kv-row"><span class="k">node_modules</span><span class="v">812 MB</span></div>
+              <div class="kv-row"><span class="k">.next</span><span class="v">214 MB</span></div>
+              <div class="kv-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px"><span class="k"><strong>Total</strong></span><span class="v"><strong>1.04 GB</strong></span></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ==================== VIEW 3: PORT INSPECTOR ==================== -->
+      <section class="view" id="view-ports">
+        <div class="overview-scroll">
+          <div class="ov-head">
+            <div><h1>Port Inspector</h1><p class="ov-sub">Semua port lokal yang sedang aktif, termasuk proses di luar DevDock.</p></div>
+          </div>
+          <div class="stat-card">
+            <table class="clean-table">
+              <thead><tr><th>Port</th><th>Proses / PID</th><th>Pemilik</th><th>Aksi</th></tr></thead>
+              <tbody>
+                <tr><td class="mono"><strong>:3000</strong></td><td class="mono">node (PID 7741)</td><td>toko-fe (DevDock)</td><td><button class="btn btn-sm btn-danger">Kill</button></td></tr>
+                <tr><td class="mono"><strong>:3002</strong></td><td class="mono">node (PID 9102)</td><td>lms-frontend (DevDock)</td><td><button class="btn btn-sm btn-danger">Kill</button></td></tr>
+                <tr><td class="mono"><strong>:4001</strong></td><td class="mono">node (PID 9044)</td><td>lms-backend (DevDock)</td><td><button class="btn btn-sm btn-danger">Kill</button></td></tr>
+                <tr><td class="mono"><strong>:5173</strong></td><td class="mono">vite (PID 8812)</td><td><span class="pill pill-warn">Proses eksternal · bentrok apps/admin</span></td><td><button class="btn btn-sm btn-danger" onclick="alert('Kill PID 8812')">Kill PID 8812</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== VIEW 4: GLOBAL PRESETS ==================== -->
+      <section class="view" id="view-presets">
+        <div class="overview-scroll">
+          <div class="ov-head">
+            <div><h1>Env Presets</h1><p class="ov-sub">Preset bisa dipakai ulang lintas project. Nilai rahasia disimpan aman di OS Keychain.</p></div>
+            <button class="btn btn-primary" onclick="alert('Buat preset baru')">+ Preset Baru</button>
+          </div>
+          <div class="proj-grid">
+            <div class="stat-card">
+              <div class="sc-head"><span>DB Staging</span><span class="pill pill-info">Keychain</span></div>
+              <div class="mono" style="font-size:12px;color:var(--fg-muted)">DATABASE_URL · DB_POOL_SIZE</div>
+              <div style="font-size:12px;color:var(--fg-faint)">Dipakai oleh: toko-fe, toko-api, lms-backend</div>
+            </div>
+            <div class="stat-card">
+              <div class="sc-head"><span>Redis Local</span><span class="pill">Plain</span></div>
+              <div class="mono" style="font-size:12px;color:var(--fg-muted)">REDIS_URL=redis://127.0.0.1:6379/0</div>
+              <div style="font-size:12px;color:var(--fg-faint)">Dipakai oleh: toko-fe, toko-worker</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SHARED SCOPED LOG DRAWER (Resizable, Maximizable, Hideable, Per-Project + Combined) -->
+      <section class="log-drawer hidden-panel" id="logDrawer" aria-label="Log proses live">
+        <div class="log-resizer" id="logResizer" title="Tarik untuk mengubah tinggi log"></div>
+        <div class="log-bar">
+          <div class="log-left">
+            <select class="log-scope" id="logScopeSelect" aria-label="Pilih scope project untuk log">
+              <option value="lms">LMS App</option>
+              <option value="toko">Toko Online</option>
+              <option value="h2o">h2o-platform</option>
+              <option value="all">Semua jalan (4)</option>
+            </select>
+            <div class="log-tabs" id="logTabs" role="tablist" aria-label="Tab log proses"></div>
+            <button class="icon-btn" id="restoreTabsBtn" style="height:24px;font-size:11px;display:none" title="Tampilkan lagi tab yang ditutup">+ Tab</button>
+          </div>
+          <div class="log-tools">
+            <input class="log-filter" id="logFilterInp" placeholder="Filter log…" aria-label="Filter log" />
+            <button class="icon-btn" style="height:25px;font-size:11.5px" id="clearLogBtn" title="Bersihkan log">Clear</button>
+            <button class="icon-btn" style="height:25px;min-width:26px" id="maxLogBtn" aria-label="Perbesar penuh panel log" title="Maximize / Restore">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            </button>
+            <button class="icon-btn" style="height:25px;min-width:26px" id="hideLogBtn" aria-label="Sembunyikan panel log" title="Sembunyikan (⌘J)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="log-stream" id="logStream"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- SLIM BOTTOM STATUS BAR -->
+  <footer class="statusbar">
+    <div class="sb-cluster">
+      <span><span class="dot d-run" style="margin-right:5px"></span>4 jalan</span>
+      <span><span class="dot d-err" style="margin-right:5px"></span>1 crash</span>
+      <span><span class="dot d-warn" style="margin-right:5px"></span>1 bentrok port</span>
+    </div>
+    <div class="sb-cluster">
+      <button class="sb-log-toggle" id="statusLogBtn" title="Tampilkan / sembunyikan panel log (⌘J)">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        Logs <span style="opacity:.7">⌘J</span>
+      </button>
+      <span>CPU 31%</span>
+      <span>RAM 1.4 GB</span>
+      <span>proxy *.localhost :80</span>
+    </div>
+  </footer>
+
+  <!-- ⌘K COMMAND PALETTE -->
+  <div class="scrim" id="cmdScrim" role="dialog" aria-modal="true" aria-label="Command Palette">
+    <div class="cmd-modal">
+      <input id="cmdInp" placeholder="Loncat ke project, jalankan script, atau cek port…" />
+      <button class="cmd-item" onclick="closeCmd();openProjectHub('lms')"><span>Buka Project <strong>LMS App</strong> (Start/Stop All)</span><span class="pill pill-run">2/2</span></button>
+      <button class="cmd-item" onclick="closeCmd();openService('lms','lms-frontend')"><span>Buka Service <strong>lms-frontend</strong> (LMS App)</span><span class="pill pill-run">:3002</span></button>
+      <button class="cmd-item" onclick="closeCmd();openProjectHub('toko')"><span>Buka Project <strong>Toko Online</strong></span><span class="pill pill-warn">2/3</span></button>
+      <button class="cmd-item" onclick="closeCmd();openPorts()"><span>Buka <strong>Port Inspector</strong> (:5173 bentrok)</span><span class="pill pill-warn">Port</span></button>
+      <button class="cmd-item" onclick="closeCmd();openOverview()"><span>Kembali ke <strong>Overview</strong></span><span class="kbd">G O</span></button>
+    </div>
+  </div>
+
+  <script>
+    // ============ DATA MODEL: Project -> Services ============
+    const projectsData = {
+      lms: {
+        name: 'LMS App',
+        kind: 'multi-folder',
+        statusText: '2/2 running',
+        statusClass: 'pill-run',
+        runningAll: true,
+        cpu: '11.8%', ram: '542 MB', procs: '4 proses', storage: '1.38 GB',
+        services: [
+          { id: 'lms-backend', order: 1, framework: 'NestJS', pm: 'pnpm', node: '20.11', script: 'start:dev', port: '4001', domain: 'lms-backend.localhost', status: 'running · 38m', statusClass: 'pill-run', running: true },
+          { id: 'lms-frontend', order: 2, framework: 'Vite', pm: 'pnpm', node: '22.4', script: 'dev', port: '3002', domain: 'lms-frontend.localhost', status: 'running · 38m', statusClass: 'pill-run', running: true }
+        ]
+      },
+      toko: {
+        name: 'Toko Online',
+        kind: 'multi-folder',
+        statusText: '2/3 partial',
+        statusClass: 'pill-warn',
+        runningAll: true,
+        cpu: '27.5%', ram: '1.0 GB', procs: '5 proses', storage: '2.15 GB',
+        services: [
+          { id: 'toko-api', order: 1, framework: 'NestJS', pm: 'pnpm', node: '20.11', script: 'start:dev', port: '4000', domain: 'toko-api.localhost', status: 'running · 42m', statusClass: 'pill-run', running: true },
+          { id: 'toko-fe', order: 2, framework: 'Next.js 15', pm: 'pnpm', node: '20.11', script: 'dev', port: '3000', domain: 'toko-fe.localhost', status: 'running · 42m', statusClass: 'pill-run', running: true },
+          { id: 'toko-worker', order: 3, framework: 'Node', pm: 'yarn', node: '18.20', script: 'start', port: '—', domain: '—', status: 'crash · exit 1', statusClass: 'pill-err', running: false }
+        ]
+      },
+      h2o: {
+        name: 'h2o-platform',
+        kind: 'monorepo',
+        statusText: '0/2 stopped',
+        statusClass: 'pill-warn',
+        runningAll: false,
+        cpu: '0%', ram: '0 MB', procs: '0 proses', storage: '1.62 GB',
+        services: [
+          { id: 'apps/admin', order: 1, framework: 'Vite', pm: 'pnpm ws', node: '22.4', script: 'dev', port: '5173', domain: 'apps-admin.localhost', status: 'bentrok port :5173', statusClass: 'pill-warn', running: false },
+          { id: 'apps/web', order: 2, framework: 'Next.js', pm: 'pnpm ws', node: '22.4', script: 'dev', port: '3001', domain: 'apps-web.localhost', status: 'idle', statusClass: '', running: false }
+        ]
+      },
+      landing: {
+        name: 'landing-page',
+        kind: 'single',
+        services: [
+          { id: 'landing-page', order: 1, framework: 'Astro', pm: 'bun', node: '20.11', script: 'dev', port: '4321', domain: 'landing-page.localhost', status: 'idle', statusClass: '', running: false }
+        ]
+      }
+    };
+
+    // ============ SCOPED LOGS DATA ============
+    const logTabsByScope = {
+      lms: [
+        { key: 'lms:all', label: 'All (Combined)', dot: 'd-run', closable: false },
+        { key: 'lms-backend', label: 'lms-backend · start:dev', dot: 'd-run', closable: true },
+        { key: 'lms-frontend', label: 'lms-frontend · dev', dot: 'd-run', closable: true }
+      ],
+      toko: [
+        { key: 'toko:all', label: 'All (Combined)', dot: 'd-warn', closable: false },
+        { key: 'toko-fe', label: 'toko-fe · dev', dot: 'd-run', closable: true },
+        { key: 'toko-api', label: 'toko-api · start:dev', dot: 'd-run', closable: true },
+        { key: 'toko-worker', label: 'toko-worker · start', dot: 'd-err', closable: true }
+      ],
+      h2o: [
+        { key: 'h2o:all', label: 'All (Combined)', dot: 'd-warn', closable: false },
+        { key: 'apps/admin', label: 'apps/admin · dev', dot: 'd-warn', closable: true }
+      ],
+      all: [
+        { key: 'lms-backend', label: 'lms-backend', dot: 'd-run', closable: true },
+        { key: 'lms-frontend', label: 'lms-frontend', dot: 'd-run', closable: true },
+        { key: 'toko-fe', label: 'toko-fe', dot: 'd-run', closable: true },
+        { key: 'toko-api', label: 'toko-api', dot: 'd-run', closable: true }
+      ]
+    };
+
+    const logLines = {
+      'lms:all': [
+        { ts: '10:38:01', tag: 'lms-backend', tc: 'svc-be', cls: 'info', msg: '[Nest] Starting LMS API on :4001…' },
+        { ts: '10:38:02', tag: 'lms-backend', tc: 'svc-be', cls: 'ok', msg: '✓ Connected to PostgreSQL (DB Staging · 18ms)' },
+        { ts: '10:38:03', tag: 'lms-frontend', tc: 'svc-fe', cls: 'info', msg: 'VITE v6.1.0 ready in 340ms → http://lms-frontend.localhost' },
+        { ts: '10:39:14', tag: 'lms-frontend', tc: 'svc-fe', cls: '', msg: 'GET /courses 200 (42ms)' },
+        { ts: '10:39:14', tag: 'lms-backend', tc: 'svc-be', cls: '', msg: 'GET /api/v1/courses 200 (19ms · 24 rows)' },
+        { ts: '10:40:02', tag: 'lms-backend', tc: 'svc-be', cls: 'warn', msg: 'WARN Slow query on enrollment_progress (312ms)' }
+      ],
+      'lms-backend': [
+        { ts: '10:38:01', cls: 'info', msg: '[Nest] Starting LMS API on :4001…' },
+        { ts: '10:38:02', cls: 'ok', msg: '✓ Connected to PostgreSQL (DB Staging · 18ms)' },
+        { ts: '10:39:14', cls: '', msg: 'GET /api/v1/courses 200 (19ms · 24 rows)' },
+        { ts: '10:40:02', cls: 'warn', msg: 'WARN Slow query on enrollment_progress (312ms)' }
+      ],
+      'lms-frontend': [
+        { ts: '10:38:03', cls: 'info', msg: 'VITE v6.1.0 ready in 340ms' },
+        { ts: '10:38:03', cls: 'ok', msg: '  ➜ Local:  http://localhost:3002/' },
+        { ts: '10:38:03', cls: 'ok', msg: '  ➜ Domain: http://lms-frontend.localhost/' },
+        { ts: '10:39:14', cls: '', msg: 'GET /courses 200 (42ms)' }
+      ],
+      'toko:all': [
+        { ts: '10:41:02', tag: 'toko-api', tc: 'svc-be', cls: 'ok', msg: '[Nest] Listening on :4000 (toko-api.localhost)' },
+        { ts: '10:41:03', tag: 'toko-fe', tc: 'svc-fe', cls: 'ok', msg: '✓ Next.js 15 Ready in 1.4s — http://toko-fe.localhost' },
+        { ts: '10:41:18', tag: 'toko-worker', tc: 'svc-wk', cls: 'err', msg: 'Error: REDIS_URL is undefined (auto-restart berhenti 3/3)' },
+        { ts: '10:41:31', tag: 'toko-fe', tc: 'svc-fe', cls: 'err', msg: '✗ fetch failed — ECONNREFUSED 127.0.0.1:4000' },
+        { ts: '10:42:07', tag: 'toko-fe', tc: 'svc-fe', cls: '', msg: 'GET /checkout 200 in 121ms' }
+      ],
+      'toko-fe': [
+        { ts: '10:41:02', cls: 'info', msg: '▲ Next.js 15.0.3 (turbo)' },
+        { ts: '10:41:03', cls: 'ok', msg: '✓ Ready in 1.4s — http://toko-fe.localhost' },
+        { ts: '10:41:31', cls: 'err', msg: '✗ Error: fetch failed — connect ECONNREFUSED 127.0.0.1:4000' },
+        { ts: '10:42:07', cls: '', msg: 'GET /checkout 200 in 121ms' }
+      ],
+      'toko-api': [
+        { ts: '10:41:05', cls: 'info', msg: '[Nest] Starting Nest application…' },
+        { ts: '10:41:06', cls: 'ok', msg: '[Nest] Listening on :4000 (toko-api.localhost)' }
+      ],
+      'toko-worker': [
+        { ts: '10:40:12', cls: 'err', msg: '[stderr] Error: REDIS_URL is undefined' },
+        { ts: '10:40:18', cls: 'warn', msg: '[devdock] Auto-restart stopped after 3 crashes in 60s (exit 1)' }
+      ],
+      'h2o:all': [
+        { ts: '10:44:00', tag: 'apps/admin', tc: 'svc-wk', cls: 'warn', msg: 'Port :5173 dipakai vite (PID 8812). Menunggu keputusan…' }
+      ],
+      'apps/admin': [
+        { ts: '10:44:00', cls: 'warn', msg: 'Port :5173 dipakai vite (PID 8812). Pilih Pakai 5174 atau Kill.' }
+      ]
+    };
+
+    let currentLogScope = 'lms';
+    let currentLogTab = 'lms:all';
+    const hiddenLogTabs = new Set();
+
+    const logDrawer = document.getElementById('logDrawer');
+    const logScopeSelect = document.getElementById('logScopeSelect');
+    const logTabsEl = document.getElementById('logTabs');
+    const logStreamEl = document.getElementById('logStream');
+    const logFilterInp = document.getElementById('logFilterInp');
+    const statusLogBtn = document.getElementById('statusLogBtn');
+    const restoreTabsBtn = document.getElementById('restoreTabsBtn');
+
+    function setLogVisible(show) {
+      logDrawer.classList.toggle('hidden-panel', !show);
+      if (!show) logDrawer.classList.remove('maximized');
+      statusLogBtn.classList.toggle('on', show);
+    }
+
+    function setLogScope(scope, preferredTab) {
+      currentLogScope = logTabsByScope[scope] ? scope : 'all';
+      logScopeSelect.value = currentLogScope;
+      const tabs = logTabsByScope[currentLogScope];
+      const match = tabs.find(t => t.key === preferredTab && !hiddenLogTabs.has(t.key));
+      currentLogTab = match ? match.key : (tabs.find(t => !hiddenLogTabs.has(t.key)) || tabs[0]).key;
+      renderLogTabs();
+      renderLogStream();
+    }
+
+    function renderLogTabs() {
+      const tabs = logTabsByScope[currentLogScope] || [];
+      let hiddenCount = 0;
+      logTabsEl.innerHTML = tabs.filter(t => {
+        if (hiddenLogTabs.has(t.key)) { hiddenCount++; return false; }
+        return true;
+      }).map(t => `
+        <button class="log-tab ${t.key === currentLogTab ? 'active' : ''}" role="tab" aria-selected="${t.key === currentLogTab}" onclick="selectLogTab('${t.key}')">
+          <span class="dot ${t.dot}"></span>${t.label}
+          ${t.closable ? `<span class="tab-x" title="Tutup tab (proses tetap berjalan)" onclick="event.stopPropagation();closeLogTab('${t.key}')">×</span>` : ''}
+        </button>
+      `).join('');
+      restoreTabsBtn.style.display = hiddenCount > 0 ? 'inline-flex' : 'none';
+    }
+
+    function renderLogStream() {
+      const q = (logFilterInp.value || '').trim().toLowerCase();
+      const lines = (logLines[currentLogTab] || []).filter(l => !q || l.msg.toLowerCase().includes(q) || (l.tag && l.tag.toLowerCase().includes(q)));
+      logStreamEl.innerHTML = lines.length
+        ? lines.map(l => `<div class="ll"><span class="ts">${l.ts}</span>${l.tag ? `<span class="svc-tag ${l.tc}">[${l.tag}]</span>` : ''}<span class="${l.cls}">${l.msg}</span></div>`).join('')
+        : `<div class="ll"><span class="ts">--:--:--</span><span style="color:#64748B">Tidak ada baris log yang cocok.</span></div>`;
+    }
+
+    function selectLogTab(key) {
+      currentLogTab = key;
+      renderLogTabs();
+      renderLogStream();
+    }
+    function closeLogTab(key) {
+      hiddenLogTabs.add(key);
+      if (currentLogTab === key) {
+        const next = (logTabsByScope[currentLogScope] || []).find(t => !hiddenLogTabs.has(t.key));
+        if (next) currentLogTab = next.key;
+      }
+      renderLogTabs();
+      renderLogStream();
+    }
+    restoreTabsBtn.addEventListener('click', () => {
+      (logTabsByScope[currentLogScope] || []).forEach(t => hiddenLogTabs.delete(t.key));
+      renderLogTabs();
+      renderLogStream();
+    });
+    logScopeSelect.addEventListener('change', () => setLogScope(logScopeSelect.value));
+    logFilterInp.addEventListener('input', renderLogStream);
+    document.getElementById('clearLogBtn').addEventListener('click', () => {
+      logStreamEl.innerHTML = '<div class="ll"><span class="ts">--:--:--</span><span class="ok">Log dibersihkan</span></div>';
+    });
+    document.getElementById('maxLogBtn').addEventListener('click', () => {
+      logDrawer.classList.toggle('maximized');
+    });
+    document.getElementById('hideLogBtn').addEventListener('click', () => setLogVisible(false));
+    statusLogBtn.addEventListener('click', () => setLogVisible(logDrawer.classList.contains('hidden-panel')));
+
+    // Drag-to-resize log drawer
+    (function () {
+      const resizer = document.getElementById('logResizer');
+      let dragging = false, startY = 0, startH = 0;
+      resizer.addEventListener('mousedown', (e) => {
+        dragging = true; startY = e.clientY; startH = logDrawer.getBoundingClientRect().height;
+        logDrawer.classList.add('resizing');
+        e.preventDefault();
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const maxH = logDrawer.parentElement.getBoundingClientRect().height * 0.78;
+        const next = Math.max(110, Math.min(maxH, startH + (startY - e.clientY)));
+        logDrawer.style.height = next + 'px';
+      });
+      window.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        logDrawer.classList.remove('resizing');
+      });
+    })();
+
+    // ============ NAVIGATION ============
+    function setActiveNav(el) {
+      document.querySelectorAll('.nav-item, .tree-child').forEach(n => n.classList.remove('active'));
+      if (el) el.classList.add('active');
+    }
+    function showView(id) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById('view-' + id).classList.add('active');
+    }
+    function openOverview(el) {
+      setActiveNav(el || document.querySelector('[data-nav="overview"]'));
+      showView('overview');
+      setLogVisible(false);
+      document.getElementById('breadcrumb').innerHTML = '<strong>Overview</strong>';
+    }
+    function openPorts(el) {
+      setActiveNav(el || document.querySelector('[data-nav="ports"]'));
+      showView('ports');
+      setLogVisible(false);
+      document.getElementById('breadcrumb').innerHTML = '<span>Workspace</span><span class="sep">/</span><strong>Port Inspector</strong>';
+    }
+    function openPresets(el) {
+      setActiveNav(el || document.querySelector('[data-nav="presets"]'));
+      showView('presets');
+      setLogVisible(false);
+      document.getElementById('breadcrumb').innerHTML = '<span>Workspace</span><span class="sep">/</span><strong>Env Presets</strong>';
+    }
+
+    function openProjectHub(projectId, el) {
+      const p = projectsData[projectId];
+      if (!p) return;
+      setActiveNav(el || document.querySelector(`[data-project="${projectId}"]`));
+      showView('project');
+      document.getElementById('phTitle').textContent = p.name;
+      const st = document.getElementById('phStatus');
+      st.textContent = p.statusText;
+      st.className = 'pill ' + p.statusClass;
+      document.getElementById('phKind').textContent = p.kind;
+      document.getElementById('phSvcCount').textContent = p.services.length;
+      document.getElementById('phCpu').textContent = p.cpu;
+      document.getElementById('phRam').textContent = p.ram;
+      document.getElementById('phProcCount').textContent = p.procs;
+      document.getElementById('phStorageTotal').textContent = p.storage;
+      const mainBtn = document.getElementById('phMainBtn');
+      mainBtn.className = p.runningAll ? 'btn btn-danger' : 'btn btn-primary';
+      mainBtn.textContent = p.runningAll ? 'Stop All' : 'Start All';
+
+      document.getElementById('phMeta').innerHTML = `
+        <span class="pill">${p.services.length} service</span>
+        <span class="pill pill-info">Shared Preset: DB Staging</span>
+        <span class="pill">Urutan: ${p.services.map(s => s.id).join(' → ')}</span>
+      `;
+
+      document.getElementById('phServicesBody').innerHTML = p.services.map(s => `
+        <tr>
+          <td><span class="order-num">${s.order}</span></td>
+          <td>
+            <button style="text-align:left" onclick="openService('${projectId}', '${s.id}')">
+              <strong class="mono" style="color:var(--fg)">${s.id}</strong>
+              <div style="font-size:11.5px;color:var(--fg-faint)">${s.framework} · ${s.pm} · node ${s.node}</div>
+            </button>
+          </td>
+          <td class="mono" style="color:var(--fg-muted)">${s.script}</td>
+          <td class="mono" style="font-size:12px">
+            ${s.port !== '—' ? `<span style="color:var(--info)">${s.domain}</span> <span class="pill">:${s.port}</span>` : '<span style="color:var(--fg-faint)">—</span>'}
+          </td>
+          <td><span class="pill ${s.statusClass}">${s.status}</span></td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn btn-sm" onclick="openService('${projectId}', '${s.id}')">Atur</button>
+            <button class="btn btn-sm ${s.running ? 'btn-danger' : 'btn-primary'}" onclick="toggleRowScript(this)">${s.running ? 'Stop' : 'Run'}</button>
+          </td>
+        </tr>
+      `).join('');
+
+      document.getElementById('phPortsList').innerHTML = p.services.map(s => `
+        <div class="kv-row"><span class="k">${s.id}</span><span class="v">${s.port !== '—' ? ':' + s.port : '—'}</span></div>
+      `).join('');
+
+      document.getElementById('breadcrumb').innerHTML =
+        `<button style="color:var(--fg-muted)" onclick="openOverview()">Overview</button><span class="sep">/</span><strong>${p.name}</strong>`;
+
+      setLogScope(projectId, projectId + ':all');
+      setLogVisible(true);
+    }
+
+    function openService(projectId, serviceId, el) {
+      const p = projectsData[projectId];
+      const s = p && p.services.find(x => x.id === serviceId);
+      setActiveNav(el || document.querySelector(`[data-service="${serviceId}"]`));
+      showView('workbench');
+      document.getElementById('wbTitle').textContent = serviceId;
+      document.getElementById('wbGroupPill').textContent = p ? p.name : 'Project';
+      document.getElementById('wbSettingProject').textContent = (p ? p.name : 'Project') + ' (pindah project)';
+      document.getElementById('wbDomain').querySelector('span').textContent = serviceId.replace('/', '-') + '.localhost';
+      if (p && p.kind !== 'single') {
+        document.getElementById('breadcrumb').innerHTML =
+          `<button style="color:var(--fg-muted)" onclick="openOverview()">Overview</button><span class="sep">/</span><button style="color:var(--fg-muted)" onclick="openProjectHub('${projectId}')">${p.name}</button><span class="sep">/</span><strong>${serviceId}</strong>`;
+      } else {
+        document.getElementById('breadcrumb').innerHTML =
+          `<button style="color:var(--fg-muted)" onclick="openOverview()">Overview</button><span class="sep">/</span><strong>${serviceId}</strong>`;
+      }
+      if (logTabsByScope[projectId]) {
+        setLogScope(projectId, serviceId);
+        setLogVisible(true);
+      }
+    }
+
+    function toggleTree(btn, id) {
+      btn.classList.toggle('open');
+      document.getElementById(id).classList.toggle('hidden');
+    }
+
+    document.getElementById('toggleSidebarBtn').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('collapsed');
+    });
+
+    document.getElementById('themeBtn').addEventListener('click', () => {
+      const r = document.documentElement;
+      r.setAttribute('data-theme', r.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+
+    // Project Hub tabs
+    document.querySelectorAll('[data-phtab]').forEach(t => {
+      t.addEventListener('click', () => {
+        document.querySelectorAll('[data-phtab]').forEach(x => { x.classList.remove('active'); x.setAttribute('aria-selected','false'); });
+        document.querySelectorAll('#view-project .wb-pane').forEach(p => p.classList.remove('active'));
+        t.classList.add('active'); t.setAttribute('aria-selected','true');
+        document.getElementById('phtab-' + t.dataset.phtab).classList.add('active');
+      });
+    });
+
+    // Service Workbench tabs
+    document.querySelectorAll('[data-wbtab]').forEach(t => {
+      t.addEventListener('click', () => {
+        document.querySelectorAll('[data-wbtab]').forEach(x => { x.classList.remove('active'); x.setAttribute('aria-selected','false'); });
+        document.querySelectorAll('#view-workbench .wb-pane').forEach(p => p.classList.remove('active'));
+        t.classList.add('active'); t.setAttribute('aria-selected','true');
+        document.getElementById('wbtab-' + t.dataset.wbtab).classList.add('active');
+      });
+    });
+
+    // Overview filter
+    function filterCards(mode, btn) {
+      document.querySelectorAll('.seg-f').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('#projGrid .p-card').forEach(c => {
+        c.style.display = (mode === 'all' || c.dataset.state === mode) ? 'flex' : 'none';
+      });
+    }
+
+    // Secrets & DB Test
+    let rev = false;
+    document.getElementById('revealSecretBtn').addEventListener('click', (e) => {
+      rev = !rev;
+      document.querySelectorAll('.sec-val').forEach(s => s.textContent = rev ? s.dataset.real : '••••••••••••••••••••••••');
+      e.target.textContent = rev ? 'Mask Secrets' : 'Reveal Secrets';
+    });
+    document.getElementById('dbTestBtn').addEventListener('click', () => {
+      const s = document.getElementById('dbStatus');
+      s.textContent = 'Menghubungkan…';
+      setTimeout(() => { s.textContent = '✓ PostgreSQL 16 OK (18ms)'; s.style.color = 'var(--accent)'; }, 400);
+    });
+
+    function toggleRowScript(btn) {
+      const stop = btn.classList.contains('btn-danger');
+      btn.className = stop ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-danger';
+      btn.textContent = stop ? 'Run' : 'Stop';
+    }
+    function toggleMainStop(btn) {
+      const stop = btn.classList.contains('btn-danger');
+      btn.className = stop ? 'btn btn-primary' : 'btn btn-danger';
+      btn.textContent = stop ? 'Start' : 'Stop';
+    }
+    function toggleProjectAll(btn) {
+      const stop = btn.classList.contains('btn-danger');
+      btn.className = stop ? 'btn btn-primary' : 'btn btn-danger';
+      btn.textContent = stop ? 'Start All' : 'Stop All';
+    }
+    document.getElementById('pauseCpu').addEventListener('click', (e) => {
+      e.target.textContent = e.target.textContent === 'Pause' ? 'Resume' : 'Pause';
+    });
+
+    // Command Palette & Shortcuts (⌘K, ⌘J)
+    const scrim = document.getElementById('cmdScrim');
+    const inp = document.getElementById('cmdInp');
+    function openCmd() { scrim.classList.add('open'); inp.focus(); }
+    function closeCmd() { scrim.classList.remove('open'); }
+    document.getElementById('openCmd').addEventListener('click', openCmd);
+    scrim.addEventListener('click', (e) => { if (e.target === scrim) closeCmd(); });
+    window.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openCmd(); }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') { e.preventDefault(); setLogVisible(logDrawer.classList.contains('hidden-panel')); }
+      if (e.key === 'Escape') closeCmd();
+    });
+
+    // Init default log scope
+    setLogScope('lms', 'lms:all');
+  </script>
+</body>
+</html>
