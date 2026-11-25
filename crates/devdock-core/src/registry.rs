@@ -610,6 +610,27 @@ impl<'a> ProjectRegistry<'a> {
         self.get_service(service_id)
     }
 
+    pub fn set_service_port(&self, service_id: &str, port: Option<u16>) -> CoreResult<Service> {
+        let now = Utc::now().to_rfc3339();
+        let port_i64 = port.map(|p| p as i64);
+
+        let affected = self.db.with_conn(|conn| {
+            let count = conn.execute(
+                "UPDATE service SET port = ?1, updated_at = ?2 WHERE id = ?3",
+                params![port_i64, now, service_id],
+            )?;
+            Ok(count)
+        })?;
+
+        if affected == 0 {
+            return Err(CoreError::NotFound(format!(
+                "Service not found: {service_id}"
+            )));
+        }
+
+        self.get_service(service_id)
+    }
+
     pub fn relocate_service(&self, service_id: &str, new_folder: &Path) -> CoreResult<Service> {
         // Ensure service exists
         self.get_service(service_id)?;

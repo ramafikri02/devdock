@@ -110,6 +110,7 @@ export interface ResolvedEnvEntry {
   key: string;
   value: string;
   source: string;
+  layerKind: "shell" | "file" | "project_preset" | "service_preset" | "port" | string;
   isSecret: boolean;
   isUnknown: boolean;
   overriddenSources: string[];
@@ -121,11 +122,66 @@ export interface MissingEnvKey {
   isSecret: boolean;
 }
 
+export interface PresetEntryInput {
+  key: string;
+  value: string;
+  isSecret: boolean;
+}
+
+export interface PresetEntry {
+  id: string;
+  key: string;
+  value: string;
+  isSecret: boolean;
+}
+
+export interface PresetUsage {
+  kind: "project" | "service" | string;
+  id: string;
+  name: string;
+  projectId: string;
+  projectName: string;
+}
+
+export interface EnvPreset {
+  id: string;
+  name: string;
+  entries: PresetEntry[];
+  usages: PresetUsage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AttachedPreset {
+  presetId: string;
+  presetName: string;
+  position: number;
+  entryCount: number;
+  secretCount: number;
+}
+
+export interface ProjectPresetEnvEntry {
+  key: string;
+  value: string;
+  source: string;
+  isSecret: boolean;
+  overriddenSources: string[];
+}
+
+export interface ProjectEnvSummary {
+  projectId: string;
+  presets: AttachedPreset[];
+  entries: ProjectPresetEnvEntry[];
+}
+
 export interface ServiceEnvInspection {
   serviceId: string;
   mode: string;
   availableModes: string[];
   files: EnvFileInfo[];
+  projectPresets: AttachedPreset[];
+  servicePresets: AttachedPreset[];
+  assignedPort: number | null;
   hasExampleFile: boolean;
   entries: ResolvedEnvEntry[];
   missingKeys: MissingEnvKey[];
@@ -345,6 +401,98 @@ export async function updateServiceEnvKey(
     key,
     value,
   });
+}
+
+export async function listPresets(): Promise<EnvPreset[]> {
+  if (!isTauriRuntime()) {
+    return [];
+  }
+  return invoke<EnvPreset[]>("list_presets");
+}
+
+export async function createPreset(
+  name: string,
+  entries: PresetEntryInput[],
+): Promise<EnvPreset> {
+  return invoke<EnvPreset>("create_preset", { name, entries });
+}
+
+export async function updatePreset(
+  presetId: string,
+  name: string,
+  entries: PresetEntryInput[],
+): Promise<EnvPreset> {
+  return invoke<EnvPreset>("update_preset", { presetId, name, entries });
+}
+
+export async function deletePreset(presetId: string): Promise<void> {
+  await invoke("delete_preset", { presetId });
+}
+
+export async function attachPresetToProject(
+  projectId: string,
+  presetId: string,
+): Promise<AttachedPreset[]> {
+  return invoke<AttachedPreset[]>("attach_preset_to_project", {
+    projectId,
+    presetId,
+  });
+}
+
+export async function detachPresetFromProject(
+  projectId: string,
+  presetId: string,
+): Promise<AttachedPreset[]> {
+  return invoke<AttachedPreset[]>("detach_preset_from_project", {
+    projectId,
+    presetId,
+  });
+}
+
+export async function reorderProjectPresets(
+  projectId: string,
+  presetIds: string[],
+): Promise<AttachedPreset[]> {
+  return invoke<AttachedPreset[]>("reorder_project_presets", {
+    projectId,
+    presetIds,
+  });
+}
+
+export async function attachPresetToService(
+  serviceId: string,
+  presetId: string,
+): Promise<AttachedPreset[]> {
+  return invoke<AttachedPreset[]>("attach_preset_to_service", {
+    serviceId,
+    presetId,
+  });
+}
+
+export async function detachPresetFromService(
+  serviceId: string,
+  presetId: string,
+): Promise<AttachedPreset[]> {
+  return invoke<AttachedPreset[]>("detach_preset_from_service", {
+    serviceId,
+    presetId,
+  });
+}
+
+export async function reorderServicePresets(
+  serviceId: string,
+  presetIds: string[],
+): Promise<AttachedPreset[]> {
+  return invoke<AttachedPreset[]>("reorder_service_presets", {
+    serviceId,
+    presetIds,
+  });
+}
+
+export async function inspectProjectSharedEnv(
+  projectId: string,
+): Promise<ProjectEnvSummary> {
+  return invoke<ProjectEnvSummary>("inspect_project_shared_env", { projectId });
 }
 
 export async function analyzeServiceStorage(

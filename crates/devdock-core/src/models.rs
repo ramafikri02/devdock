@@ -200,6 +200,7 @@ pub struct ResolvedEnvEntry {
     pub key: String,
     pub value: String,
     pub source: String,
+    pub layer_kind: String,
     pub is_secret: bool,
     pub is_unknown: bool,
     pub overridden_sources: Vec<String>,
@@ -215,11 +216,80 @@ pub struct MissingEnvKey {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PresetEntryInput {
+    pub key: String,
+    pub value: String,
+    pub is_secret: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PresetEntry {
+    pub id: String,
+    pub key: String,
+    pub value: String,
+    pub is_secret: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PresetUsage {
+    pub kind: String,
+    pub id: String,
+    pub name: String,
+    pub project_id: String,
+    pub project_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnvPreset {
+    pub id: String,
+    pub name: String,
+    pub entries: Vec<PresetEntry>,
+    pub usages: Vec<PresetUsage>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachedPreset {
+    pub preset_id: String,
+    pub preset_name: String,
+    pub position: i32,
+    pub entry_count: usize,
+    pub secret_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectPresetEnvEntry {
+    pub key: String,
+    pub value: String,
+    pub source: String,
+    pub is_secret: bool,
+    pub overridden_sources: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectEnvSummary {
+    pub project_id: String,
+    pub presets: Vec<AttachedPreset>,
+    pub entries: Vec<ProjectPresetEnvEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ServiceEnvInspection {
     pub service_id: String,
     pub mode: String,
     pub available_modes: Vec<String>,
     pub files: Vec<EnvFileInfo>,
+    pub project_presets: Vec<AttachedPreset>,
+    pub service_presets: Vec<AttachedPreset>,
+    pub assigned_port: Option<u16>,
     pub has_example_file: bool,
     pub entries: Vec<ResolvedEnvEntry>,
     pub missing_keys: Vec<MissingEnvKey>,

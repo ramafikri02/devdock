@@ -18,6 +18,7 @@ export function Sidebar({ projectsSlot }: SidebarProps) {
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const route = useAppStore((s) => s.route);
   const setRoute = useAppStore((s) => s.setRoute);
+  const presetCount = useAppStore((s) => s.presets.length);
 
   if (!sidebarOpen) {
     return null;
@@ -40,7 +41,7 @@ export function Sidebar({ projectsSlot }: SidebarProps) {
       id: "presets" as const,
       label: "Env Presets",
       icon: KeyRound,
-      badge: null,
+      badge: presetCount > 0 ? String(presetCount) : null,
     },
   ];
 

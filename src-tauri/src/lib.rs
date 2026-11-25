@@ -1,9 +1,10 @@
 use devdock_core::models::{
-    AppBootstrapInfo, EnvWriteResult, GlobalStorageSummary, PackageManager, Project,
-    ProjectStorageSummary, ScanResult, Service, ServiceEnvInspection, ServiceStorageReport,
-    StorageCleanResult,
+    AppBootstrapInfo, AttachedPreset, EnvPreset, EnvWriteResult, GlobalStorageSummary,
+    PackageManager, PresetEntryInput, Project, ProjectEnvSummary, ProjectStorageSummary,
+    ScanResult, Service, ServiceEnvInspection, ServiceStorageReport, StorageCleanResult,
 };
-use devdock_core::traits::{InMemoryNotifier, InMemorySecretStore};
+use devdock_core::secret_store::OsKeychainSecretStore;
+use devdock_core::traits::InMemoryNotifier;
 use devdock_core::DevDockCore;
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::{BTreeMap, HashSet};
@@ -262,6 +263,132 @@ fn update_service_env_key(
 }
 
 #[tauri::command]
+fn list_presets(state: State<'_, AppState>) -> Result<Vec<EnvPreset>, String> {
+    state.core.list_presets().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_preset(state: State<'_, AppState>, preset_id: String) -> Result<EnvPreset, String> {
+    state.core.get_preset(&preset_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn create_preset(
+    state: State<'_, AppState>,
+    name: String,
+    entries: Vec<PresetEntryInput>,
+) -> Result<EnvPreset, String> {
+    state
+        .core
+        .create_preset(&name, &entries)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn update_preset(
+    state: State<'_, AppState>,
+    preset_id: String,
+    name: String,
+    entries: Vec<PresetEntryInput>,
+) -> Result<EnvPreset, String> {
+    state
+        .core
+        .update_preset(&preset_id, &name, &entries)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_preset(state: State<'_, AppState>, preset_id: String) -> Result<(), String> {
+    state
+        .core
+        .delete_preset(&preset_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn attach_preset_to_project(
+    state: State<'_, AppState>,
+    project_id: String,
+    preset_id: String,
+) -> Result<Vec<AttachedPreset>, String> {
+    state
+        .core
+        .attach_preset_to_project(&project_id, &preset_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn detach_preset_from_project(
+    state: State<'_, AppState>,
+    project_id: String,
+    preset_id: String,
+) -> Result<Vec<AttachedPreset>, String> {
+    state
+        .core
+        .detach_preset_from_project(&project_id, &preset_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn reorder_project_presets(
+    state: State<'_, AppState>,
+    project_id: String,
+    preset_ids: Vec<String>,
+) -> Result<Vec<AttachedPreset>, String> {
+    state
+        .core
+        .reorder_project_presets(&project_id, &preset_ids)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn attach_preset_to_service(
+    state: State<'_, AppState>,
+    service_id: String,
+    preset_id: String,
+) -> Result<Vec<AttachedPreset>, String> {
+    state
+        .core
+        .attach_preset_to_service(&service_id, &preset_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn detach_preset_from_service(
+    state: State<'_, AppState>,
+    service_id: String,
+    preset_id: String,
+) -> Result<Vec<AttachedPreset>, String> {
+    state
+        .core
+        .detach_preset_from_service(&service_id, &preset_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn reorder_service_presets(
+    state: State<'_, AppState>,
+    service_id: String,
+    preset_ids: Vec<String>,
+) -> Result<Vec<AttachedPreset>, String> {
+    state
+        .core
+        .reorder_service_presets(&service_id, &preset_ids)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn inspect_project_shared_env(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<ProjectEnvSummary, String> {
+    state
+        .core
+        .inspect_project_shared_env(&project_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn analyze_service_storage(
     state: State<'_, AppState>,
     service_id: String,
@@ -361,7 +488,7 @@ pub fn run() {
 
             let core = DevDockCore::open_desktop(
                 &db_path,
-                Arc::new(InMemorySecretStore::new()),
+                Arc::new(OsKeychainSecretStore::new()),
                 Arc::new(InMemoryNotifier::new()),
             )
             .expect("failed to initialize DevDock core");
@@ -396,6 +523,18 @@ pub fn run() {
             inspect_service_env,
             write_service_env,
             update_service_env_key,
+            list_presets,
+            get_preset,
+            create_preset,
+            update_preset,
+            delete_preset,
+            attach_preset_to_project,
+            detach_preset_from_project,
+            reorder_project_presets,
+            attach_preset_to_service,
+            detach_preset_from_service,
+            reorder_service_presets,
+            inspect_project_shared_env,
             analyze_service_storage,
             analyze_project_storage,
             get_cached_global_storage,

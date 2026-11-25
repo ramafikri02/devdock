@@ -3,8 +3,10 @@ pub mod db;
 pub mod env_resolver;
 pub mod error;
 pub mod models;
+pub mod presets;
 pub mod registry;
 pub mod scanner;
+pub mod secret_store;
 pub mod shell_env;
 pub mod storage;
 pub mod traits;
@@ -14,10 +16,12 @@ use crate::db::Database;
 use crate::env_resolver::EnvResolver;
 use crate::error::{CoreError, CoreResult};
 use crate::models::{
-    AppBootstrapInfo, EnvWriteResult, GlobalStorageSummary, PackageManager, Project,
-    ProjectStorageSummary, ScanResult, Service, ServiceDescriptor, ServiceEnvInspection,
-    ServiceStorageReport, StorageCleanResult,
+    AppBootstrapInfo, AttachedPreset, EnvPreset, EnvWriteResult, GlobalStorageSummary,
+    PackageManager, PresetEntryInput, Project, ProjectEnvSummary, ProjectStorageSummary,
+    ScanResult, Service, ServiceDescriptor, ServiceEnvInspection, ServiceStorageReport,
+    StorageCleanResult,
 };
+use crate::presets::PresetStore;
 use crate::registry::ProjectRegistry;
 use crate::scanner::FolderScanner;
 use crate::shell_env::LoginShellEnvProvider;
@@ -174,6 +178,14 @@ impl DevDockCore {
         ProjectRegistry::new(&self.db, &self.adapters)
     }
 
+    fn presets(&self) -> PresetStore<'_> {
+        PresetStore::new(&self.db, &self.secrets)
+    }
+
+    pub fn set_service_port(&self, service_id: &str, port: Option<u16>) -> CoreResult<Service> {
+        self.registry().set_service_port(service_id, port)
+    }
+
     pub fn register_folder_as_project(
         &self,
         folder: &Path,
@@ -258,7 +270,126 @@ impl DevDockCore {
         mode: Option<&str>,
     ) -> CoreResult<ServiceEnvInspection> {
         let service = self.get_service(service_id)?;
-        EnvResolver::inspect_service(&service, mode)
+        let shell_env = self.shell_env.get_env()?;
+        let store = self.presets();
+        let project_attached = store.list_project_presets(&service.project_id)?;
+        let service_attached = store.list_service_presets(&service.id)?;
+        let project_presets = store.resolve_project_presets_full(&service.project_id)?;
+        let service_presets = store.resolve_service_presets_full(&service.id)?;
+        EnvResolver::inspect_service(
+            &service,
+            mode,
+            &shell_env,
+            &project_presets,
+            &service_presets,
+            project_attached,
+            service_attached,
+        )
+    }
+
+    pub fn resolve_service_runtime_env(
+        &self,
+        service_id: &str,
+        mode: Option<&str>,
+    ) -> CoreResult<std::collections::BTreeMap<String, String>> {
+        let service = self.get_service(service_id)?;
+        let shell_env = self.shell_env.get_env()?;
+        let store = self.presets();
+        let project_presets = store.resolve_project_presets_full(&service.project_id)?;
+        let service_presets = store.resolve_service_presets_full(&service.id)?;
+        EnvResolver::resolve_runtime_env(
+            &service,
+            mode,
+            &shell_env,
+            &project_presets,
+            &service_presets,
+        )
+    }
+
+    pub fn list_presets(&self) -> CoreResult<Vec<EnvPreset>> {
+        self.presets().list_presets()
+    }
+
+    pub fn get_preset(&self, preset_id: &str) -> CoreResult<EnvPreset> {
+        self.presets().get_preset(preset_id)
+    }
+
+    pub fn create_preset(
+        &self,
+        name: &str,
+        entries: &[PresetEntryInput],
+    ) -> CoreResult<EnvPreset> {
+        self.presets().create_preset(name, entries)
+    }
+
+    pub fn update_preset(
+        &self,
+        preset_id: &str,
+        name: &str,
+        entries: &[PresetEntryInput],
+    ) -> CoreResult<EnvPreset> {
+        self.presets().update_preset(preset_id, name, entries)
+    }
+
+    pub fn delete_preset(&self, preset_id: &str) -> CoreResult<()> {
+        self.presets().delete_preset(preset_id)
+    }
+
+    pub fn attach_preset_to_project(
+        &self,
+        project_id: &str,
+        preset_id: &str,
+    ) -> CoreResult<Vec<AttachedPreset>> {
+        self.presets().attach_preset_to_project(project_id, preset_id)
+    }
+
+    pub fn detach_preset_from_project(
+        &self,
+        project_id: &str,
+        preset_id: &str,
+    ) -> CoreResult<Vec<AttachedPreset>> {
+        self.presets()
+            .detach_preset_from_project(project_id, preset_id)
+    }
+
+    pub fn reorder_project_presets(
+        &self,
+        project_id: &str,
+        preset_ids: &[String],
+    ) -> CoreResult<Vec<AttachedPreset>> {
+        self.presets()
+            .reorder_project_presets(project_id, preset_ids)
+    }
+
+    pub fn attach_preset_to_service(
+        &self,
+        service_id: &str,
+        preset_id: &str,
+    ) -> CoreResult<Vec<AttachedPreset>> {
+        self.presets().attach_preset_to_service(service_id, preset_id)
+    }
+
+    pub fn detach_preset_from_service(
+        &self,
+        service_id: &str,
+        preset_id: &str,
+    ) -> CoreResult<Vec<AttachedPreset>> {
+        self.presets()
+            .detach_preset_from_service(service_id, preset_id)
+    }
+
+    pub fn reorder_service_presets(
+        &self,
+        service_id: &str,
+        preset_ids: &[String],
+    ) -> CoreResult<Vec<AttachedPreset>> {
+        self.presets()
+            .reorder_service_presets(service_id, preset_ids)
+    }
+
+    pub fn inspect_project_shared_env(&self, project_id: &str) -> CoreResult<ProjectEnvSummary> {
+        self.get_project(project_id)?;
+        self.presets().inspect_project_shared_env(project_id)
     }
 
     pub fn write_service_env(

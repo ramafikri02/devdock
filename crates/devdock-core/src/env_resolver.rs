@@ -1,8 +1,9 @@
 use crate::error::{CoreError, CoreResult};
 use crate::models::{
-    EnvFileInfo, EnvWriteResult, MissingEnvKey, ResolvedEnvEntry, Service, ServiceEnvInspection,
+    AttachedPreset, EnvFileInfo, EnvPreset, EnvWriteResult, MissingEnvKey, ResolvedEnvEntry,
+    Service, ServiceEnvInspection,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
 const DEFAULT_MODE: &str = "development";
@@ -142,7 +143,16 @@ impl EnvResolver {
         modes.into_iter().collect()
     }
 
-    pub fn inspect_service(service: &Service, mode: Option<&str>) -> CoreResult<ServiceEnvInspection> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn inspect_service(
+        service: &Service,
+        mode: Option<&str>,
+        shell_env: &HashMap<String, String>,
+        project_presets: &[EnvPreset],
+        service_presets: &[EnvPreset],
+        project_attached: Vec<AttachedPreset>,
+        service_attached: Vec<AttachedPreset>,
+    ) -> CoreResult<ServiceEnvInspection> {
         let folder = PathBuf::from(&service.path);
         if !folder.is_dir() {
             return Err(CoreError::InvalidFolder(format!(
@@ -168,7 +178,8 @@ impl EnvResolver {
         ];
 
         let mut files_info = Vec::with_capacity(ordered_files.len());
-        let mut resolved_map: BTreeMap<String, (String, String, Vec<String>)> = BTreeMap::new();
+        let mut parsed_files: Vec<(String, BTreeMap<String, String>)> = Vec::new();
+        let mut relevant_keys: BTreeSet<String> = BTreeSet::new();
 
         for file_name in &ordered_files {
             let file_path = folder.join(file_name);
@@ -179,16 +190,10 @@ impl EnvResolver {
                 if let Ok(content) = std::fs::read_to_string(&file_path) {
                     let parsed = Self::parse_dotenv(&content);
                     key_count = parsed.len();
-                    for (k, v) in parsed {
-                        if let Some((prev_val, prev_src, prev_overrides)) = resolved_map.get_mut(&k)
-                        {
-                            prev_overrides.push(prev_src.clone());
-                            *prev_val = v;
-                            *prev_src = file_name.clone();
-                        } else {
-                            resolved_map.insert(k, (v, file_name.clone(), Vec::new()));
-                        }
+                    for k in parsed.keys() {
+                        relevant_keys.insert(k.clone());
                     }
+                    parsed_files.push((file_name.clone(), parsed));
                 }
             }
 
@@ -210,21 +215,140 @@ impl EnvResolver {
         } else {
             BTreeMap::new()
         };
+        for k in example_map.keys() {
+            relevant_keys.insert(k.clone());
+        }
+        for preset in project_presets.iter().chain(service_presets.iter()) {
+            for entry in &preset.entries {
+                relevant_keys.insert(entry.key.clone());
+            }
+        }
+        if service.port.is_some() {
+            relevant_keys.insert("PORT".to_string());
+        }
+
+        // (value, source, layer_kind, is_secret, overridden_sources)
+        let mut resolved_map: BTreeMap<String, (String, String, String, bool, Vec<String>)> =
+            BTreeMap::new();
+
+        let apply_entry = |map: &mut BTreeMap<
+            String,
+            (String, String, String, bool, Vec<String>),
+        >,
+                           key: String,
+                           value: String,
+                           source: String,
+                           layer_kind: &str,
+                           explicit_secret: bool| {
+            let is_secret = explicit_secret || Self::is_secret_like(&key, &value);
+            if let Some((prev_val, prev_src, prev_kind, prev_secret, prev_overrides)) =
+                map.get_mut(&key)
+            {
+                prev_overrides.push(prev_src.clone());
+                *prev_val = value;
+                *prev_src = source;
+                *prev_kind = layer_kind.to_string();
+                *prev_secret = is_secret;
+            } else {
+                map.insert(
+                    key,
+                    (
+                        value,
+                        source,
+                        layer_kind.to_string(),
+                        is_secret,
+                        Vec::new(),
+                    ),
+                );
+            }
+        };
+
+        // Layer 1: shell env (only keys relevant to this service's env files, presets, example, or PORT)
+        for key in &relevant_keys {
+            if let Some(val) = shell_env.get(key) {
+                apply_entry(
+                    &mut resolved_map,
+                    key.clone(),
+                    val.clone(),
+                    "shell".to_string(),
+                    "shell",
+                    false,
+                );
+            }
+        }
+
+        // Layer 2: service .env* files
+        for (file_name, parsed) in parsed_files {
+            for (k, v) in parsed {
+                apply_entry(
+                    &mut resolved_map,
+                    k,
+                    v,
+                    file_name.clone(),
+                    "file",
+                    false,
+                );
+            }
+        }
+
+        // Layer 3: project presets (ordered)
+        for preset in project_presets {
+            let source = format!("project:{}", preset.name);
+            for entry in &preset.entries {
+                apply_entry(
+                    &mut resolved_map,
+                    entry.key.clone(),
+                    entry.value.clone(),
+                    source.clone(),
+                    "project_preset",
+                    entry.is_secret,
+                );
+            }
+        }
+
+        // Layer 4: service presets (ordered)
+        for preset in service_presets {
+            let source = format!("service:{}", preset.name);
+            for entry in &preset.entries {
+                apply_entry(
+                    &mut resolved_map,
+                    entry.key.clone(),
+                    entry.value.clone(),
+                    source.clone(),
+                    "service_preset",
+                    entry.is_secret,
+                );
+            }
+        }
+
+        // Layer 5: DevDock-assigned PORT
+        if let Some(port) = service.port {
+            apply_entry(
+                &mut resolved_map,
+                "PORT".to_string(),
+                port.to_string(),
+                "DevDock PORT".to_string(),
+                "port",
+                false,
+            );
+        }
 
         let entries: Vec<ResolvedEnvEntry> = resolved_map
             .iter()
-            .map(|(key, (value, source, overridden_sources))| {
-                let is_secret = Self::is_secret_like(key, value);
-                let is_unknown = has_example_file && !example_map.contains_key(key);
-                ResolvedEnvEntry {
-                    key: key.clone(),
-                    value: value.clone(),
-                    source: source.clone(),
-                    is_secret,
-                    is_unknown,
-                    overridden_sources: overridden_sources.clone(),
-                }
-            })
+            .map(
+                |(key, (value, source, layer_kind, is_secret, overridden_sources))| {
+                    let is_unknown = has_example_file && !example_map.contains_key(key);
+                    ResolvedEnvEntry {
+                        key: key.clone(),
+                        value: value.clone(),
+                        source: source.clone(),
+                        layer_kind: layer_kind.clone(),
+                        is_secret: *is_secret,
+                        is_unknown,
+                        overridden_sources: overridden_sources.clone(),
+                    }
+                },
+            )
             .collect();
 
         let missing_keys: Vec<MissingEnvKey> = if has_example_file {
@@ -246,10 +370,72 @@ impl EnvResolver {
             mode: active_mode,
             available_modes,
             files: files_info,
+            project_presets: project_attached,
+            service_presets: service_attached,
+            assigned_port: service.port,
             has_example_file,
             entries,
             missing_keys,
         })
+    }
+
+    /// Resolves the full process spawn environment in exact precedence order:
+    /// `shell -> service .env* -> project presets -> service presets -> DevDock PORT`.
+    pub fn resolve_runtime_env(
+        service: &Service,
+        mode: Option<&str>,
+        shell_env: &HashMap<String, String>,
+        project_presets: &[EnvPreset],
+        service_presets: &[EnvPreset],
+    ) -> CoreResult<BTreeMap<String, String>> {
+        let mut env: BTreeMap<String, String> = shell_env
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
+        let folder = PathBuf::from(&service.path);
+        let active_mode = mode
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(DEFAULT_MODE);
+
+        let ordered_files = [
+            ".env".to_string(),
+            ".env.local".to_string(),
+            format!(".env.{active_mode}"),
+            format!(".env.{active_mode}.local"),
+        ];
+
+        if folder.is_dir() {
+            for file_name in &ordered_files {
+                let file_path = folder.join(file_name);
+                if file_path.is_file() {
+                    if let Ok(content) = std::fs::read_to_string(&file_path) {
+                        for (k, v) in Self::parse_dotenv(&content) {
+                            env.insert(k, v);
+                        }
+                    }
+                }
+            }
+        }
+
+        for preset in project_presets {
+            for entry in &preset.entries {
+                env.insert(entry.key.clone(), entry.value.clone());
+            }
+        }
+
+        for preset in service_presets {
+            for entry in &preset.entries {
+                env.insert(entry.key.clone(), entry.value.clone());
+            }
+        }
+
+        if let Some(port) = service.port {
+            env.insert("PORT".to_string(), port.to_string());
+        }
+
+        Ok(env)
     }
 
     fn validate_target_env_file(target_file: &str) -> CoreResult<String> {

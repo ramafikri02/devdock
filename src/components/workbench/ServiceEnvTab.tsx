@@ -1,20 +1,27 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   Check,
   Eye,
   EyeOff,
   FileCode2,
   FileDown,
+  KeyRound,
   Lock,
   Plus,
   RefreshCw,
   Save,
+  X,
 } from "lucide-react";
 import {
   type Service,
   type ServiceEnvInspection,
+  attachPresetToService,
+  detachPresetFromService,
   inspectServiceEnv,
+  reorderServicePresets,
   updateServiceEnvKey,
   writeServiceEnv,
 } from "@/lib/tauri";
@@ -27,12 +34,16 @@ interface ServiceEnvTabProps {
 
 export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
   const pushToast = useAppStore((s) => s.pushToast);
+  const allPresets = useAppStore((s) => s.presets);
+  const loadPresets = useAppStore((s) => s.loadPresets);
+  const setRoute = useAppStore((s) => s.setRoute);
 
   const [mode, setMode] = useState("development");
   const [inspection, setInspection] = useState<ServiceEnvInspection | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [revealSecrets, setRevealSecrets] = useState(false);
+  const [selectedPresetId, setSelectedPresetId] = useState("");
 
   // Inline edited drafts keyed by env key
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -156,6 +167,71 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
     `.env.${mode}.local`,
   ];
 
+  const attachedServicePresetIds = new Set(
+    (inspection?.servicePresets ?? []).map((p) => p.presetId),
+  );
+  const availableServicePresets = allPresets.filter(
+    (p) => !attachedServicePresetIds.has(p.id),
+  );
+
+  const handleAttachServicePreset = async () => {
+    if (!selectedPresetId) return;
+    try {
+      await attachPresetToService(service.id, selectedPresetId);
+      setSelectedPresetId("");
+      await Promise.all([loadEnv(mode), loadPresets()]);
+      pushToast({
+        title: `Preset dipasang ke ${service.name}`,
+        variant: "success",
+      });
+    } catch (err) {
+      pushToast({
+        title: "Gagal memasang preset",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    }
+  };
+
+  const handleDetachServicePreset = async (presetId: string, presetName: string) => {
+    try {
+      await detachPresetFromService(service.id, presetId);
+      await Promise.all([loadEnv(mode), loadPresets()]);
+      pushToast({
+        title: `Preset "${presetName}" dilepas`,
+        variant: "info",
+      });
+    } catch (err) {
+      pushToast({
+        title: "Gagal melepas preset",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    }
+  };
+
+  const handleMoveServicePreset = async (index: number, direction: -1 | 1) => {
+    if (!inspection) return;
+    const list = [...inspection.servicePresets];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= list.length) return;
+    const [moved] = list.splice(index, 1);
+    list.splice(targetIndex, 0, moved);
+    try {
+      await reorderServicePresets(
+        service.id,
+        list.map((p) => p.presetId),
+      );
+      await loadEnv(mode);
+    } catch (err) {
+      pushToast({
+        title: "Gagal mengubah urutan preset",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Resolution order visual */}
@@ -183,6 +259,30 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                 </span>
               </span>
             ))}
+            {inspection?.projectPresets.map((p) => (
+              <span key={`proj-${p.presetId}`} className="flex items-center gap-1.5">
+                <span className="text-fg-faint">→</span>
+                <span className="rounded bg-warn-soft px-1.5 py-0.5 font-mono font-medium text-warn">
+                  project:{p.presetName}
+                </span>
+              </span>
+            ))}
+            {inspection?.servicePresets.map((p) => (
+              <span key={`svc-${p.presetId}`} className="flex items-center gap-1.5">
+                <span className="text-fg-faint">→</span>
+                <span className="rounded bg-accent-soft px-1.5 py-0.5 font-mono font-medium text-accent">
+                  service:{p.presetName}
+                </span>
+              </span>
+            ))}
+            {inspection?.assignedPort ? (
+              <span className="flex items-center gap-1.5">
+                <span className="text-fg-faint">→</span>
+                <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono font-medium text-fg">
+                  PORT={inspection.assignedPort}
+                </span>
+              </span>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-2">
@@ -201,6 +301,133 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Presets attached to Project & Service */}
+      <div className="rounded-[10px] border border-border bg-surface p-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <KeyRound className="h-3.5 w-3.5 text-info" aria-hidden="true" />
+            <span className="text-[12.5px] font-semibold text-fg">
+              Env Presets (Inject saat Spawn)
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <select
+              aria-label="Pilih preset untuk dipasang ke service"
+              value={selectedPresetId}
+              onChange={(e) => setSelectedPresetId(e.target.value)}
+              className="h-7 rounded-[6px] border border-border-strong bg-surface-2 px-2 text-[11.5px] text-fg"
+            >
+              <option value="">Pasang preset ke service…</option>
+              {availableServicePresets.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.entries.length} key)
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={!selectedPresetId}
+              onClick={() => void handleAttachServicePreset()}
+              className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] bg-accent px-2.5 text-[11.5px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-45"
+            >
+              <Plus className="h-3 w-3" aria-hidden="true" />
+              <span>Pasang</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-2.5 grid gap-3 sm:grid-cols-2">
+          {/* Inherited Project Presets */}
+          <div className="rounded-[8px] border border-border bg-surface-2/50 p-2.5">
+            <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-fg-muted">
+              <span>Diwariskan dari Project</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setRoute({ kind: "project", projectId: service.projectId })
+                }
+                className="text-info hover:underline"
+              >
+                Atur di Project →
+              </button>
+            </div>
+            {!inspection || inspection.projectPresets.length === 0 ? (
+              <p className="text-[11.5px] text-fg-faint">
+                Tidak ada shared preset di level project.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {inspection.projectPresets.map((p, idx) => (
+                  <span
+                    key={p.presetId}
+                    className="inline-flex items-center gap-1 rounded-[6px] bg-warn-soft px-2 py-0.5 font-mono text-[11px] text-warn"
+                  >
+                    <span>#{idx + 1}</span>
+                    <span>{p.presetName}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Service Presets */}
+          <div className="rounded-[8px] border border-border bg-surface-2/50 p-2.5">
+            <div className="mb-1.5 text-[11px] font-medium text-fg-muted">
+              Preset Khusus Service (Menimpa Project Preset)
+            </div>
+            {!inspection || inspection.servicePresets.length === 0 ? (
+              <p className="text-[11.5px] text-fg-faint">
+                Belum ada preset khusus untuk service ini.
+              </p>
+            ) : (
+              <div className="space-y-1">
+                {inspection.servicePresets.map((p, idx) => (
+                  <div
+                    key={p.presetId}
+                    className="flex items-center justify-between gap-1.5 rounded-[6px] border border-border bg-surface px-2 py-1"
+                  >
+                    <span className="truncate font-mono text-[11.5px] text-fg">
+                      <span className="mr-1 text-fg-faint">#{idx + 1}</span>
+                      {p.presetName}
+                    </span>
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        aria-label={`Naikkan ${p.presetName}`}
+                        disabled={idx === 0}
+                        onClick={() => void handleMoveServicePreset(idx, -1)}
+                        className="flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-surface-hover hover:text-fg disabled:opacity-35"
+                      >
+                        <ArrowUp className="h-3 w-3" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Turunkan ${p.presetName}`}
+                        disabled={idx === inspection.servicePresets.length - 1}
+                        onClick={() => void handleMoveServicePreset(idx, 1)}
+                        className="flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-surface-hover hover:text-fg disabled:opacity-35"
+                      >
+                        <ArrowDown className="h-3 w-3" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Lepas ${p.presetName}`}
+                        onClick={() =>
+                          void handleDetachServicePreset(p.presetId, p.presetName)
+                        }
+                        className="flex h-6 w-6 items-center justify-center rounded text-danger hover:bg-danger-soft"
+                      >
+                        <X className="h-3 w-3" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -471,7 +698,20 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                       />
                     </td>
                     <td className="px-3.5 py-2 align-middle">
-                      <span className="inline-flex items-center gap-1 rounded bg-info-soft px-1.5 py-0.5 font-mono text-[11px] text-info">
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[11px]",
+                          entry.layerKind === "project_preset"
+                            ? "bg-warn-soft text-warn"
+                            : entry.layerKind === "service_preset"
+                              ? "bg-accent-soft text-accent"
+                              : entry.layerKind === "port"
+                                ? "bg-surface-2 font-semibold text-fg"
+                                : entry.layerKind === "shell"
+                                  ? "bg-surface-2 text-fg-muted"
+                                  : "bg-info-soft text-info",
+                        )}
+                      >
                         {entry.source}
                       </span>
                       {entry.overriddenSources.length > 0 ? (
@@ -488,7 +728,16 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                         type="button"
                         disabled={!isDirty}
                         onClick={() =>
-                          void handleSaveSingleKey(entry.key, entry.source, draftVal)
+                          void handleSaveSingleKey(
+                            entry.key,
+                            entry.layerKind === "file" ? entry.source : ".env.local",
+                            draftVal,
+                          )
+                        }
+                        title={
+                          entry.layerKind === "file"
+                            ? `Simpan perubahan ke ${entry.source}`
+                            : "Simpan sebagai override ke .env.local"
                         }
                         className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] border border-border-strong bg-surface-2 px-2 text-[11.5px] font-medium text-fg hover:bg-surface-hover disabled:opacity-35"
                       >

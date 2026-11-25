@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { KeyRound, Network } from "lucide-react";
+import { Network } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { CommandPaletteModal } from "@/components/ui/CommandPaletteModal";
 import { AddProjectModal } from "@/components/projects/AddProjectModal";
@@ -10,6 +10,7 @@ import { SettingsView } from "@/views/SettingsView";
 import { PlaceholderView } from "@/views/PlaceholderView";
 import { ServiceWorkbenchView } from "@/views/ServiceWorkbenchView";
 import { ProjectOverviewView } from "@/views/ProjectOverviewView";
+import { EnvPresetsView } from "@/views/EnvPresetsView";
 import { onProjectsChanged } from "@/lib/tauri";
 import { useAppStore } from "@/store/appStore";
 
@@ -102,14 +103,7 @@ export default function App() {
           />
         );
       case "presets":
-        return (
-          <PlaceholderView
-            title="Env Presets"
-            description="Preset environment berlapis dengan penyimpanan OS Keychain akan hadir di Wave 2B."
-            waveLabel="Wave 2B"
-            icon={KeyRound}
-          />
-        );
+        return <EnvPresetsView />;
       case "settings":
         return <SettingsView />;
       case "project":

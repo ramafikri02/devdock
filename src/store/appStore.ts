@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   type AppBootstrapInfo,
+  type EnvPreset,
   type GlobalStorageSummary,
   type PackageManager,
   type Project,
@@ -8,6 +9,7 @@ import {
   attachFolderToProject,
   getBootstrapInfo,
   getCachedGlobalStorage,
+  listPresets,
   listProjects,
   refreshService as apiRefreshService,
   refreshShellPath,
@@ -44,6 +46,7 @@ export interface ToastItem {
 interface AppState {
   bootstrap: AppBootstrapInfo | null;
   projects: Project[];
+  presets: EnvPreset[];
   theme: ThemeMode;
   sidebarOpen: boolean;
   logDrawerOpen: boolean;
@@ -58,6 +61,7 @@ interface AppState {
 
   init: () => Promise<void>;
   loadProjects: () => Promise<void>;
+  loadPresets: () => Promise<void>;
   refreshGlobalStorage: (forceRefresh?: boolean) => Promise<void>;
   setTheme: (theme: ThemeMode) => Promise<void>;
   toggleTheme: () => Promise<void>;
@@ -108,6 +112,7 @@ function applyThemeClass(theme: ThemeMode) {
 export const useAppStore = create<AppState>((set, get) => ({
   bootstrap: null,
   projects: [],
+  presets: [],
   theme: "dark",
   sidebarOpen: true,
   logDrawerOpen: false,
@@ -122,14 +127,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   init: async () => {
     try {
-      const [info, projects, cachedStorage] = await Promise.all([
+      const [info, projects, presets, cachedStorage] = await Promise.all([
         getBootstrapInfo(),
         listProjects(),
+        listPresets(),
         getCachedGlobalStorage(),
       ]);
       const theme: ThemeMode = info.theme === "light" ? "light" : "dark";
       applyThemeClass(theme);
-      set({ bootstrap: info, theme, projects, globalStorage: cachedStorage });
+      set({
+        bootstrap: info,
+        theme,
+        projects,
+        presets,
+        globalStorage: cachedStorage,
+      });
       // Gently warm storage cache in the background when services exist
       if (projects.some((p) => p.services.length > 0)) {
         void get().refreshGlobalStorage(false);
@@ -137,6 +149,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (err) {
       get().pushToast({
         title: "Gagal memuat konfigurasi awal",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    }
+  },
+
+  loadPresets: async () => {
+    try {
+      const presets = await listPresets();
+      set({ presets });
+    } catch (err) {
+      get().pushToast({
+        title: "Gagal memuat Env Presets",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
