@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 
 export type PackageManager = "npm" | "pnpm" | "yarn" | "bun";
 
@@ -256,6 +256,45 @@ export interface StorageCleanResult {
   freedBytes: number;
   updatedReport: ServiceStorageReport;
 }
+
+export type ProcessStatus =
+  | "starting"
+  | "running"
+  | "stopping"
+  | "stopped"
+  | "crashed";
+
+export type LogStream = "stdout" | "stderr" | "system";
+
+export interface LogLine {
+  seq: number;
+  processId: string;
+  projectId: string;
+  serviceId: string;
+  serviceName: string;
+  script: string;
+  stream: LogStream;
+  text: string;
+  timestamp: string;
+}
+
+export interface ProcessInfo {
+  id: string;
+  projectId: string;
+  serviceId: string;
+  serviceName: string;
+  script: string;
+  command: string;
+  pid: number | null;
+  status: ProcessStatus;
+  exitCode: number | null;
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  lineCount: number;
+}
+
+export type LogExportScopeKind = "process" | "project" | "all";
 
 export function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -599,5 +638,147 @@ export async function onProjectsChanged(handler: () => void): Promise<UnlistenFn
   }
   return listen("projects:changed", () => {
     handler();
+  });
+}
+
+export async function runServiceScript(
+  serviceId: string,
+  script: string,
+): Promise<ProcessInfo> {
+  return invoke<ProcessInfo>("run_service_script", { serviceId, script });
+}
+
+export async function stopProcess(processId: string): Promise<ProcessInfo> {
+  return invoke<ProcessInfo>("stop_process", { processId });
+}
+
+export async function restartProcess(processId: string): Promise<ProcessInfo> {
+  return invoke<ProcessInfo>("restart_process", { processId });
+}
+
+export async function listProcesses(): Promise<ProcessInfo[]> {
+  if (!isTauriRuntime()) {
+    return [];
+  }
+  return invoke<ProcessInfo[]>("list_processes");
+}
+
+export async function getProcessLogs(
+  processId: string,
+  filter?: string,
+  stderrOnly = false,
+): Promise<LogLine[]> {
+  if (!isTauriRuntime()) {
+    return [];
+  }
+  return invoke<LogLine[]>("get_process_logs", {
+    processId,
+    filter: filter?.trim() ? filter : null,
+    stderrOnly,
+  });
+}
+
+export async function getProjectLogs(
+  projectId: string,
+  filter?: string,
+  stderrOnly = false,
+): Promise<LogLine[]> {
+  if (!isTauriRuntime()) {
+    return [];
+  }
+  return invoke<LogLine[]>("get_project_logs", {
+    projectId,
+    filter: filter?.trim() ? filter : null,
+    stderrOnly,
+  });
+}
+
+export async function getAllLogs(
+  filter?: string,
+  stderrOnly = false,
+): Promise<LogLine[]> {
+  if (!isTauriRuntime()) {
+    return [];
+  }
+  return invoke<LogLine[]>("get_all_logs", {
+    filter: filter?.trim() ? filter : null,
+    stderrOnly,
+  });
+}
+
+export async function clearProcessLogs(processId: string): Promise<void> {
+  if (!isTauriRuntime()) return;
+  await invoke("clear_process_logs", { processId });
+}
+
+export async function clearProjectLogs(projectId: string): Promise<void> {
+  if (!isTauriRuntime()) return;
+  await invoke("clear_project_logs", { projectId });
+}
+
+export async function exportLogsToFile(
+  scopeKind: LogExportScopeKind,
+  scopeId: string | null,
+  path: string,
+  filter?: string,
+  stderrOnly = false,
+  stripAnsi = true,
+): Promise<number> {
+  return invoke<number>("export_logs_to_file", {
+    scopeKind,
+    scopeId,
+    path,
+    filter: filter?.trim() ? filter : null,
+    stderrOnly,
+    stripAnsi,
+  });
+}
+
+export async function pickSaveLogFileDialog(
+  defaultPath = "devdock.log",
+): Promise<string | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+  const selected = await save({
+    title: "Simpan log ke file",
+    defaultPath,
+    filters: [
+      { name: "Log Files", extensions: ["log", "txt"] },
+    ],
+  });
+  return typeof selected === "string" ? selected : null;
+}
+
+export async function onProcessStatus(
+  handler: (info: ProcessInfo) => void,
+): Promise<UnlistenFn> {
+  if (!isTauriRuntime()) {
+    return () => {};
+  }
+  return listen<ProcessInfo>("process:status", (event) => {
+    handler(event.payload);
+  });
+}
+
+export async function onProcessLog(
+  handler: (line: LogLine) => void,
+): Promise<UnlistenFn> {
+  if (!isTauriRuntime()) {
+    return () => {};
+  }
+  return listen<LogLine>("process:log", (event) => {
+    handler(event.payload);
+  });
+}
+
+export async function onProcessLogsCleared(
+  handler: (payload: { processId: string }) => void,
+): Promise<UnlistenFn> {
+  if (!isTauriRuntime()) {
+    return () => {};
+  }
+  return listen<{ processId: string }>("process:logs-cleared", (event) => {
+    handler(event.payload);
   });
 }

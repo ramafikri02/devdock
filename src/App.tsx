@@ -11,12 +11,13 @@ import { PlaceholderView } from "@/views/PlaceholderView";
 import { ServiceWorkbenchView } from "@/views/ServiceWorkbenchView";
 import { ProjectOverviewView } from "@/views/ProjectOverviewView";
 import { EnvPresetsView } from "@/views/EnvPresetsView";
-import { onProjectsChanged } from "@/lib/tauri";
+import { onProcessStatus, onProjectsChanged } from "@/lib/tauri";
 import { useAppStore } from "@/store/appStore";
 
 export default function App() {
   const init = useAppStore((s) => s.init);
   const loadProjects = useAppStore((s) => s.loadProjects);
+  const upsertProcess = useAppStore((s) => s.upsertProcess);
   const projects = useAppStore((s) => s.projects);
   const route = useAppStore((s) => s.route);
   const setRoute = useAppStore((s) => s.setRoute);
@@ -29,16 +30,23 @@ export default function App() {
 
   // Auto-refresh scripts when package.json changes on disk
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
+    let unlistenProjects: (() => void) | undefined;
+    let unlistenProcess: (() => void) | undefined;
     void onProjectsChanged(() => {
       void loadProjects();
     }).then((fn) => {
-      unlisten = fn;
+      unlistenProjects = fn;
+    });
+    void onProcessStatus((info) => {
+      upsertProcess(info);
+    }).then((fn) => {
+      unlistenProcess = fn;
     });
     return () => {
-      if (unlisten) unlisten();
+      if (unlistenProjects) unlistenProjects();
+      if (unlistenProcess) unlistenProcess();
     };
-  }, [loadProjects]);
+  }, [loadProjects, upsertProcess]);
 
   const totalServices = useMemo(
     () => projects.reduce((sum, p) => sum + p.services.length, 0),

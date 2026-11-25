@@ -3,8 +3,10 @@ pub mod db;
 pub mod db_tester;
 pub mod env_resolver;
 pub mod error;
+pub mod log_buffer;
 pub mod models;
 pub mod presets;
+pub mod process_manager;
 pub mod registry;
 pub mod scanner;
 pub mod secret_store;
@@ -17,13 +19,17 @@ use crate::db::Database;
 use crate::db_tester::{DbConnectionTester, DEFAULT_DB_TIMEOUT};
 use crate::env_resolver::EnvResolver;
 use crate::error::{CoreError, CoreResult};
+use crate::log_buffer::DEFAULT_LOG_CAPACITY;
 use crate::models::{
     AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
-    GlobalStorageSummary, PackageManager, PresetEntryInput, Project, ProjectEnvSummary,
-    ProjectStorageSummary, ScanResult, Service, ServiceDescriptor, ServiceEnvInspection,
-    ServiceStorageReport, StorageCleanResult,
+    GlobalStorageSummary, LogExportScope, LogLine, PackageManager, PresetEntryInput, ProcessInfo,
+    Project, ProjectEnvSummary, ProjectStorageSummary, ScanResult, Service, ServiceDescriptor,
+    ServiceEnvInspection, ServiceStorageReport, StorageCleanResult,
 };
 use crate::presets::PresetStore;
+use crate::process_manager::{
+    ProcessEventListener, ProcessManager, DEFAULT_STOP_GRACE_PERIOD,
+};
 use crate::registry::ProjectRegistry;
 use crate::scanner::FolderScanner;
 use crate::shell_env::LoginShellEnvProvider;
@@ -35,6 +41,7 @@ use crate::traits::{
 use rusqlite::{params, OptionalExtension};
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
 pub struct DevDockCore {
     db: Database,
@@ -43,6 +50,7 @@ pub struct DevDockCore {
     notifier: Arc<dyn Notifier>,
     adapters: AdapterRegistry,
     storage: StorageAnalyzer,
+    processes: ProcessManager,
 }
 
 impl DevDockCore {
@@ -60,6 +68,7 @@ impl DevDockCore {
             notifier,
             adapters: AdapterRegistry::default(),
             storage: StorageAnalyzer::new(),
+            processes: ProcessManager::new(DEFAULT_LOG_CAPACITY, DEFAULT_STOP_GRACE_PERIOD),
         })
     }
 
@@ -89,6 +98,24 @@ impl DevDockCore {
             notifier: Arc::new(InMemoryNotifier::new()),
             adapters: AdapterRegistry::default(),
             storage: StorageAnalyzer::new(),
+            processes: ProcessManager::new(DEFAULT_LOG_CAPACITY, DEFAULT_STOP_GRACE_PERIOD),
+        })
+    }
+
+    pub fn in_memory_for_tests_with_limits(
+        initial_path: &str,
+        log_capacity: usize,
+        stop_grace_period: Duration,
+    ) -> CoreResult<Self> {
+        let db = Database::open_in_memory()?;
+        Ok(Self {
+            db,
+            secrets: Arc::new(InMemorySecretStore::new()),
+            shell_env: Arc::new(InMemoryShellEnvProvider::new(initial_path)),
+            notifier: Arc::new(InMemoryNotifier::new()),
+            adapters: AdapterRegistry::default(),
+            storage: StorageAnalyzer::new(),
+            processes: ProcessManager::new(log_capacity, stop_grace_period),
         })
     }
 
@@ -495,5 +522,115 @@ impl DevDockCore {
     ) -> CoreResult<StorageCleanResult> {
         let service = self.get_service(service_id)?;
         self.storage.clean_target(&service, folder_name)
+    }
+
+    pub fn subscribe_process_events(&self, listener: ProcessEventListener) {
+        self.processes.subscribe(listener);
+    }
+
+    pub fn run_service_script(&self, service_id: &str, script: &str) -> CoreResult<ProcessInfo> {
+        let service = self.get_service(service_id)?;
+        if service.is_missing {
+            return Err(CoreError::InvalidFolder(format!(
+                "Service folder does not exist: {}",
+                service.path
+            )));
+        }
+        if !service.scripts.contains_key(script) {
+            return Err(CoreError::Validation(format!(
+                "Script '{script}' not found in service '{}'",
+                service.name
+            )));
+        }
+
+        let adapter = self.adapters.get(&service.adapter).ok_or_else(|| {
+            CoreError::Adapter(format!("Unknown adapter '{}'", service.adapter))
+        })?;
+        let spec = adapter.build_run_command(&service, script, None)?;
+        let mut env_map = self.resolve_service_runtime_env(service_id, None)?;
+        if !env_map.contains_key("PATH") {
+            let path = self.shell_env.get_path()?;
+            if !path.is_empty() {
+                env_map.insert("PATH".to_string(), path);
+            }
+        }
+
+        self.processes
+            .spawn_script(&service, script, &spec, &env_map)
+    }
+
+    pub fn stop_process(&self, process_id: &str) -> CoreResult<ProcessInfo> {
+        self.processes.stop_process(process_id)
+    }
+
+    pub fn stop_process_with_grace(
+        &self,
+        process_id: &str,
+        grace_period: Duration,
+    ) -> CoreResult<ProcessInfo> {
+        self.processes
+            .stop_process_with_grace(process_id, grace_period)
+    }
+
+    pub fn restart_process(&self, process_id: &str) -> CoreResult<ProcessInfo> {
+        let existing = self.processes.get_process(process_id)?;
+        let _ = self.processes.stop_process(process_id)?;
+        self.run_service_script(&existing.service_id, &existing.script)
+    }
+
+    pub fn stop_all_processes(&self) {
+        self.processes.stop_all_processes();
+    }
+
+    pub fn list_processes(&self) -> Vec<ProcessInfo> {
+        self.processes.list_processes()
+    }
+
+    pub fn get_process(&self, process_id: &str) -> CoreResult<ProcessInfo> {
+        self.processes.get_process(process_id)
+    }
+
+    pub fn get_process_logs(
+        &self,
+        process_id: &str,
+        filter: Option<&str>,
+        stderr_only: bool,
+    ) -> CoreResult<Vec<LogLine>> {
+        self.processes
+            .get_process_logs(process_id, filter, stderr_only)
+    }
+
+    pub fn get_project_logs(
+        &self,
+        project_id: &str,
+        filter: Option<&str>,
+        stderr_only: bool,
+    ) -> Vec<LogLine> {
+        self.processes
+            .get_project_logs(project_id, filter, stderr_only)
+    }
+
+    pub fn get_all_logs(&self, filter: Option<&str>, stderr_only: bool) -> Vec<LogLine> {
+        self.processes.get_all_logs(filter, stderr_only)
+    }
+
+    pub fn clear_process_logs(&self, process_id: &str) -> CoreResult<()> {
+        self.processes.clear_process_logs(process_id)
+    }
+
+    pub fn clear_project_logs(&self, project_id: &str) {
+        self.processes.clear_project_logs(project_id);
+    }
+
+    pub fn export_logs_to_file(
+        &self,
+        scope: &LogExportScope,
+        path: &Path,
+        filter: Option<&str>,
+        stderr_only: bool,
+        strip_ansi: bool,
+    ) -> CoreResult<usize> {
+        self.processes
+            .export_logs_to_file(scope, path, filter, stderr_only, strip_ansi)
     }
 }

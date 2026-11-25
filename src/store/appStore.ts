@@ -4,12 +4,14 @@ import {
   type EnvPreset,
   type GlobalStorageSummary,
   type PackageManager,
+  type ProcessInfo,
   type Project,
   analyzeAllStorage,
   attachFolderToProject,
   getBootstrapInfo,
   getCachedGlobalStorage,
   listPresets,
+  listProcesses,
   listProjects,
   refreshService as apiRefreshService,
   refreshShellPath,
@@ -20,11 +22,18 @@ import {
   removeService as apiRemoveService,
   renameProject as apiRenameProject,
   renameService as apiRenameService,
+  restartProcess as apiRestartProcess,
+  runServiceScript as apiRunServiceScript,
   setAppSetting,
   setServicePmOverride,
+  stopProcess as apiStopProcess,
 } from "@/lib/tauri";
 
 export type ThemeMode = "dark" | "light";
+
+export type LogScope =
+  | { kind: "project"; projectId: string }
+  | { kind: "all" };
 
 export type ActiveRoute =
   | { kind: "overview" }
@@ -47,9 +56,15 @@ interface AppState {
   bootstrap: AppBootstrapInfo | null;
   projects: Project[];
   presets: EnvPreset[];
+  processes: Record<string, ProcessInfo>;
   theme: ThemeMode;
   sidebarOpen: boolean;
   logDrawerOpen: boolean;
+  logDrawerHeight: number;
+  logDrawerMaximized: boolean;
+  logScope: LogScope;
+  activeLogTab: "combined" | string;
+  hiddenLogTabIds: string[];
   route: ActiveRoute;
   toasts: ToastItem[];
   commandPaletteOpen: boolean;
@@ -62,11 +77,24 @@ interface AppState {
   init: () => Promise<void>;
   loadProjects: () => Promise<void>;
   loadPresets: () => Promise<void>;
+  loadProcesses: () => Promise<void>;
+  upsertProcess: (info: ProcessInfo) => void;
+  runScript: (serviceId: string, script: string) => Promise<ProcessInfo>;
+  stopProcess: (processId: string) => Promise<void>;
+  restartProcess: (processId: string) => Promise<void>;
   refreshGlobalStorage: (forceRefresh?: boolean) => Promise<void>;
   setTheme: (theme: ThemeMode) => Promise<void>;
   toggleTheme: () => Promise<void>;
   toggleSidebar: () => void;
   toggleLogDrawer: () => void;
+  setLogDrawerOpen: (open: boolean) => void;
+  setLogDrawerHeight: (height: number) => void;
+  setLogDrawerMaximized: (maximized: boolean) => void;
+  setLogScope: (scope: LogScope) => void;
+  setActiveLogTab: (tab: "combined" | string) => void;
+  hideLogTab: (processId: string) => void;
+  restoreLogTab: (processId: string) => void;
+  openLogsForProcess: (processId: string) => void;
   setRoute: (route: ActiveRoute) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   openAddProjectModal: (targetProjectId?: string | null) => void;
@@ -113,9 +141,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   bootstrap: null,
   projects: [],
   presets: [],
+  processes: {},
   theme: "dark",
   sidebarOpen: true,
   logDrawerOpen: false,
+  logDrawerHeight: 240,
+  logDrawerMaximized: false,
+  logScope: { kind: "all" },
+  activeLogTab: "combined",
+  hiddenLogTabIds: [],
   route: { kind: "overview" },
   toasts: [],
   commandPaletteOpen: false,
@@ -127,19 +161,25 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   init: async () => {
     try {
-      const [info, projects, presets, cachedStorage] = await Promise.all([
+      const [info, projects, presets, cachedStorage, procList] = await Promise.all([
         getBootstrapInfo(),
         listProjects(),
         listPresets(),
         getCachedGlobalStorage(),
+        listProcesses(),
       ]);
       const theme: ThemeMode = info.theme === "light" ? "light" : "dark";
       applyThemeClass(theme);
+      const processes: Record<string, ProcessInfo> = {};
+      for (const p of procList) {
+        processes[p.id] = p;
+      }
       set({
         bootstrap: info,
         theme,
         projects,
         presets,
+        processes,
         globalStorage: cachedStorage,
       });
       // Gently warm storage cache in the background when services exist
@@ -153,6 +193,55 @@ export const useAppStore = create<AppState>((set, get) => ({
         variant: "danger",
       });
     }
+  },
+
+  loadProcesses: async () => {
+    try {
+      const list = await listProcesses();
+      const map: Record<string, ProcessInfo> = {};
+      for (const p of list) {
+        map[p.id] = p;
+      }
+      set({ processes: map });
+    } catch {
+      // Non-fatal
+    }
+  },
+
+  upsertProcess: (info) => {
+    set((s) => ({
+      processes: { ...s.processes, [info.id]: info },
+    }));
+  },
+
+  runScript: async (serviceId, script) => {
+    const info = await apiRunServiceScript(serviceId, script);
+    set((s) => ({
+      processes: { ...s.processes, [info.id]: info },
+      logDrawerOpen: true,
+      logScope: { kind: "project", projectId: info.projectId },
+      activeLogTab: info.id,
+      hiddenLogTabIds: s.hiddenLogTabIds.filter((id) => id !== info.id),
+    }));
+    return info;
+  },
+
+  stopProcess: async (processId) => {
+    const info = await apiStopProcess(processId);
+    set((s) => ({
+      processes: { ...s.processes, [info.id]: info },
+    }));
+  },
+
+  restartProcess: async (processId) => {
+    const info = await apiRestartProcess(processId);
+    set((s) => ({
+      processes: { ...s.processes, [info.id]: info },
+      logDrawerOpen: true,
+      logScope: { kind: "project", projectId: info.projectId },
+      activeLogTab: info.id,
+      hiddenLogTabIds: s.hiddenLogTabIds.filter((id) => id !== info.id),
+    }));
   },
 
   loadPresets: async () => {
@@ -211,7 +300,58 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   toggleLogDrawer: () => set((s) => ({ logDrawerOpen: !s.logDrawerOpen })),
-  setRoute: (route) => set({ route }),
+  setLogDrawerOpen: (open) => set({ logDrawerOpen: open }),
+  setLogDrawerHeight: (height) => set({ logDrawerHeight: height }),
+  setLogDrawerMaximized: (maximized) => set({ logDrawerMaximized: maximized }),
+  setLogScope: (scope) =>
+    set({
+      logScope: scope,
+      activeLogTab: "combined",
+    }),
+  setActiveLogTab: (tab) => set({ activeLogTab: tab }),
+  hideLogTab: (processId) =>
+    set((s) => ({
+      hiddenLogTabIds: s.hiddenLogTabIds.includes(processId)
+        ? s.hiddenLogTabIds
+        : [...s.hiddenLogTabIds, processId],
+      activeLogTab: s.activeLogTab === processId ? "combined" : s.activeLogTab,
+    })),
+  restoreLogTab: (processId) =>
+    set((s) => ({
+      hiddenLogTabIds: s.hiddenLogTabIds.filter((id) => id !== processId),
+      activeLogTab: processId,
+    })),
+  openLogsForProcess: (processId) =>
+    set((s) => {
+      const proc = s.processes[processId];
+      return {
+        logDrawerOpen: true,
+        logScope: proc
+          ? { kind: "project", projectId: proc.projectId }
+          : s.logScope,
+        activeLogTab: processId,
+        hiddenLogTabIds: s.hiddenLogTabIds.filter((id) => id !== processId),
+      };
+    }),
+  setRoute: (route) =>
+    set((s) => {
+      if (route.kind === "project" || route.kind === "service") {
+        const nextScope: LogScope = {
+          kind: "project",
+          projectId: route.projectId,
+        };
+        const currentProc =
+          s.activeLogTab !== "combined" ? s.processes[s.activeLogTab] : undefined;
+        const keepActiveTab =
+          currentProc && currentProc.projectId === route.projectId;
+        return {
+          route,
+          logScope: nextScope,
+          activeLogTab: keepActiveTab ? s.activeLogTab : "combined",
+        };
+      }
+      return { route };
+    }),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
   openAddProjectModal: (targetProjectId = null) =>
     set({ addProjectModalOpen: true, addProjectDefaultTargetId: targetProjectId }),

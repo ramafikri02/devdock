@@ -5,9 +5,30 @@ import { cn } from "@/lib/cn";
 
 export function SidebarProjects() {
   const projects = useAppStore((s) => s.projects);
+  const processes = useAppStore((s) => s.processes);
   const route = useAppStore((s) => s.route);
   const setRoute = useAppStore((s) => s.setRoute);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const procList = Object.values(processes);
+  const getServiceState = (serviceId: string): "running" | "crashed" | "stopped" => {
+    const svcProcs = procList.filter((p) => p.serviceId === serviceId);
+    if (
+      svcProcs.some(
+        (p) =>
+          p.status === "running" ||
+          p.status === "starting" ||
+          p.status === "stopping",
+      )
+    ) {
+      return "running";
+    }
+    const latest = [...svcProcs].sort((a, b) =>
+      b.startedAt.localeCompare(a.startedAt),
+    )[0];
+    if (latest?.status === "crashed") return "crashed";
+    return "stopped";
+  };
 
   if (projects.length === 0) {
     return (
@@ -35,6 +56,7 @@ export function SidebarProjects() {
           const svc = project.services[0];
           const active =
             route.kind === "service" && route.serviceId === svc.id;
+          const svcState = getServiceState(svc.id);
           return (
             <button
               key={project.id}
@@ -61,7 +83,14 @@ export function SidebarProjects() {
                   />
                 ) : (
                   <span
-                    className="h-2 w-2 shrink-0 rounded-full bg-fg-faint/60"
+                    className={cn(
+                      "h-2 w-2 shrink-0 rounded-full",
+                      svcState === "running"
+                        ? "bg-accent shadow-[0_0_6px_var(--accent)]"
+                        : svcState === "crashed"
+                          ? "bg-danger"
+                          : "bg-fg-faint/60",
+                    )}
                     aria-hidden="true"
                   />
                 )}
@@ -81,6 +110,9 @@ export function SidebarProjects() {
         const isProjectActive =
           route.kind === "project" && route.projectId === project.id;
         const hasMissing = project.services.some((s) => s.isMissing);
+        const runningServicesCount = project.services.filter(
+          (s) => getServiceState(s.id) === "running",
+        ).length;
 
         return (
           <div key={project.id} className="flex flex-col">
@@ -120,14 +152,25 @@ export function SidebarProjects() {
                   <FolderKanban
                     className={cn(
                       "h-3.5 w-3.5 shrink-0",
-                      hasMissing ? "text-warn" : "text-fg-muted",
+                      hasMissing
+                        ? "text-warn"
+                        : runningServicesCount > 0
+                          ? "text-accent"
+                          : "text-fg-muted",
                     )}
                     aria-hidden="true"
                   />
                   <span className="truncate">{project.name}</span>
                 </span>
-                <span className="shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[10.5px] text-fg-muted tabular-nums">
-                  0/{project.services.length}
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-1.5 py-0.5 font-mono text-[10.5px] tabular-nums",
+                    runningServicesCount > 0
+                      ? "bg-accent-soft text-accent"
+                      : "bg-surface-2 text-fg-muted",
+                  )}
+                >
+                  {runningServicesCount}/{project.services.length}
                 </span>
               </button>
             </div>
@@ -137,6 +180,7 @@ export function SidebarProjects() {
                 {project.services.map((svc) => {
                   const active =
                     route.kind === "service" && route.serviceId === svc.id;
+                  const svcState = getServiceState(svc.id);
                   return (
                     <button
                       key={svc.id}
@@ -163,7 +207,14 @@ export function SidebarProjects() {
                           />
                         ) : (
                           <span
-                            className="h-1.5 w-1.5 shrink-0 rounded-full bg-fg-faint/60"
+                            className={cn(
+                              "h-1.5 w-1.5 shrink-0 rounded-full",
+                              svcState === "running"
+                                ? "bg-accent shadow-[0_0_5px_var(--accent)]"
+                                : svcState === "crashed"
+                                  ? "bg-danger"
+                                  : "bg-fg-faint/60",
+                            )}
                             aria-hidden="true"
                           />
                         )}

@@ -1,26 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   FileCode2,
   FolderOpen,
   HardDrive,
-  Package,
-  RefreshCw,
-  Settings,
-  Terminal,
-  Trash2,
   Layers,
+  Package,
+  Play,
+  RefreshCw,
+  RotateCw,
+  Settings,
+  Square,
+  Terminal,
+  TerminalSquare,
+  Trash2,
 } from "lucide-react";
 import {
   FRAMEWORK_LABELS,
   type PackageManager,
+  type ProcessInfo,
   type Project,
   type Service,
   type ServiceStorageReport,
   analyzeServiceStorage,
   pickFolderDialog,
 } from "@/lib/tauri";
-import { formatBytes } from "@/lib/format";
+import { formatBytes, formatDuration } from "@/lib/format";
 import { useAppStore } from "@/store/appStore";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ServiceEnvTab } from "@/components/workbench/ServiceEnvTab";
@@ -47,8 +52,14 @@ export function ServiceWorkbenchView({
   const removeProject = useAppStore((s) => s.removeProject);
   const setRoute = useAppStore((s) => s.setRoute);
   const pushToast = useAppStore((s) => s.pushToast);
+  const processes = useAppStore((s) => s.processes);
+  const runScript = useAppStore((s) => s.runScript);
+  const stopProcess = useAppStore((s) => s.stopProcess);
+  const restartProcess = useAppStore((s) => s.restartProcess);
+  const openLogsForProcess = useAppStore((s) => s.openLogsForProcess);
 
   const [tab, setTab] = useState<WorkbenchTab>("scripts");
+  const [busyAction, setBusyAction] = useState<string | null>(null);
   const [serviceNameInput, setServiceNameInput] = useState(service.name);
   const [projectNameInput, setProjectNameInput] = useState(project.name);
   const [relocateInput, setRelocateInput] = useState(service.path);
@@ -83,6 +94,94 @@ export function ServiceWorkbenchView({
   const effectivePm = service.pmOverride ?? service.detectedPm;
   const scriptEntries = Object.entries(service.scripts);
   const isSingleServiceProject = project.services.length === 1;
+
+  const serviceProcesses = useMemo(
+    () =>
+      Object.values(processes)
+        .filter((p) => p.serviceId === service.id)
+        .sort((a, b) => b.startedAt.localeCompare(a.startedAt)),
+    [processes, service.id],
+  );
+
+  const activeServiceProcesses = useMemo(
+    () =>
+      serviceProcesses.filter(
+        (p) =>
+          p.status === "running" ||
+          p.status === "starting" ||
+          p.status === "stopping",
+      ),
+    [serviceProcesses],
+  );
+
+  const processesByScript = useMemo(() => {
+    const map = new Map<string, ProcessInfo[]>();
+    for (const p of serviceProcesses) {
+      const list = map.get(p.script) ?? [];
+      list.push(p);
+      map.set(p.script, list);
+    }
+    return map;
+  }, [serviceProcesses]);
+
+  const primaryScript =
+    (service.defaultScript && service.scripts[service.defaultScript]
+      ? service.defaultScript
+      : scriptEntries[0]?.[0]) ?? null;
+
+  const handleRunScript = async (scriptName: string) => {
+    setBusyAction(`run:${scriptName}`);
+    try {
+      await runScript(service.id, scriptName);
+    } catch (err) {
+      pushToast({
+        title: `Gagal menjalankan "${scriptName}"`,
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleStopProcess = async (processId: string) => {
+    setBusyAction(`stop:${processId}`);
+    try {
+      await stopProcess(processId);
+    } catch (err) {
+      pushToast({
+        title: "Gagal menghentikan proses",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleRestartProcess = async (processId: string) => {
+    setBusyAction(`restart:${processId}`);
+    try {
+      await restartProcess(processId);
+    } catch (err) {
+      pushToast({
+        title: "Gagal me-restart proses",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const latestServiceStatus =
+    activeServiceProcesses.length > 0
+      ? activeServiceProcesses.some((p) => p.status === "stopping")
+        ? "stopping"
+        : "running"
+      : serviceProcesses[0]?.status === "crashed"
+        ? "crashed"
+        : "stopped";
 
   const handleRelocateWithPicker = async () => {
     const picked = await pickFolderDialog(`Relokasi folder untuk ${service.name}`);
@@ -157,6 +256,30 @@ export function ServiceWorkbenchView({
                     <AlertTriangle className="h-3 w-3" aria-hidden="true" />
                     Folder tidak ditemukan
                   </span>
+                ) : latestServiceStatus === "running" ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-[11.5px] font-medium text-accent">
+                    <span
+                      className="h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_6px_var(--accent)]"
+                      aria-hidden="true"
+                    />
+                    Running ({activeServiceProcesses.length})
+                  </span>
+                ) : latestServiceStatus === "stopping" ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-warn-soft px-2 py-0.5 text-[11.5px] font-medium text-warn">
+                    <span
+                      className="h-1.5 w-1.5 animate-pulse rounded-full bg-warn"
+                      aria-hidden="true"
+                    />
+                    Stopping…
+                  </span>
+                ) : latestServiceStatus === "crashed" ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-danger-soft px-2 py-0.5 text-[11.5px] font-medium text-danger">
+                    <span
+                      className="h-1.5 w-1.5 rounded-full bg-danger"
+                      aria-hidden="true"
+                    />
+                    Crashed
+                  </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2 py-0.5 text-[11.5px] font-medium text-fg-muted">
                     <span
@@ -198,14 +321,43 @@ export function ServiceWorkbenchView({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => void refreshService(service.id)}
-              className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] border border-border-strong bg-surface px-3 text-[12.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
-            >
-              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Refresh</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {!service.isMissing && primaryScript ? (
+                activeServiceProcesses.length > 0 ? (
+                  <button
+                    type="button"
+                    disabled={busyAction !== null}
+                    onClick={() => {
+                      for (const proc of activeServiceProcesses) {
+                        void handleStopProcess(proc.id);
+                      }
+                    }}
+                    className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-danger-solid px-3 text-[12.5px] font-semibold text-white hover:opacity-95 disabled:opacity-50"
+                  >
+                    <Square className="h-3 w-3 fill-current" aria-hidden="true" />
+                    <span>Stop</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={busyAction !== null}
+                    onClick={() => void handleRunScript(primaryScript)}
+                    className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12.5px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
+                  >
+                    <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+                    <span>Start ({primaryScript})</span>
+                  </button>
+                )
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void refreshService(service.id)}
+                className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] border border-border-strong bg-surface px-3 text-[12.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
+              >
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Refresh</span>
+              </button>
+            </div>
           </div>
 
           {/* Missing folder alert banner */}
@@ -336,33 +488,175 @@ export function ServiceWorkbenchView({
                     <tr className="border-b border-border bg-surface-2 text-[11.5px] font-semibold tracking-wide text-fg-muted uppercase">
                       <th className="px-4 py-2.5">Script</th>
                       <th className="px-4 py-2.5">Command</th>
-                      <th className="px-4 py-2.5 text-right">Runner</th>
+                      <th className="px-4 py-2.5">Status</th>
+                      <th className="px-4 py-2.5 text-right">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border text-[13px]">
-                    {scriptEntries.map(([name, cmd]) => (
-                      <tr
-                        key={name}
-                        className="transition-colors hover:bg-surface-hover/40"
-                      >
-                        <td className="px-4 py-2.5 font-mono font-medium text-fg">
-                          <span className="flex items-center gap-2">
-                            <span>{name}</span>
-                            {service.defaultScript === name ? (
-                              <span className="rounded bg-info-soft px-1.5 py-0.5 font-sans text-[10.5px] font-medium text-info">
-                                default
+                    {scriptEntries.map(([name, cmd]) => {
+                      const runs = processesByScript.get(name) ?? [];
+                      const activeRuns = runs.filter(
+                        (p) =>
+                          p.status === "running" ||
+                          p.status === "starting" ||
+                          p.status === "stopping",
+                      );
+                      const activeRun = activeRuns[0] ?? null;
+                      const latestRun = runs[0] ?? null;
+
+                      return (
+                        <tr
+                          key={name}
+                          className="transition-colors hover:bg-surface-hover/40"
+                        >
+                          <td className="px-4 py-2.5 font-mono font-medium text-fg">
+                            <span className="flex items-center gap-2">
+                              <span>{name}</span>
+                              {service.defaultScript === name ? (
+                                <span className="rounded bg-info-soft px-1.5 py-0.5 font-sans text-[10.5px] font-medium text-info">
+                                  default
+                                </span>
+                              ) : null}
+                            </span>
+                          </td>
+                          <td className="max-w-xs truncate px-4 py-2.5 font-mono text-[12px] text-fg-muted select-text">
+                            {cmd}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {activeRun ? (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                                    activeRun.status === "stopping"
+                                      ? "bg-warn-soft text-warn"
+                                      : "bg-accent-soft text-accent",
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      "h-1.5 w-1.5 rounded-full",
+                                      activeRun.status === "stopping"
+                                        ? "animate-pulse bg-warn"
+                                        : "bg-accent",
+                                    )}
+                                    aria-hidden="true"
+                                  />
+                                  {activeRun.status === "stopping"
+                                    ? "Stopping…"
+                                    : activeRuns.length > 1
+                                      ? `Running ×${activeRuns.length}`
+                                      : "Running"}
+                                </span>
+                                {activeRun.pid ? (
+                                  <span className="font-mono text-[11px] text-fg-faint tabular-nums">
+                                    PID {activeRun.pid}
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : latestRun ? (
+                              <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px] tabular-nums">
+                                <span
+                                  className={cn(
+                                    "rounded px-1.5 py-0.5 font-medium",
+                                    latestRun.status === "crashed"
+                                      ? "bg-danger-soft text-danger"
+                                      : "bg-surface-2 text-fg-muted",
+                                  )}
+                                >
+                                  exit {latestRun.exitCode ?? "—"}
+                                </span>
+                                <span className="text-fg-faint">
+                                  {formatDuration(latestRun.durationMs)}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-[11.5px] text-fg-faint">
+                                Idle
                               </span>
-                            ) : null}
-                          </span>
-                        </td>
-                        <td className="max-w-md truncate px-4 py-2.5 font-mono text-[12px] text-fg-muted select-text">
-                          {cmd}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-mono text-[11.5px] text-fg-faint">
-                          {effectivePm} run {name}
-                        </td>
-                      </tr>
-                    ))}
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            <div className="inline-flex items-center justify-end gap-1.5">
+                              {activeRun ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={busyAction !== null}
+                                    onClick={() =>
+                                      void handleRestartProcess(activeRun.id)
+                                    }
+                                    title="Restart script"
+                                    aria-label={`Restart ${name}`}
+                                    className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] border border-border-strong bg-surface-2 px-2 text-[11.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg disabled:opacity-45"
+                                  >
+                                    <RotateCw
+                                      className="h-3 w-3"
+                                      aria-hidden="true"
+                                    />
+                                    <span>Restart</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      busyAction !== null ||
+                                      activeRun.status === "stopping"
+                                    }
+                                    onClick={() =>
+                                      void handleStopProcess(activeRun.id)
+                                    }
+                                    title="Stop process tree"
+                                    aria-label={`Stop ${name}`}
+                                    className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] border border-danger/45 bg-danger-soft px-2 text-[11.5px] font-medium text-danger hover:bg-danger-solid hover:text-white disabled:opacity-45"
+                                  >
+                                    <Square
+                                      className="h-2.5 w-2.5 fill-current"
+                                      aria-hidden="true"
+                                    />
+                                    <span>Stop</span>
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={
+                                    service.isMissing || busyAction !== null
+                                  }
+                                  onClick={() => void handleRunScript(name)}
+                                  title={`Jalankan via ${effectivePm} run ${name}`}
+                                  className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] bg-accent px-2.5 text-[11.5px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-45"
+                                >
+                                  <Play
+                                    className="h-3 w-3 fill-current"
+                                    aria-hidden="true"
+                                  />
+                                  <span>Run</span>
+                                </button>
+                              )}
+
+                              {latestRun ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    openLogsForProcess(
+                                      activeRun?.id ?? latestRun.id,
+                                    )
+                                  }
+                                  title="Lihat log proses"
+                                  aria-label={`Lihat log ${name}`}
+                                  className="btn-press inline-flex h-7 items-center justify-center rounded-[6px] border border-border-strong bg-surface-2 px-2 text-fg-muted hover:bg-surface-hover hover:text-fg"
+                                >
+                                  <TerminalSquare
+                                    className="h-3.5 w-3.5"
+                                    aria-hidden="true"
+                                  />
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
@@ -577,6 +871,30 @@ export function ServiceWorkbenchView({
               {scriptEntries.length}
             </span>
           </div>
+          <div className="flex items-center justify-between">
+            <span className="text-fg-muted">Proses Aktif</span>
+            <span
+              className={cn(
+                "font-mono tabular-nums",
+                activeServiceProcesses.length > 0
+                  ? "font-semibold text-accent"
+                  : "text-fg-muted",
+              )}
+            >
+              {activeServiceProcesses.length}
+            </span>
+          </div>
+          {activeServiceProcesses.length > 0 ? (
+            <div className="flex items-center justify-between">
+              <span className="text-fg-muted">PID</span>
+              <span className="font-mono text-[11.5px] text-fg tabular-nums">
+                {activeServiceProcesses
+                  .map((p) => p.pid)
+                  .filter(Boolean)
+                  .join(", ")}
+              </span>
+            </div>
+          ) : null}
           <div className="flex items-center justify-between">
             <span className="text-fg-muted">Status Folder</span>
             <span

@@ -27,6 +27,13 @@ export function OverviewView({
   const globalStorage = useAppStore((s) => s.globalStorage);
   const storageLoading = useAppStore((s) => s.storageLoading);
   const refreshGlobalStorage = useAppStore((s) => s.refreshGlobalStorage);
+  const processes = useAppStore((s) => s.processes);
+
+  const procList = Object.values(processes);
+  const runningCount = procList.filter(
+    (p) => p.status === "running" || p.status === "starting",
+  ).length;
+  const crashedCount = procList.filter((p) => p.status === "crashed").length;
 
   const nmDisplay =
     globalStorage && globalStorage.cachedServiceCount > 0
@@ -38,8 +45,8 @@ export function OverviewView({
       : null;
 
   const kpis = [
-    { label: "Jalan", value: "0", icon: PlayCircle, tone: "text-accent", sub: null },
-    { label: "Crash", value: "0", icon: AlertTriangle, tone: "text-danger", sub: null },
+    { label: "Jalan", value: String(runningCount), icon: PlayCircle, tone: "text-accent", sub: null },
+    { label: "Crash", value: String(crashedCount), icon: AlertTriangle, tone: "text-danger", sub: null },
     { label: "Bentrok Port", value: "0", icon: Network, tone: "text-warn", sub: null },
     { label: "CPU Total", value: "0.0%", icon: Cpu, tone: "text-info", sub: null },
     { label: "RAM Total", value: "0 MB", icon: MemoryStick, tone: "text-info", sub: null },

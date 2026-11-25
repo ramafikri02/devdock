@@ -1,0 +1,731 @@
+use crate::error::{CoreError, CoreResult};
+use crate::log_buffer::{
+    filter_log_lines, format_log_line_for_export, LogBuffer, DEFAULT_LOG_CAPACITY,
+};
+use crate::models::{
+    LogExportScope, LogLine, LogStream, ProcessEvent, ProcessInfo, ProcessStatus, RunCommandSpec,
+    Service,
+};
+use chrono::Utc;
+use std::collections::{BTreeMap, HashMap};
+use std::io::{BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, RwLock};
+use std::thread;
+use std::time::{Duration, Instant};
+use uuid::Uuid;
+
+pub const DEFAULT_STOP_GRACE_PERIOD: Duration = Duration::from_secs(5);
+
+pub type ProcessEventListener = Arc<dyn Fn(ProcessEvent) + Send + Sync>;
+
+#[cfg(unix)]
+struct PlatformHandle {
+    pgid: i32,
+}
+
+#[cfg(windows)]
+struct PlatformHandle {
+    job_handle: isize,
+    pid: u32,
+}
+
+#[cfg(windows)]
+unsafe impl Send for PlatformHandle {}
+
+#[cfg(windows)]
+impl Drop for PlatformHandle {
+    fn drop(&mut self) {
+        if self.job_handle != 0 {
+            unsafe {
+                windows_sys::Win32::Foundation::CloseHandle(self.job_handle as _);
+            }
+            self.job_handle = 0;
+        }
+    }
+}
+
+struct ManagedProcess {
+    info: RwLock<ProcessInfo>,
+    stop_requested: Arc<AtomicBool>,
+    logs: Arc<RwLock<LogBuffer>>,
+    handle: Mutex<Option<PlatformHandle>>,
+}
+
+struct ProcessManagerInner {
+    processes: RwLock<HashMap<String, Arc<ManagedProcess>>>,
+    seq: AtomicU64,
+    log_capacity: usize,
+    stop_grace_period: RwLock<Duration>,
+    listeners: RwLock<Vec<ProcessEventListener>>,
+}
+
+impl ProcessManagerInner {
+    fn emit(&self, event: ProcessEvent) {
+        let listeners = self
+            .listeners
+            .read()
+            .expect("process listeners lock poisoned")
+            .clone();
+        for listener in listeners {
+            listener(event.clone());
+        }
+    }
+
+    fn next_seq(&self) -> u64 {
+        self.seq.fetch_add(1, Ordering::Relaxed) + 1
+    }
+}
+
+pub struct ProcessManager {
+    inner: Arc<ProcessManagerInner>,
+}
+
+impl Default for ProcessManager {
+    fn default() -> Self {
+        Self::new(DEFAULT_LOG_CAPACITY, DEFAULT_STOP_GRACE_PERIOD)
+    }
+}
+
+impl ProcessManager {
+    pub fn new(log_capacity: usize, stop_grace_period: Duration) -> Self {
+        Self {
+            inner: Arc::new(ProcessManagerInner {
+                processes: RwLock::new(HashMap::new()),
+                seq: AtomicU64::new(0),
+                log_capacity: log_capacity.max(1),
+                stop_grace_period: RwLock::new(stop_grace_period),
+                listeners: RwLock::new(Vec::new()),
+            }),
+        }
+    }
+
+    pub fn set_stop_grace_period(&self, duration: Duration) {
+        *self
+            .inner
+            .stop_grace_period
+            .write()
+            .expect("grace period lock poisoned") = duration;
+    }
+
+    pub fn stop_grace_period(&self) -> Duration {
+        *self
+            .inner
+            .stop_grace_period
+            .read()
+            .expect("grace period lock poisoned")
+    }
+
+    pub fn subscribe(&self, listener: ProcessEventListener) {
+        self.inner
+            .listeners
+            .write()
+            .expect("process listeners lock poisoned")
+            .push(listener);
+    }
+
+    pub fn spawn_script(
+        &self,
+        service: &Service,
+        script: &str,
+        spec: &RunCommandSpec,
+        env_map: &BTreeMap<String, String>,
+    ) -> CoreResult<ProcessInfo> {
+        let cwd = Path::new(&spec.cwd);
+        if !cwd.is_dir() {
+            return Err(CoreError::InvalidFolder(format!(
+                "Service folder does not exist: {}",
+                spec.cwd
+            )));
+        }
+
+        let path_env = env_map.get("PATH").map(String::as_str).unwrap_or("");
+        let resolved_program = resolve_program_in_path(&spec.program, path_env);
+
+        let mut cmd = Command::new(&resolved_program);
+        cmd.args(&spec.args)
+            .current_dir(cwd)
+            .env_clear()
+            .envs(env_map)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        // Preserve ANSI colors for Node/Vite/Next/chalk when piped
+        if !env_map.contains_key("FORCE_COLOR") && !env_map.contains_key("NO_COLOR") {
+            cmd.env("FORCE_COLOR", "1");
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            // Create a new process group with pgid == child pid so stop terminates the entire tree
+            cmd.process_group(0);
+        }
+
+        let mut child = cmd.spawn().map_err(|e| {
+            CoreError::Adapter(format!(
+                "Failed to spawn '{} {}' in {}: {}",
+                spec.program,
+                spec.args.join(" "),
+                spec.cwd,
+                e
+            ))
+        })?;
+
+        let pid = child.id();
+
+        #[cfg(unix)]
+        let platform_handle = PlatformHandle { pgid: pid as i32 };
+
+        #[cfg(windows)]
+        let platform_handle = create_windows_job_for_child(&child, pid)?;
+
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+
+        let process_id = Uuid::new_v4().to_string();
+        let started_at = Utc::now().to_rfc3339();
+        let started_instant = Instant::now();
+        let command_display = if spec.args.is_empty() {
+            spec.program.clone()
+        } else {
+            format!("{} {}", spec.program, spec.args.join(" "))
+        };
+
+        let info = ProcessInfo {
+            id: process_id.clone(),
+            project_id: service.project_id.clone(),
+            service_id: service.id.clone(),
+            service_name: service.name.clone(),
+            script: script.to_string(),
+            command: command_display,
+            pid: Some(pid),
+            status: ProcessStatus::Running,
+            exit_code: None,
+            started_at,
+            finished_at: None,
+            duration_ms: None,
+            line_count: 0,
+        };
+
+        let managed = Arc::new(ManagedProcess {
+            info: RwLock::new(info.clone()),
+            stop_requested: Arc::new(AtomicBool::new(false)),
+            logs: Arc::new(RwLock::new(LogBuffer::new(self.inner.log_capacity))),
+            handle: Mutex::new(Some(platform_handle)),
+        });
+
+        self.inner
+            .processes
+            .write()
+            .expect("processes lock poisoned")
+            .insert(process_id.clone(), Arc::clone(&managed));
+
+        self.inner.emit(ProcessEvent::StatusChanged(info.clone()));
+
+        let stdout_handle = stdout.map(|pipe| {
+            spawn_stream_reader(
+                pipe,
+                LogStream::Stdout,
+                Arc::clone(&self.inner),
+                Arc::clone(&managed),
+            )
+        });
+        let stderr_handle = stderr.map(|pipe| {
+            spawn_stream_reader(
+                pipe,
+                LogStream::Stderr,
+                Arc::clone(&self.inner),
+                Arc::clone(&managed),
+            )
+        });
+
+        let inner_wait = Arc::clone(&self.inner);
+        let managed_wait = Arc::clone(&managed);
+        thread::Builder::new()
+            .name(format!("devdock-wait-{}", &process_id[..8]))
+            .spawn(move || {
+                let exit_status = child.wait();
+
+                // Drain readers so trailing output is never dropped before final status event
+                if let Some(h) = stdout_handle {
+                    let _ = h.join();
+                }
+                if let Some(h) = stderr_handle {
+                    let _ = h.join();
+                }
+
+                let exit_code = exit_status.ok().and_then(|s| s.code());
+                let duration_ms = started_instant.elapsed().as_millis() as u64;
+                let finished_at = Utc::now().to_rfc3339();
+                let was_stopped = managed_wait.stop_requested.load(Ordering::SeqCst);
+
+                let final_status = if was_stopped || exit_code == Some(0) {
+                    ProcessStatus::Stopped
+                } else {
+                    ProcessStatus::Crashed
+                };
+
+                let updated = {
+                    let mut guard = managed_wait.info.write().expect("info lock poisoned");
+                    guard.status = final_status;
+                    guard.exit_code = exit_code;
+                    guard.finished_at = Some(finished_at);
+                    guard.duration_ms = Some(duration_ms);
+                    guard.line_count = managed_wait.logs.read().expect("logs lock poisoned").len();
+                    guard.clone()
+                };
+
+                // Release platform handle on Windows after process exits
+                #[cfg(windows)]
+                {
+                    if let Ok(mut h) = managed_wait.handle.lock() {
+                        *h = None;
+                    }
+                }
+
+                inner_wait.emit(ProcessEvent::StatusChanged(updated));
+            })
+            .map_err(CoreError::Io)?;
+
+        Ok(info)
+    }
+
+    pub fn list_processes(&self) -> Vec<ProcessInfo> {
+        let mut list: Vec<ProcessInfo> = self
+            .inner
+            .processes
+            .read()
+            .expect("processes lock poisoned")
+            .values()
+            .map(|p| {
+                let mut info = p.info.read().expect("info lock poisoned").clone();
+                info.line_count = p.logs.read().expect("logs lock poisoned").len();
+                info
+            })
+            .collect();
+        list.sort_by(|a, b| a.started_at.cmp(&b.started_at));
+        list
+    }
+
+    pub fn get_process(&self, process_id: &str) -> CoreResult<ProcessInfo> {
+        let managed = self.find_managed(process_id)?;
+        let mut info = managed.info.read().expect("info lock poisoned").clone();
+        info.line_count = managed.logs.read().expect("logs lock poisoned").len();
+        Ok(info)
+    }
+
+    pub fn stop_process(&self, process_id: &str) -> CoreResult<ProcessInfo> {
+        let grace = self.stop_grace_period();
+        self.stop_process_with_grace(process_id, grace)
+    }
+
+    pub fn stop_process_with_grace(
+        &self,
+        process_id: &str,
+        grace_period: Duration,
+    ) -> CoreResult<ProcessInfo> {
+        let managed = self.find_managed(process_id)?;
+        managed.stop_requested.store(true, Ordering::SeqCst);
+
+        let already_done = {
+            let mut guard = managed.info.write().expect("info lock poisoned");
+            if !guard.status.is_active() {
+                true
+            } else {
+                guard.status = ProcessStatus::Stopping;
+                let snapshot = guard.clone();
+                drop(guard);
+                self.inner.emit(ProcessEvent::StatusChanged(snapshot));
+                false
+            }
+        };
+
+        if already_done {
+            return self.get_process(process_id);
+        }
+
+        #[cfg(unix)]
+        {
+            let pgid = managed
+                .handle
+                .lock()
+                .expect("handle lock poisoned")
+                .as_ref()
+                .map(|h| h.pgid);
+
+            if let Some(pgid) = pgid {
+                // 1. Send graceful SIGTERM to entire process group (-pgid)
+                unsafe {
+                    libc::kill(-pgid, libc::SIGTERM);
+                }
+
+                let deadline = Instant::now() + grace_period;
+                while Instant::now() < deadline {
+                    let main_exited = !managed
+                        .info
+                        .read()
+                        .expect("info lock poisoned")
+                        .status
+                        .is_active();
+                    let group_alive = is_unix_pgid_alive(pgid);
+                    if main_exited && !group_alive {
+                        break;
+                    }
+                    thread::sleep(Duration::from_millis(25));
+                }
+
+                // 2. Escalate to SIGKILL for the entire process group if anything is still alive
+                let still_active = managed
+                    .info
+                    .read()
+                    .expect("info lock poisoned")
+                    .status
+                    .is_active();
+                if still_active || is_unix_pgid_alive(pgid) {
+                    unsafe {
+                        libc::kill(-pgid, libc::SIGKILL);
+                    }
+                    let kill_deadline = Instant::now() + Duration::from_secs(2);
+                    while Instant::now() < kill_deadline {
+                        let main_exited = !managed
+                            .info
+                            .read()
+                            .expect("info lock poisoned")
+                            .status
+                            .is_active();
+                        if main_exited && !is_unix_pgid_alive(pgid) {
+                            break;
+                        }
+                        thread::sleep(Duration::from_millis(20));
+                    }
+                }
+            }
+        }
+
+        #[cfg(windows)]
+        {
+            // Terminate the entire Windows Job Object (process tree)
+            if let Ok(mut guard) = managed.handle.lock() {
+                if let Some(handle) = guard.take() {
+                    if handle.job_handle != 0 {
+                        unsafe {
+                            windows_sys::Win32::System::JobObjects::TerminateJobObject(
+                                handle.job_handle as _,
+                                1,
+                            );
+                        }
+                    }
+                    drop(handle);
+                }
+            }
+            let deadline = Instant::now() + grace_period.min(Duration::from_secs(2));
+            while Instant::now() < deadline {
+                if !managed
+                    .info
+                    .read()
+                    .expect("info lock poisoned")
+                    .status
+                    .is_active()
+                {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(25));
+            }
+        }
+
+        self.get_process(process_id)
+    }
+
+    pub fn stop_all_processes(&self) {
+        let active_ids: Vec<String> = self
+            .list_processes()
+            .into_iter()
+            .filter(|p| p.status.is_active())
+            .map(|p| p.id)
+            .collect();
+        for id in active_ids {
+            let _ = self.stop_process(&id);
+        }
+    }
+
+    pub fn get_process_logs(
+        &self,
+        process_id: &str,
+        filter: Option<&str>,
+        stderr_only: bool,
+    ) -> CoreResult<Vec<LogLine>> {
+        let managed = self.find_managed(process_id)?;
+        let logs = managed.logs.read().expect("logs lock poisoned");
+        Ok(logs.filtered(filter, stderr_only))
+    }
+
+    pub fn get_project_logs(
+        &self,
+        project_id: &str,
+        filter: Option<&str>,
+        stderr_only: bool,
+    ) -> Vec<LogLine> {
+        let procs: Vec<Arc<ManagedProcess>> = self
+            .inner
+            .processes
+            .read()
+            .expect("processes lock poisoned")
+            .values()
+            .filter(|p| p.info.read().expect("info lock poisoned").project_id == project_id)
+            .cloned()
+            .collect();
+
+        merge_logs(&procs, filter, stderr_only)
+    }
+
+    pub fn get_all_logs(&self, filter: Option<&str>, stderr_only: bool) -> Vec<LogLine> {
+        let procs: Vec<Arc<ManagedProcess>> = self
+            .inner
+            .processes
+            .read()
+            .expect("processes lock poisoned")
+            .values()
+            .cloned()
+            .collect();
+
+        merge_logs(&procs, filter, stderr_only)
+    }
+
+    pub fn clear_process_logs(&self, process_id: &str) -> CoreResult<()> {
+        let managed = self.find_managed(process_id)?;
+        managed.logs.write().expect("logs lock poisoned").clear();
+        {
+            let mut info = managed.info.write().expect("info lock poisoned");
+            info.line_count = 0;
+        }
+        self.inner.emit(ProcessEvent::LogsCleared {
+            process_id: process_id.to_string(),
+        });
+        Ok(())
+    }
+
+    pub fn clear_project_logs(&self, project_id: &str) {
+        let ids: Vec<String> = self
+            .inner
+            .processes
+            .read()
+            .expect("processes lock poisoned")
+            .iter()
+            .filter_map(|(id, p)| {
+                if p.info.read().expect("info lock poisoned").project_id == project_id {
+                    Some(id.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for id in ids {
+            let _ = self.clear_process_logs(&id);
+        }
+    }
+
+    pub fn export_logs_to_file(
+        &self,
+        scope: &LogExportScope,
+        path: &Path,
+        filter: Option<&str>,
+        stderr_only: bool,
+        strip_ansi: bool,
+    ) -> CoreResult<usize> {
+        let (lines, include_service_tag) = match scope {
+            LogExportScope::Process(pid) => (self.get_process_logs(pid, filter, stderr_only)?, false),
+            LogExportScope::Project(proj_id) => {
+                (self.get_project_logs(proj_id, filter, stderr_only), true)
+            }
+            LogExportScope::All => (self.get_all_logs(filter, stderr_only), true),
+        };
+
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent)?;
+            }
+        }
+
+        let mut file = std::fs::File::create(path)?;
+        for line in &lines {
+            let formatted = format_log_line_for_export(line, include_service_tag, strip_ansi);
+            writeln!(file, "{formatted}")?;
+        }
+        file.flush()?;
+        Ok(lines.len())
+    }
+
+    fn find_managed(&self, process_id: &str) -> CoreResult<Arc<ManagedProcess>> {
+        self.inner
+            .processes
+            .read()
+            .expect("processes lock poisoned")
+            .get(process_id)
+            .cloned()
+            .ok_or_else(|| CoreError::NotFound(format!("Process '{process_id}' not found")))
+    }
+}
+
+impl Drop for ProcessManager {
+    fn drop(&mut self) {
+        self.stop_all_processes();
+    }
+}
+
+fn merge_logs(
+    procs: &[Arc<ManagedProcess>],
+    filter: Option<&str>,
+    stderr_only: bool,
+) -> Vec<LogLine> {
+    let mut combined = Vec::new();
+    for p in procs {
+        let guard = p.logs.read().expect("logs lock poisoned");
+        combined.extend(guard.all_lines());
+    }
+    combined.sort_by_key(|line| line.seq);
+    filter_log_lines(combined.iter(), filter, stderr_only)
+}
+
+fn spawn_stream_reader<R: std::io::Read + Send + 'static>(
+    pipe: R,
+    stream: LogStream,
+    inner: Arc<ProcessManagerInner>,
+    managed: Arc<ManagedProcess>,
+) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        let mut reader = BufReader::new(pipe);
+        let mut buf = Vec::with_capacity(512);
+
+        let (process_id, project_id, service_id, service_name, script) = {
+            let info = managed.info.read().expect("info lock poisoned");
+            (
+                info.id.clone(),
+                info.project_id.clone(),
+                info.service_id.clone(),
+                info.service_name.clone(),
+                info.script.clone(),
+            )
+        };
+
+        loop {
+            buf.clear();
+            match reader.read_until(b'\n', &mut buf) {
+                Ok(0) => break,
+                Ok(_) => {
+                    while matches!(buf.last(), Some(b'\n' | b'\r')) {
+                        buf.pop();
+                    }
+                    let text = String::from_utf8_lossy(&buf).into_owned();
+                    let line = LogLine {
+                        seq: inner.next_seq(),
+                        process_id: process_id.clone(),
+                        project_id: project_id.clone(),
+                        service_id: service_id.clone(),
+                        service_name: service_name.clone(),
+                        script: script.clone(),
+                        stream,
+                        text,
+                        timestamp: Utc::now().to_rfc3339(),
+                    };
+
+                    {
+                        let mut logs = managed.logs.write().expect("logs lock poisoned");
+                        logs.push(line.clone());
+                    }
+                    inner.emit(ProcessEvent::LogLine(line));
+                }
+                Err(_) => break,
+            }
+        }
+    })
+}
+
+/// Resolves an executable name (like `pnpm` or `npm`) against the provided `PATH` string
+/// so GUI-launched processes find binaries from the user's login shell PATH.
+pub fn resolve_program_in_path(program: &str, path_env: &str) -> PathBuf {
+    let candidate = Path::new(program);
+    if candidate.is_absolute() || program.contains(std::path::MAIN_SEPARATOR) {
+        return candidate.to_path_buf();
+    }
+
+    for dir in std::env::split_paths(path_env) {
+        #[cfg(windows)]
+        {
+            for ext in ["", ".cmd", ".exe", ".bat"] {
+                let full = dir.join(format!("{program}{ext}"));
+                if full.is_file() {
+                    return full;
+                }
+            }
+        }
+
+        #[cfg(not(windows))]
+        {
+            let full = dir.join(program);
+            if full.is_file() && is_executable_unix(&full) {
+                return full;
+            }
+        }
+    }
+
+    PathBuf::from(program)
+}
+
+#[cfg(unix)]
+fn is_executable_unix(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::metadata(path)
+        .map(|m| m.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
+}
+
+#[cfg(unix)]
+fn is_unix_pgid_alive(pgid: i32) -> bool {
+    unsafe {
+        let rc = libc::kill(-pgid, 0);
+        if rc == 0 {
+            return true;
+        }
+        let err = std::io::Error::last_os_error();
+        // EPERM means at least one process exists in the group (owned by another user)
+        err.raw_os_error() == Some(libc::EPERM)
+    }
+}
+
+#[cfg(windows)]
+fn create_windows_job_for_child(
+    child: &std::process::Child,
+    pid: u32,
+) -> CoreResult<PlatformHandle> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+
+    unsafe {
+        let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+        if job.is_null() {
+            return Ok(PlatformHandle { job_handle: 0, pid });
+        }
+        let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            &info as *const _ as *const _,
+            std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+        );
+        AssignProcessToJobObject(job, child.as_raw_handle() as _);
+        Ok(PlatformHandle {
+            job_handle: job as isize,
+            pid,
+        })
+    }
+}

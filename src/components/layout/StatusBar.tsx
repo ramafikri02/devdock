@@ -5,6 +5,13 @@ import { cn } from "@/lib/cn";
 export function StatusBar() {
   const logDrawerOpen = useAppStore((s) => s.logDrawerOpen);
   const toggleLogDrawer = useAppStore((s) => s.toggleLogDrawer);
+  const processes = useAppStore((s) => s.processes);
+
+  const procList = Object.values(processes);
+  const runningCount = procList.filter(
+    (p) => p.status === "running" || p.status === "starting",
+  ).length;
+  const crashedCount = procList.filter((p) => p.status === "crashed").length;
 
   return (
     <footer className="flex h-[28px] shrink-0 items-center justify-between border-t border-border bg-bg-topbar px-3 text-[11.5px] text-fg-muted">
@@ -12,11 +19,20 @@ export function StatusBar() {
       <div className="flex items-center gap-3">
         <span className="flex items-center gap-1.5">
           <span
-            className="h-2 w-2 rounded-full bg-accent"
+            className={cn(
+              "h-2 w-2 rounded-full",
+              runningCount > 0 ? "bg-accent" : "bg-fg-faint/60",
+            )}
             aria-hidden="true"
           />
-          <span className="font-mono tabular-nums">0 jalan</span>
+          <span className="font-mono tabular-nums">{runningCount} jalan</span>
         </span>
+        {crashedCount > 0 ? (
+          <span className="flex items-center gap-1.5 text-danger">
+            <span className="h-2 w-2 rounded-full bg-danger" aria-hidden="true" />
+            <span className="font-mono tabular-nums">{crashedCount} crash</span>
+          </span>
+        ) : null}
       </div>
 
       {/* Right: Logs ⌘J toggle, CPU, RAM, Proxy */}

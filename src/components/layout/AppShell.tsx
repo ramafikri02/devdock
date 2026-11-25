@@ -23,6 +23,8 @@ export function AppShell({
 }: AppShellProps) {
   const toggleLogDrawer = useAppStore((s) => s.toggleLogDrawer);
   const setCommandPaletteOpen = useAppStore((s) => s.setCommandPaletteOpen);
+  const logDrawerOpen = useAppStore((s) => s.logDrawerOpen);
+  const logDrawerMaximized = useAppStore((s) => s.logDrawerMaximized);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -49,7 +51,15 @@ export function AppShell({
       <div className="flex min-h-0 flex-1">
         <Sidebar projectsSlot={projectsSlot} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+          <main
+            className={
+              logDrawerOpen && logDrawerMaximized
+                ? "hidden"
+                : "min-h-0 flex-1 overflow-y-auto"
+            }
+          >
+            {children}
+          </main>
           <LogDrawer />
         </div>
       </div>

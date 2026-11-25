@@ -1,8 +1,8 @@
 use devdock_core::models::{
     AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
-    GlobalStorageSummary, PackageManager, PresetEntryInput, Project, ProjectEnvSummary,
-    ProjectStorageSummary, ScanResult, Service, ServiceEnvInspection, ServiceStorageReport,
-    StorageCleanResult,
+    GlobalStorageSummary, LogExportScope, LogLine, PackageManager, PresetEntryInput, ProcessEvent,
+    ProcessInfo, Project, ProjectEnvSummary, ProjectStorageSummary, ScanResult, Service,
+    ServiceEnvInspection, ServiceStorageReport, StorageCleanResult,
 };
 use devdock_core::secret_store::OsKeychainSecretStore;
 use devdock_core::traits::InMemoryNotifier;
@@ -489,6 +489,127 @@ async fn clean_service_storage(
     .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+fn run_service_script(
+    state: State<'_, AppState>,
+    service_id: String,
+    script: String,
+) -> Result<ProcessInfo, String> {
+    state
+        .core
+        .run_service_script(&service_id, &script)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn stop_process(state: State<'_, AppState>, process_id: String) -> Result<ProcessInfo, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.stop_process(&process_id).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn restart_process(
+    state: State<'_, AppState>,
+    process_id: String,
+) -> Result<ProcessInfo, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.restart_process(&process_id).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn list_processes(state: State<'_, AppState>) -> Result<Vec<ProcessInfo>, String> {
+    Ok(state.core.list_processes())
+}
+
+#[tauri::command]
+fn get_process_logs(
+    state: State<'_, AppState>,
+    process_id: String,
+    filter: Option<String>,
+    stderr_only: bool,
+) -> Result<Vec<LogLine>, String> {
+    state
+        .core
+        .get_process_logs(&process_id, filter.as_deref(), stderr_only)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_project_logs(
+    state: State<'_, AppState>,
+    project_id: String,
+    filter: Option<String>,
+    stderr_only: bool,
+) -> Result<Vec<LogLine>, String> {
+    Ok(state
+        .core
+        .get_project_logs(&project_id, filter.as_deref(), stderr_only))
+}
+
+#[tauri::command]
+fn get_all_logs(
+    state: State<'_, AppState>,
+    filter: Option<String>,
+    stderr_only: bool,
+) -> Result<Vec<LogLine>, String> {
+    Ok(state.core.get_all_logs(filter.as_deref(), stderr_only))
+}
+
+#[tauri::command]
+fn clear_process_logs(state: State<'_, AppState>, process_id: String) -> Result<(), String> {
+    state
+        .core
+        .clear_process_logs(&process_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clear_project_logs(state: State<'_, AppState>, project_id: String) -> Result<(), String> {
+    state.core.clear_project_logs(&project_id);
+    Ok(())
+}
+
+#[tauri::command]
+fn export_logs_to_file(
+    state: State<'_, AppState>,
+    scope_kind: String,
+    scope_id: Option<String>,
+    path: String,
+    filter: Option<String>,
+    stderr_only: bool,
+    strip_ansi: bool,
+) -> Result<usize, String> {
+    let scope = match scope_kind.as_str() {
+        "process" => LogExportScope::Process(
+            scope_id.ok_or_else(|| "Missing process id for log export".to_string())?,
+        ),
+        "project" => LogExportScope::Project(
+            scope_id.ok_or_else(|| "Missing project id for log export".to_string())?,
+        ),
+        "all" => LogExportScope::All,
+        other => return Err(format!("Unsupported log export scope: {other}")),
+    };
+
+    state
+        .core
+        .export_logs_to_file(
+            &scope,
+            PathBuf::from(path).as_path(),
+            filter.as_deref(),
+            stderr_only,
+            strip_ansi,
+        )
+        .map_err(|e| e.to_string())
+}
+
 fn create_package_json_watcher(app_handle: AppHandle) -> Option<WatcherState> {
     let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
         if let Ok(event) = res {
@@ -520,16 +641,34 @@ pub fn run() {
                 .expect("failed to resolve OS app data directory");
             let db_path = data_dir.join("devdock.sqlite");
 
-            let core = DevDockCore::open_desktop(
-                &db_path,
-                Arc::new(OsKeychainSecretStore::new()),
-                Arc::new(InMemoryNotifier::new()),
-            )
-            .expect("failed to initialize DevDock core");
+            let core = Arc::new(
+                DevDockCore::open_desktop(
+                    &db_path,
+                    Arc::new(OsKeychainSecretStore::new()),
+                    Arc::new(InMemoryNotifier::new()),
+                )
+                .expect("failed to initialize DevDock core"),
+            );
+
+            let event_handle = app.handle().clone();
+            core.subscribe_process_events(Arc::new(move |event| match event {
+                ProcessEvent::StatusChanged(info) => {
+                    let _ = event_handle.emit("process:status", info);
+                }
+                ProcessEvent::LogLine(line) => {
+                    let _ = event_handle.emit("process:log", line);
+                }
+                ProcessEvent::LogsCleared { process_id } => {
+                    let _ = event_handle.emit(
+                        "process:logs-cleared",
+                        serde_json::json!({ "processId": process_id }),
+                    );
+                }
+            }));
 
             let watcher_state = create_package_json_watcher(app.handle().clone());
             let state = AppState {
-                core: Arc::new(core),
+                core,
                 watcher: Mutex::new(watcher_state),
             };
             state.sync_watchers();
@@ -576,6 +715,16 @@ pub fn run() {
             get_cached_global_storage,
             analyze_all_storage,
             clean_service_storage,
+            run_service_script,
+            stop_process,
+            restart_process,
+            list_processes,
+            get_process_logs,
+            get_project_logs,
+            get_all_logs,
+            clear_process_logs,
+            clear_project_logs,
+            export_logs_to_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running DevDock Tauri application");

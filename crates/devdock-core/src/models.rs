@@ -401,3 +401,75 @@ pub struct StorageCleanResult {
     pub freed_bytes: u64,
     pub updated_report: ServiceStorageReport,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProcessStatus {
+    Starting,
+    Running,
+    Stopping,
+    Stopped,
+    Crashed,
+}
+
+impl ProcessStatus {
+    pub fn is_active(self) -> bool {
+        matches!(self, Self::Starting | Self::Running | Self::Stopping)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogStream {
+    Stdout,
+    Stderr,
+    System,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogLine {
+    pub seq: u64,
+    pub process_id: String,
+    pub project_id: String,
+    pub service_id: String,
+    pub service_name: String,
+    pub script: String,
+    pub stream: LogStream,
+    pub text: String,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessInfo {
+    pub id: String,
+    pub project_id: String,
+    pub service_id: String,
+    pub service_name: String,
+    pub script: String,
+    pub command: String,
+    pub pid: Option<u32>,
+    pub status: ProcessStatus,
+    pub exit_code: Option<i32>,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+    pub duration_ms: Option<u64>,
+    pub line_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ProcessEvent {
+    StatusChanged(ProcessInfo),
+    LogLine(LogLine),
+    LogsCleared { process_id: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "id", rename_all = "lowercase")]
+pub enum LogExportScope {
+    Process(String),
+    Project(String),
+    All,
+}
