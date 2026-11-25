@@ -822,6 +822,30 @@ fn spawn_child_process(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
+    #[cfg(windows)]
+    {
+        // Preserve essential Windows system environment variables after env_clear()
+        // so .cmd/.bat wrappers (npm.cmd, pnpm.cmd) and node.exe can locate cmd.exe and temp dirs.
+        for key in [
+            "SYSTEMROOT",
+            "COMSPEC",
+            "WINDIR",
+            "PATHEXT",
+            "TEMP",
+            "TMP",
+            "USERPROFILE",
+            "APPDATA",
+            "LOCALAPPDATA",
+        ] {
+            let already_set = env_map.keys().any(|k| k.eq_ignore_ascii_case(key));
+            if !already_set {
+                if let Ok(val) = std::env::var(key) {
+                    cmd.env(key, val);
+                }
+            }
+        }
+    }
+
     // Preserve ANSI colors for Node/Vite/Next/chalk when piped
     if !env_map.contains_key("FORCE_COLOR") && !env_map.contains_key("NO_COLOR") {
         cmd.env("FORCE_COLOR", "1");
@@ -997,7 +1021,15 @@ pub fn resolve_program_in_path(program: &str, path_env: &str) -> PathBuf {
     for dir in std::env::split_paths(path_env) {
         #[cfg(windows)]
         {
-            for ext in ["", ".cmd", ".exe", ".bat"] {
+            // On Windows, Node/npm/pnpm install extensionless POSIX shims alongside `.cmd`/`.exe`
+            // (e.g. `nodejs\npm` + `nodejs\npm.cmd`). Prefer Windows executable extensions so we
+            // don't accidentally pick the extensionless shell script and fail with ERROR_BAD_EXE_FORMAT.
+            let exts: &[&str] = if Path::new(program).extension().is_some() {
+                &[""]
+            } else {
+                &[".exe", ".cmd", ".bat", ".com"]
+            };
+            for ext in exts {
                 let full = dir.join(format!("{program}{ext}"));
                 if full.is_file() {
                     return full;
