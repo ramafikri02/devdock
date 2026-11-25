@@ -488,6 +488,64 @@ pub enum ProcessEvent {
     LogLine(LogLine),
     LogsCleared { process_id: String },
     CrashNotification(CrashNotificationEvent),
+    OrchestrationStep(ProjectOrchestrationStep),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectAggregateStatus {
+    AllRunning,
+    Partial,
+    Crashed,
+    Stopped,
+    Starting,
+    Stopping,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectStatusSummary {
+    pub project_id: String,
+    pub status: ProjectAggregateStatus,
+    pub running_services: usize,
+    pub crashed_services: usize,
+    pub total_services: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OrchestrationStepState {
+    Waiting,
+    Starting,
+    Running,
+    Stopping,
+    Stopped,
+    Skipped,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectOrchestrationStep {
+    pub project_id: String,
+    pub service_id: String,
+    pub service_name: String,
+    pub script: Option<String>,
+    pub order: i32,
+    pub state: OrchestrationStepState,
+    pub process_id: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectOrchestrationResult {
+    pub project_id: String,
+    pub action: String,
+    pub steps: Vec<ProjectOrchestrationStep>,
+    pub started_process_ids: Vec<String>,
+    pub stopped_process_ids: Vec<String>,
+    pub status: ProjectStatusSummary,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

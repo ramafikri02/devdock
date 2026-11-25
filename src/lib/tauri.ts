@@ -1064,6 +1064,51 @@ export async function getMetricsSnapshot(): Promise<MetricsSnapshot> {
   return invoke<MetricsSnapshot>("get_metrics_snapshot");
 }
 
+export type ProjectAggregateStatus =
+  | "all_running"
+  | "partial"
+  | "crashed"
+  | "stopped"
+  | "starting"
+  | "stopping";
+
+export interface ProjectStatusSummary {
+  projectId: string;
+  status: ProjectAggregateStatus;
+  runningServices: number;
+  crashedServices: number;
+  totalServices: number;
+}
+
+export type OrchestrationStepState =
+  | "waiting"
+  | "starting"
+  | "running"
+  | "stopping"
+  | "stopped"
+  | "skipped"
+  | "failed";
+
+export interface ProjectOrchestrationStep {
+  projectId: string;
+  serviceId: string;
+  serviceName: string;
+  script: string | null;
+  order: number;
+  state: OrchestrationStepState;
+  processId: string | null;
+  error: string | null;
+}
+
+export interface ProjectOrchestrationResult {
+  projectId: string;
+  action: string;
+  steps: ProjectOrchestrationStep[];
+  startedProcessIds: string[];
+  stoppedProcessIds: string[];
+  status: ProjectStatusSummary;
+}
+
 export async function onMetricsSnapshot(
   handler: (snapshot: MetricsSnapshot) => void,
 ): Promise<UnlistenFn> {
@@ -1071,6 +1116,65 @@ export async function onMetricsSnapshot(
     return () => {};
   }
   return listen<MetricsSnapshot>("metrics:snapshot", (event) => {
+    handler(event.payload);
+  });
+}
+
+export async function setServiceDefaultScript(
+  serviceId: string,
+  defaultScript: string | null,
+): Promise<Service> {
+  return invoke<Service>("set_service_default_script", {
+    serviceId,
+    defaultScript,
+  });
+}
+
+export async function reorderProjectServices(
+  projectId: string,
+  serviceIds: string[],
+): Promise<Project> {
+  return invoke<Project>("reorder_project_services", {
+    projectId,
+    serviceIds,
+  });
+}
+
+export async function startProjectAll(
+  projectId: string,
+): Promise<ProjectOrchestrationResult> {
+  return invoke<ProjectOrchestrationResult>("start_project_all", { projectId });
+}
+
+export async function stopProjectAll(
+  projectId: string,
+): Promise<ProjectOrchestrationResult> {
+  return invoke<ProjectOrchestrationResult>("stop_project_all", { projectId });
+}
+
+export async function restartProjectAll(
+  projectId: string,
+): Promise<ProjectOrchestrationResult> {
+  return invoke<ProjectOrchestrationResult>("restart_project_all", {
+    projectId,
+  });
+}
+
+export async function cleanProjectBuildCaches(
+  projectId: string,
+): Promise<StorageCleanResult[]> {
+  return invoke<StorageCleanResult[]>("clean_project_build_caches", {
+    projectId,
+  });
+}
+
+export async function onProjectOrchestration(
+  handler: (step: ProjectOrchestrationStep) => void,
+): Promise<UnlistenFn> {
+  if (!isTauriRuntime()) {
+    return () => {};
+  }
+  return listen<ProjectOrchestrationStep>("project:orchestration", (event) => {
     handler(event.payload);
   });
 }

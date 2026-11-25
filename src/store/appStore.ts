@@ -9,9 +9,11 @@ import {
   type PortInspectorSnapshot,
   type ProcessInfo,
   type Project,
+  type ProjectOrchestrationStep,
   analyzeAllStorage,
   assignNextFreePort as apiAssignNextFreePort,
   attachFolderToProject,
+  cleanProjectBuildCaches as apiCleanProjectBuildCaches,
   getBootstrapInfo,
   getCachedGlobalStorage,
   getMetricsSnapshot,
@@ -28,15 +30,20 @@ import {
   removeService as apiRemoveService,
   renameProject as apiRenameProject,
   renameService as apiRenameService,
+  reorderProjectServices as apiReorderProjectServices,
   restartProcess as apiRestartProcess,
+  restartProjectAll as apiRestartProjectAll,
   runServiceScript as apiRunServiceScript,
   setAppSetting,
   setScriptAutoRestart as apiSetScriptAutoRestart,
+  setServiceDefaultScript as apiSetServiceDefaultScript,
   setServiceNodeVersionOverride,
   setServicePmOverride,
   setServicePort as apiSetServicePort,
   setServicePortInjection as apiSetServicePortInjection,
+  startProjectAll as apiStartProjectAll,
   stopProcess as apiStopProcess,
+  stopProjectAll as apiStopProjectAll,
 } from "@/lib/tauri";
 
 export type ThemeMode = "dark" | "light";
@@ -86,6 +93,8 @@ interface AppState {
   portSnapshot: PortInspectorSnapshot | null;
   portsLoading: boolean;
   metrics: MetricsSnapshot | null;
+  orchestrationSteps: Record<string, Record<string, ProjectOrchestrationStep>>;
+  orchestratingProjectIds: Record<string, boolean>;
 
   init: () => Promise<void>;
   loadProjects: () => Promise<void>;
@@ -144,6 +153,19 @@ interface AppState {
     serviceId: string,
     method: PortInjectionMethod | null,
   ) => Promise<void>;
+  setServiceDefaultScript: (
+    serviceId: string,
+    defaultScript: string | null,
+  ) => Promise<void>;
+  reorderProjectServices: (
+    projectId: string,
+    serviceIds: string[],
+  ) => Promise<void>;
+  setOrchestrationStep: (step: ProjectOrchestrationStep) => void;
+  startProjectAll: (projectId: string) => Promise<void>;
+  stopProjectAll: (projectId: string) => Promise<void>;
+  restartProjectAll: (projectId: string) => Promise<void>;
+  cleanProjectBuildCaches: (projectId: string) => Promise<number>;
   assignNextFreePort: (serviceId: string) => Promise<number | null>;
   relocateService: (serviceId: string, newFolder: string) => Promise<void>;
   removeService: (serviceId: string) => Promise<void>;
@@ -188,6 +210,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   portSnapshot: null,
   portsLoading: false,
   metrics: null,
+  orchestrationSteps: {},
+  orchestratingProjectIds: {},
 
   init: async () => {
     try {
@@ -558,6 +582,130 @@ export const useAppStore = create<AppState>((set, get) => ({
         : "Metode inject port dikembalikan ke otomatis",
       variant: "success",
     });
+  },
+
+  setServiceDefaultScript: async (serviceId, defaultScript) => {
+    await apiSetServiceDefaultScript(serviceId, defaultScript);
+    await get().loadProjects();
+    get().pushToast({
+      title: defaultScript
+        ? `Default script diatur ke "${defaultScript}"`
+        : "Default script dikosongkan",
+      variant: "success",
+    });
+  },
+
+  reorderProjectServices: async (projectId, serviceIds) => {
+    await apiReorderProjectServices(projectId, serviceIds);
+    await get().loadProjects();
+  },
+
+  setOrchestrationStep: (step) => {
+    set((s) => ({
+      orchestrationSteps: {
+        ...s.orchestrationSteps,
+        [step.projectId]: {
+          ...(s.orchestrationSteps[step.projectId] ?? {}),
+          [step.serviceId]: step,
+        },
+      },
+    }));
+  },
+
+  startProjectAll: async (projectId) => {
+    set((s) => ({
+      orchestratingProjectIds: { ...s.orchestratingProjectIds, [projectId]: true },
+      logDrawerOpen: true,
+      logScope: { kind: "project", projectId },
+      activeLogTab: "combined",
+    }));
+    try {
+      const res = await apiStartProjectAll(projectId);
+      await Promise.all([get().loadProcesses(), get().refreshPorts()]);
+      const failedCount = res.steps.filter((st) => st.state === "failed").length;
+      get().pushToast({
+        title:
+          failedCount > 0
+            ? `Start All selesai (${failedCount} gagal)`
+            : `${res.status.runningServices}/${res.status.totalServices} service berjalan`,
+        variant: failedCount > 0 ? "warn" : "success",
+      });
+    } catch (err) {
+      get().pushToast({
+        title: "Gagal menjalankan semua service",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    } finally {
+      set((s) => ({
+        orchestratingProjectIds: { ...s.orchestratingProjectIds, [projectId]: false },
+      }));
+    }
+  },
+
+  stopProjectAll: async (projectId) => {
+    set((s) => ({
+      orchestratingProjectIds: { ...s.orchestratingProjectIds, [projectId]: true },
+    }));
+    try {
+      const res = await apiStopProjectAll(projectId);
+      await Promise.all([get().loadProcesses(), get().refreshPorts()]);
+      get().pushToast({
+        title: `${res.stoppedProcessIds.length} proses dihentikan`,
+        variant: "info",
+      });
+    } catch (err) {
+      get().pushToast({
+        title: "Gagal menghentikan semua service",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    } finally {
+      set((s) => ({
+        orchestratingProjectIds: { ...s.orchestratingProjectIds, [projectId]: false },
+      }));
+    }
+  },
+
+  restartProjectAll: async (projectId) => {
+    set((s) => ({
+      orchestratingProjectIds: { ...s.orchestratingProjectIds, [projectId]: true },
+      logDrawerOpen: true,
+      logScope: { kind: "project", projectId },
+      activeLogTab: "combined",
+    }));
+    try {
+      const res = await apiRestartProjectAll(projectId);
+      await Promise.all([get().loadProcesses(), get().refreshPorts()]);
+      get().pushToast({
+        title: `Project di-restart (${res.status.runningServices}/${res.status.totalServices} berjalan)`,
+        variant: "success",
+      });
+    } catch (err) {
+      get().pushToast({
+        title: "Gagal me-restart semua service",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    } finally {
+      set((s) => ({
+        orchestratingProjectIds: { ...s.orchestratingProjectIds, [projectId]: false },
+      }));
+    }
+  },
+
+  cleanProjectBuildCaches: async (projectId) => {
+    const cleaned = await apiCleanProjectBuildCaches(projectId);
+    const freed = cleaned.reduce((sum, item) => sum + item.freedBytes, 0);
+    await get().refreshGlobalStorage(true);
+    get().pushToast({
+      title:
+        cleaned.length > 0
+          ? `${cleaned.length} folder build cache dibersihkan`
+          : "Tidak ada build cache untuk dibersihkan",
+      variant: cleaned.length > 0 ? "success" : "info",
+    });
+    return freed;
   },
 
   assignNextFreePort: async (serviceId) => {

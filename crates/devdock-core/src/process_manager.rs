@@ -204,6 +204,10 @@ impl ProcessManager {
             .push(listener);
     }
 
+    pub fn emit_event(&self, event: ProcessEvent) {
+        self.inner.emit(event);
+    }
+
     pub fn spawn_script(
         &self,
         service: &Service,

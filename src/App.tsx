@@ -14,6 +14,7 @@ import {
   onMetricsSnapshot,
   onProcessCrashed,
   onProcessStatus,
+  onProjectOrchestration,
   onProjectsChanged,
 } from "@/lib/tauri";
 import { useAppStore } from "@/store/appStore";
@@ -24,6 +25,7 @@ export default function App() {
   const upsertProcess = useAppStore((s) => s.upsertProcess);
   const refreshPorts = useAppStore((s) => s.refreshPorts);
   const setMetricsSnapshot = useAppStore((s) => s.setMetricsSnapshot);
+  const setOrchestrationStep = useAppStore((s) => s.setOrchestrationStep);
   const pushToast = useAppStore((s) => s.pushToast);
   const projects = useAppStore((s) => s.projects);
   const route = useAppStore((s) => s.route);
@@ -41,6 +43,7 @@ export default function App() {
     let unlistenProcess: (() => void) | undefined;
     let unlistenCrash: (() => void) | undefined;
     let unlistenMetrics: (() => void) | undefined;
+    let unlistenOrchestration: (() => void) | undefined;
     void onProjectsChanged(() => {
       void loadProjects();
     }).then((fn) => {
@@ -68,13 +71,19 @@ export default function App() {
     }).then((fn) => {
       unlistenMetrics = fn;
     });
+    void onProjectOrchestration((step) => {
+      setOrchestrationStep(step);
+    }).then((fn) => {
+      unlistenOrchestration = fn;
+    });
     return () => {
       if (unlistenProjects) unlistenProjects();
       if (unlistenProcess) unlistenProcess();
       if (unlistenCrash) unlistenCrash();
       if (unlistenMetrics) unlistenMetrics();
+      if (unlistenOrchestration) unlistenOrchestration();
     };
-  }, [loadProjects, upsertProcess, refreshPorts, setMetricsSnapshot, pushToast]);
+  }, [loadProjects, upsertProcess, refreshPorts, setMetricsSnapshot, setOrchestrationStep, pushToast]);
 
   const totalServices = useMemo(
     () => projects.reduce((sum, p) => sum + p.services.length, 0),

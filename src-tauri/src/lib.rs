@@ -2,8 +2,9 @@ use devdock_core::models::{
     AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
     GlobalStorageSummary, LogExportScope, LogLine, MetricsSnapshot, NodeInstallResult,
     PackageManager, PortCheckResult, PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput,
-    ProcessEvent, ProcessInfo, Project, ProjectEnvSummary, ProjectStorageSummary, ScanResult,
-    Service, ServiceEnvInspection, ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
+    ProcessEvent, ProcessInfo, Project, ProjectEnvSummary, ProjectOrchestrationResult,
+    ProjectStatusSummary, ProjectStorageSummary, ScanResult, Service, ServiceEnvInspection,
+    ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
 };
 use devdock_core::monitor::DEFAULT_MONITOR_INTERVAL;
 use devdock_core::secret_store::OsKeychainSecretStore;
@@ -206,6 +207,97 @@ fn set_script_auto_restart(
         .core
         .set_script_auto_restart(&service_id, &script_name, enabled)
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_service_default_script(
+    state: State<'_, AppState>,
+    service_id: String,
+    default_script: Option<String>,
+) -> Result<Service, String> {
+    state
+        .core
+        .set_service_default_script(&service_id, default_script.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn reorder_project_services(
+    state: State<'_, AppState>,
+    project_id: String,
+    service_ids: Vec<String>,
+) -> Result<Project, String> {
+    state
+        .core
+        .reorder_project_services(&project_id, &service_ids)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_project_status(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<ProjectStatusSummary, String> {
+    state
+        .core
+        .compute_project_status(&project_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn start_project_all(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<ProjectOrchestrationResult, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.start_project_all(&project_id)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn stop_project_all(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<ProjectOrchestrationResult, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.stop_project_all(&project_id)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn restart_project_all(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<ProjectOrchestrationResult, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.restart_project_all(&project_id)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn clean_project_build_caches(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<Vec<StorageCleanResult>, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.clean_project_build_caches(&project_id)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -842,6 +934,9 @@ pub fn run() {
                 ProcessEvent::CrashNotification(crash) => {
                     let _ = event_handle.emit("process:crashed", crash);
                 }
+                ProcessEvent::OrchestrationStep(step) => {
+                    let _ = event_handle.emit("project:orchestration", step);
+                }
             }));
 
             // Background 2-second CPU/RAM process-tree sampler
@@ -880,6 +975,13 @@ pub fn run() {
             set_service_pm_override,
             set_service_node_version_override,
             set_script_auto_restart,
+            set_service_default_script,
+            reorder_project_services,
+            get_project_status,
+            start_project_all,
+            stop_project_all,
+            restart_project_all,
+            clean_project_build_caches,
             set_service_port,
             set_service_port_injection,
             ensure_service_port,

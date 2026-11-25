@@ -11,6 +11,7 @@ import {
   Play,
   PlayCircle,
   RefreshCw,
+  RotateCw,
   Square,
   TerminalSquare,
 } from "lucide-react";
@@ -55,6 +56,10 @@ export function OverviewView({
   const setRoute = useAppStore((s) => s.setRoute);
   const runScript = useAppStore((s) => s.runScript);
   const stopProcess = useAppStore((s) => s.stopProcess);
+  const startProjectAll = useAppStore((s) => s.startProjectAll);
+  const stopProjectAll = useAppStore((s) => s.stopProjectAll);
+  const restartProjectAll = useAppStore((s) => s.restartProjectAll);
+  const orchestratingProjectIds = useAppStore((s) => s.orchestratingProjectIds);
   const assignNextFreePort = useAppStore((s) => s.assignNextFreePort);
   const openLogsForProcess = useAppStore((s) => s.openLogsForProcess);
   const pushToast = useAppStore((s) => s.pushToast);
@@ -422,6 +427,7 @@ export function OverviewView({
                       p.status === "restarting"),
                 ),
               ).length;
+              const isOrch = Boolean(orchestratingProjectIds[proj.id]);
               return (
                 <div
                   key={proj.id}
@@ -429,10 +435,23 @@ export function OverviewView({
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[13.5px] font-semibold text-fg">
+                      <button
+                        type="button"
+                        onClick={() => setRoute({ kind: "project", projectId: proj.id })}
+                        className="text-[13.5px] font-semibold text-fg hover:text-info"
+                      >
                         {proj.name}
-                      </span>
-                      <span className="rounded-full bg-surface-2 px-2 py-0.5 font-mono text-[11px] text-fg-muted tabular-nums">
+                      </button>
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 font-mono text-[11px] tabular-nums",
+                          runningInProj === proj.services.length
+                            ? "bg-accent-soft text-accent"
+                            : runningInProj > 0
+                              ? "bg-warn-soft text-warn"
+                              : "bg-surface-2 text-fg-muted",
+                        )}
+                      >
                         {runningInProj}/{proj.services.length} jalan
                       </span>
                       {projMetrics && projMetrics.currentMemoryBytes > 0 ? (
@@ -459,13 +478,47 @@ export function OverviewView({
                       ))}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setRoute({ kind: "project", projectId: proj.id })}
-                    className="btn-press h-7 rounded-[6px] border border-border-strong bg-surface-2 px-2.5 text-[12px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
-                  >
-                    Buka Project
-                  </button>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {runningInProj > 0 ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={isOrch}
+                          onClick={() => void restartProjectAll(proj.id)}
+                          className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] border border-border-strong bg-surface-2 px-2.5 text-[11.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg disabled:opacity-45"
+                        >
+                          <RotateCw className="h-3 w-3" aria-hidden="true" />
+                          <span>Restart All</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isOrch}
+                          onClick={() => void stopProjectAll(proj.id)}
+                          className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] border border-danger/45 bg-danger-soft px-2.5 text-[11.5px] font-medium text-danger hover:bg-danger-solid hover:text-white disabled:opacity-45"
+                        >
+                          <Square className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
+                          <span>Stop All</span>
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={isOrch}
+                        onClick={() => void startProjectAll(proj.id)}
+                        className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] bg-accent px-2.5 text-[11.5px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-45"
+                      >
+                        <Play className="h-3 w-3 fill-current" aria-hidden="true" />
+                        <span>Start All</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setRoute({ kind: "project", projectId: proj.id })}
+                      className="btn-press h-7 rounded-[6px] border border-border-strong bg-surface-2 px-2.5 text-[12px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
+                    >
+                      Buka Project
+                    </button>
+                  </div>
                 </div>
               );
             })}

@@ -26,10 +26,12 @@ use crate::log_buffer::DEFAULT_LOG_CAPACITY;
 use crate::models::{
     AppBootstrapInfo, AttachedPreset, DbTestResult, EnvPreset, EnvWriteResult,
     GlobalStorageSummary, LogExportScope, LogLine, MetricsSnapshot, NodeInstallProgress,
-    NodeInstallResult, PackageManager, PortCheckResult, PortInjectionMethod,
-    PortInspectorSnapshot, PresetEntryInput, ProcessInfo, Project, ProjectEnvSummary,
+    NodeInstallResult, OrchestrationStepState, PackageManager, PortCheckResult,
+    PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput, ProcessEvent, ProcessInfo,
+    ProcessStatus, Project, ProjectAggregateStatus, ProjectEnvSummary,
+    ProjectOrchestrationResult, ProjectOrchestrationStep, ProjectStatusSummary,
     ProjectStorageSummary, ScanResult, Service, ServiceDescriptor, ServiceEnvInspection,
-    ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
+    ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult, StorageEntryKind,
 };
 use crate::monitor::ResourceMonitor;
 use crate::ports::PortManager;
@@ -437,6 +439,24 @@ impl DevDockCore {
             .set_script_auto_restart(service_id, script_name, enabled)
     }
 
+    pub fn set_service_default_script(
+        &self,
+        service_id: &str,
+        default_script: Option<&str>,
+    ) -> CoreResult<Service> {
+        self.registry()
+            .set_service_default_script(service_id, default_script)
+    }
+
+    pub fn reorder_project_services(
+        &self,
+        project_id: &str,
+        service_ids: &[String],
+    ) -> CoreResult<Project> {
+        self.registry()
+            .reorder_project_services(project_id, service_ids)
+    }
+
     pub fn inspect_service_node_runtime(&self, service_id: &str) -> CoreResult<ServiceNodeRuntime> {
         let service = self.get_service(service_id)?;
         let path_env = self.shell_env.get_path()?;
@@ -762,6 +782,26 @@ impl DevDockCore {
         self.storage.clean_target(&service, folder_name)
     }
 
+    pub fn clean_project_build_caches(
+        &self,
+        project_id: &str,
+    ) -> CoreResult<Vec<StorageCleanResult>> {
+        let project = self.get_project(project_id)?;
+        let mut results = Vec::new();
+        for service in &project.services {
+            if service.is_missing {
+                continue;
+            }
+            let report = self.storage.analyze_service(service, true)?;
+            for folder in report.cleanable_folders {
+                if folder.kind == StorageEntryKind::BuildCache {
+                    results.push(self.storage.clean_target(service, &folder.name)?);
+                }
+            }
+        }
+        Ok(results)
+    }
+
     pub fn subscribe_process_events(&self, listener: ProcessEventListener) {
         self.processes.subscribe(listener);
     }
@@ -809,6 +849,275 @@ impl DevDockCore {
 
     pub fn stop_all_processes(&self) {
         self.processes.stop_all_processes();
+    }
+
+    fn resolve_service_default_script(service: &Service) -> Option<String> {
+        if let Some(ref def) = service.default_script {
+            if service.scripts.contains_key(def) {
+                return Some(def.clone());
+            }
+        }
+        for preferred in ["dev", "start:dev", "serve", "start"] {
+            if service.scripts.contains_key(preferred) {
+                return Some(preferred.to_string());
+            }
+        }
+        service.scripts.keys().next().cloned()
+    }
+
+    pub fn compute_project_status(&self, project_id: &str) -> CoreResult<ProjectStatusSummary> {
+        let project = self.get_project(project_id)?;
+        let processes = self.list_processes();
+        Ok(Self::aggregate_project_status(&project, &processes))
+    }
+
+    fn aggregate_project_status(
+        project: &Project,
+        processes: &[ProcessInfo],
+    ) -> ProjectStatusSummary {
+        let total_services = project.services.len();
+        let mut running_services = 0usize;
+        let mut crashed_services = 0usize;
+        let mut starting_any = false;
+        let mut stopping_any = false;
+
+        for svc in &project.services {
+            let mut svc_procs: Vec<&ProcessInfo> = processes
+                .iter()
+                .filter(|p| p.service_id == svc.id)
+                .collect();
+            svc_procs.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+
+            let has_active = svc_procs.iter().any(|p| p.status.is_active());
+            if has_active {
+                running_services += 1;
+                if svc_procs
+                    .iter()
+                    .any(|p| matches!(p.status, ProcessStatus::Starting | ProcessStatus::Restarting))
+                {
+                    starting_any = true;
+                }
+                if svc_procs
+                    .iter()
+                    .any(|p| p.status == ProcessStatus::Stopping)
+                {
+                    stopping_any = true;
+                }
+            } else if let Some(latest) = svc_procs.first() {
+                if latest.status == ProcessStatus::Crashed {
+                    crashed_services += 1;
+                }
+            }
+        }
+
+        let status = if total_services > 0 && running_services == total_services {
+            if stopping_any {
+                ProjectAggregateStatus::Stopping
+            } else if starting_any {
+                ProjectAggregateStatus::Starting
+            } else {
+                ProjectAggregateStatus::AllRunning
+            }
+        } else if running_services > 0 {
+            if stopping_any {
+                ProjectAggregateStatus::Stopping
+            } else {
+                ProjectAggregateStatus::Partial
+            }
+        } else if crashed_services > 0 {
+            ProjectAggregateStatus::Crashed
+        } else {
+            ProjectAggregateStatus::Stopped
+        };
+
+        ProjectStatusSummary {
+            project_id: project.id.clone(),
+            status,
+            running_services,
+            crashed_services,
+            total_services,
+        }
+    }
+
+    pub fn start_project_all(&self, project_id: &str) -> CoreResult<ProjectOrchestrationResult> {
+        let project = self.get_project(project_id)?;
+        let mut services = project.services.clone();
+        services.sort_by_key(|s| (s.start_order, s.created_at.clone()));
+
+        let mut steps: Vec<ProjectOrchestrationStep> = services
+            .iter()
+            .map(|svc| {
+                let script = Self::resolve_service_default_script(svc);
+                let step = ProjectOrchestrationStep {
+                    project_id: project.id.clone(),
+                    service_id: svc.id.clone(),
+                    service_name: svc.name.clone(),
+                    script,
+                    order: svc.start_order,
+                    state: OrchestrationStepState::Waiting,
+                    process_id: None,
+                    error: None,
+                };
+                self.processes
+                    .emit_event(ProcessEvent::OrchestrationStep(step.clone()));
+                step
+            })
+            .collect();
+
+        let mut started_process_ids = Vec::new();
+        let existing_processes = self.list_processes();
+
+        for (idx, svc) in services.iter().enumerate() {
+            let script_opt = steps[idx].script.clone();
+            if svc.is_missing {
+                steps[idx].state = OrchestrationStepState::Skipped;
+                steps[idx].error = Some("Folder service tidak ditemukan".to_string());
+                self.processes
+                    .emit_event(ProcessEvent::OrchestrationStep(steps[idx].clone()));
+                continue;
+            }
+            let Some(script) = script_opt else {
+                steps[idx].state = OrchestrationStepState::Skipped;
+                steps[idx].error = Some("Tidak ada script yang dapat dijalankan".to_string());
+                self.processes
+                    .emit_event(ProcessEvent::OrchestrationStep(steps[idx].clone()));
+                continue;
+            };
+
+            if let Some(active) = existing_processes
+                .iter()
+                .find(|p| p.service_id == svc.id && p.script == script && p.status.is_active())
+            {
+                steps[idx].state = OrchestrationStepState::Running;
+                steps[idx].process_id = Some(active.id.clone());
+                self.processes
+                    .emit_event(ProcessEvent::OrchestrationStep(steps[idx].clone()));
+                continue;
+            }
+
+            steps[idx].state = OrchestrationStepState::Starting;
+            self.processes
+                .emit_event(ProcessEvent::OrchestrationStep(steps[idx].clone()));
+
+            match self.run_service_script(&svc.id, &script) {
+                Ok(proc_info) => {
+                    steps[idx].state = OrchestrationStepState::Running;
+                    steps[idx].process_id = Some(proc_info.id.clone());
+                    started_process_ids.push(proc_info.id);
+                    self.processes
+                        .emit_event(ProcessEvent::OrchestrationStep(steps[idx].clone()));
+                }
+                Err(err) => {
+                    steps[idx].state = OrchestrationStepState::Failed;
+                    steps[idx].error = Some(err.to_string());
+                    self.processes
+                        .emit_event(ProcessEvent::OrchestrationStep(steps[idx].clone()));
+                }
+            }
+
+            if idx + 1 < services.len() {
+                std::thread::sleep(Duration::from_millis(80));
+            }
+        }
+
+        let status = self.compute_project_status(project_id)?;
+        Ok(ProjectOrchestrationResult {
+            project_id: project.id,
+            action: "start_all".to_string(),
+            steps,
+            started_process_ids,
+            stopped_process_ids: Vec::new(),
+            status,
+        })
+    }
+
+    pub fn stop_project_all(&self, project_id: &str) -> CoreResult<ProjectOrchestrationResult> {
+        let project = self.get_project(project_id)?;
+        let mut services = project.services.clone();
+        // Stop in reverse start order
+        services.sort_by(|a, b| {
+            b.start_order
+                .cmp(&a.start_order)
+                .then_with(|| b.created_at.cmp(&a.created_at))
+        });
+
+        let active_processes = self.list_processes();
+        let mut steps = Vec::with_capacity(services.len());
+        let mut stopped_process_ids = Vec::new();
+
+        for svc in &services {
+            let matching: Vec<ProcessInfo> = active_processes
+                .iter()
+                .filter(|p| p.service_id == svc.id && p.status.is_active())
+                .cloned()
+                .collect();
+
+            if matching.is_empty() {
+                let step = ProjectOrchestrationStep {
+                    project_id: project.id.clone(),
+                    service_id: svc.id.clone(),
+                    service_name: svc.name.clone(),
+                    script: svc.default_script.clone(),
+                    order: svc.start_order,
+                    state: OrchestrationStepState::Stopped,
+                    process_id: None,
+                    error: None,
+                };
+                self.processes
+                    .emit_event(ProcessEvent::OrchestrationStep(step.clone()));
+                steps.push(step);
+                continue;
+            }
+
+            let mut step = ProjectOrchestrationStep {
+                project_id: project.id.clone(),
+                service_id: svc.id.clone(),
+                service_name: svc.name.clone(),
+                script: matching.first().map(|p| p.script.clone()),
+                order: svc.start_order,
+                state: OrchestrationStepState::Stopping,
+                process_id: matching.first().map(|p| p.id.clone()),
+                error: None,
+            };
+            self.processes
+                .emit_event(ProcessEvent::OrchestrationStep(step.clone()));
+
+            let mut stop_err: Option<String> = None;
+            for proc in matching {
+                match self.stop_process(&proc.id) {
+                    Ok(_) => stopped_process_ids.push(proc.id),
+                    Err(e) => stop_err = Some(e.to_string()),
+                }
+            }
+
+            if let Some(err) = stop_err {
+                step.state = OrchestrationStepState::Failed;
+                step.error = Some(err);
+            } else {
+                step.state = OrchestrationStepState::Stopped;
+            }
+            self.processes
+                .emit_event(ProcessEvent::OrchestrationStep(step.clone()));
+            steps.push(step);
+        }
+
+        let status = self.compute_project_status(project_id)?;
+        Ok(ProjectOrchestrationResult {
+            project_id: project.id,
+            action: "stop_all".to_string(),
+            steps,
+            started_process_ids: Vec::new(),
+            stopped_process_ids,
+            status,
+        })
+    }
+
+    pub fn restart_project_all(&self, project_id: &str) -> CoreResult<ProjectOrchestrationResult> {
+        let stop_res = self.stop_project_all(project_id)?;
+        let mut start_res = self.start_project_all(project_id)?;
+        start_res.action = "restart_all".to_string();
+        start_res.stopped_process_ids = stop_res.stopped_process_ids;
+        Ok(start_res)
     }
 
     pub fn list_processes(&self) -> Vec<ProcessInfo> {

@@ -772,6 +772,87 @@ impl<'a> ProjectRegistry<'a> {
         self.get_service(service_id)
     }
 
+    pub fn set_service_default_script(
+        &self,
+        service_id: &str,
+        default_script: Option<&str>,
+    ) -> CoreResult<Service> {
+        let svc = self.get_service(service_id)?;
+        let cleaned = default_script
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(ToString::to_string);
+
+        if let Some(ref script_name) = cleaned {
+            if !svc.is_missing && !svc.scripts.contains_key(script_name) {
+                return Err(CoreError::Validation(format!(
+                    "Script '{script_name}' not found in service '{}'",
+                    svc.name
+                )));
+            }
+        }
+
+        let now = Utc::now().to_rfc3339();
+        self.db.with_conn(|conn| {
+            conn.execute(
+                "UPDATE service SET default_script = ?1, updated_at = ?2 WHERE id = ?3",
+                params![cleaned, now, service_id],
+            )?;
+            Ok(())
+        })?;
+
+        self.get_service(service_id)
+    }
+
+    pub fn reorder_project_services(
+        &self,
+        project_id: &str,
+        service_ids: &[String],
+    ) -> CoreResult<Project> {
+        let project = self.get_project(project_id)?;
+        let valid_ids: std::collections::HashSet<&str> =
+            project.services.iter().map(|s| s.id.as_str()).collect();
+
+        let mut ordered: Vec<String> = Vec::with_capacity(project.services.len());
+        let mut seen = std::collections::HashSet::new();
+        for id in service_ids {
+            if !valid_ids.contains(id.as_str()) {
+                return Err(CoreError::Validation(format!(
+                    "Service '{id}' does not belong to project '{}'",
+                    project.name
+                )));
+            }
+            if seen.insert(id.clone()) {
+                ordered.push(id.clone());
+            }
+        }
+        // Append any services omitted by caller so none lose deterministic ordering
+        for svc in &project.services {
+            if seen.insert(svc.id.clone()) {
+                ordered.push(svc.id.clone());
+            }
+        }
+
+        let now = Utc::now().to_rfc3339();
+        self.db.with_conn(|conn| {
+            let tx = conn.unchecked_transaction()?;
+            for (idx, svc_id) in ordered.iter().enumerate() {
+                tx.execute(
+                    "UPDATE service SET start_order = ?1, updated_at = ?2 WHERE id = ?3 AND project_id = ?4",
+                    params![idx as i32, now, svc_id, project_id],
+                )?;
+            }
+            tx.execute(
+                "UPDATE project SET updated_at = ?1 WHERE id = ?2",
+                params![now, project_id],
+            )?;
+            tx.commit()?;
+            Ok(())
+        })?;
+
+        self.get_project(project_id)
+    }
+
     pub fn relocate_service(&self, service_id: &str, new_folder: &Path) -> CoreResult<Service> {
         // Ensure service exists
         self.get_service(service_id)?;
