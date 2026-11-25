@@ -1798,11 +1798,13 @@ fn run_e2e_smoke_driver(app: AppHandle, fixture_dir: PathBuf, expected_marker: S
     match result {
         Ok(observed) => {
             println!("[E2E_SMOKE_OK] observed live log: {observed}");
-            app.exit(0);
+            let _ = std::io::Write::flush(&mut std::io::stdout());
+            std::process::exit(0);
         }
         Err(err) => {
             eprintln!("[E2E_SMOKE_FAIL] {err}");
-            app.exit(1);
+            let _ = std::io::Write::flush(&mut std::io::stderr());
+            std::process::exit(1);
         }
     }
 }

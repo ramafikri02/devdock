@@ -35,6 +35,7 @@ impl LoginShellEnvProvider {
             .filter(|k| k.eq_ignore_ascii_case("PATH"))
             .cloned()
             .collect();
+        #[allow(unused_mut)]
         let mut normalized_path = env
             .get("PATH")
             .cloned()
