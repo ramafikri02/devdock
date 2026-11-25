@@ -250,7 +250,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
       );
     } catch (err) {
       pushToast({
-        title: "Gagal mengubah urutan start",
+        title: "Failed to update start order",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -262,7 +262,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
       await setServiceDefaultScript(serviceId, script || null);
     } catch (err) {
       pushToast({
-        title: "Gagal menyimpan default script",
+        title: "Failed to save default script",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -275,7 +275,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
       await runScript(serviceId, script);
     } catch (err) {
       pushToast({
-        title: "Gagal menjalankan service",
+        title: "Failed to start service",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -292,7 +292,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
       }
     } catch (err) {
       pushToast({
-        title: "Gagal menghentikan service",
+        title: "Failed to stop service",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -308,12 +308,12 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
       setSelectedPresetToAdd("");
       await Promise.all([loadSharedEnv(), loadPresets()]);
       pushToast({
-        title: `Preset dipasang ke ${project.name}`,
+        title: `Preset attached to ${project.name}`,
         variant: "success",
       });
     } catch (err) {
       pushToast({
-        title: "Gagal memasang preset",
+        title: "Failed to attach preset",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -325,12 +325,12 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
       await detachPresetFromProject(project.id, presetId);
       await Promise.all([loadSharedEnv(), loadPresets()]);
       pushToast({
-        title: `Preset "${presetName}" dilepas dari ${project.name}`,
+        title: `Detached "${presetName}" from ${project.name}`,
         variant: "info",
       });
     } catch (err) {
       pushToast({
-        title: "Gagal melepas preset",
+        title: "Failed to detach preset",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -352,7 +352,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
       await loadSharedEnv();
     } catch (err) {
       pushToast({
-        title: "Gagal mengubah urutan preset",
+        title: "Failed to reorder presets",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -366,7 +366,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
       await renameProject(project.id, projectNameInput.trim());
     } catch (err) {
       pushToast({
-        title: "Gagal mengganti nama project",
+        title: "Failed to rename project",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -419,11 +419,11 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                 </span>
                 <span>·</span>
                 <span className="font-mono tabular-nums">
-                  {sharedEnv?.presets.length ?? 0} shared preset
+                  {sharedEnv?.presets.length ?? 0} shared {(sharedEnv?.presets.length ?? 0) === 1 ? "preset" : "presets"}
                 </span>
                 <span>·</span>
                 <span className="truncate font-mono text-[11.5px] text-fg-faint">
-                  Urutan:{" "}
+                  Order:{" "}
                   {project.services
                     .map((s, idx) => `${idx + 1}. ${s.name}`)
                     .join(" → ")}
@@ -438,7 +438,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                 className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] border border-border-strong bg-surface px-3 text-[12.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Tambah Service</span>
+                <span>Add Service</span>
               </button>
 
               {runningCount > 0 ? (
@@ -477,7 +477,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                   ) : (
                     <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
                   )}
-                  <span>{isOrchestrating ? "Menjalankan…" : "Start All"}</span>
+                  <span>{isOrchestrating ? "Starting…" : "Start All"}</span>
                 </button>
               )}
             </div>
@@ -542,12 +542,12 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
               <table className="w-full border-collapse text-left">
                 <thead>
                   <tr className="border-b border-border bg-surface-2 text-[11.5px] font-semibold tracking-wide text-fg-muted uppercase">
-                    <th className="px-3 py-2.5">Urutan</th>
+                    <th className="px-3 py-2.5">Order</th>
                     <th className="px-3 py-2.5">Service</th>
                     <th className="px-3 py-2.5">Default Script</th>
                     <th className="px-3 py-2.5">Port</th>
                     <th className="px-3 py-2.5">Status</th>
-                    <th className="px-3 py-2.5 text-right">Aksi</th>
+                    <th className="px-3 py-2.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border text-[13px]">
@@ -572,7 +572,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                             </span>
                             <button
                               type="button"
-                              aria-label={`Naikkan urutan start ${svc.name}`}
+                              aria-label={`Move ${svc.name} up in start order`}
                               disabled={index === 0 || isOrchestrating}
                               onClick={() => void handleMoveServiceOrder(index, -1)}
                               className="flex h-6 w-6 items-center justify-center rounded border border-border bg-surface-2 text-fg-muted hover:bg-surface-hover hover:text-fg disabled:opacity-30"
@@ -581,7 +581,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                             </button>
                             <button
                               type="button"
-                              aria-label={`Turunkan urutan start ${svc.name}`}
+                              aria-label={`Move ${svc.name} down in start order`}
                               disabled={
                                 index === project.services.length - 1 || isOrchestrating
                               }
@@ -612,7 +612,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                         <td className="px-3 py-3">
                           {scriptNames.length > 0 ? (
                             <select
-                              aria-label={`Default script untuk ${svc.name}`}
+                              aria-label={`Default script for ${svc.name}`}
                               value={svc.defaultScript ?? effectiveDefault}
                               onChange={(e) =>
                                 void handleDefaultScriptChange(svc.id, e.target.value)
@@ -754,7 +754,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                               }
                               className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] border border-border-strong bg-surface-2 px-2.5 text-[12px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
                             >
-                              <span>Atur</span>
+                              <span>Configure</span>
                               <ArrowRight className="h-3 w-3" aria-hidden="true" />
                             </button>
                           </div>
@@ -772,23 +772,23 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h2 className="text-[13.5px] font-semibold text-fg">
-                      Project Presets (Diwariskan ke Semua Service)
+                      Project Presets (Inherited by All Services)
                     </h2>
                     <p className="mt-0.5 text-[12px] text-fg-muted">
-                      Preset yang berada lebih bawah memiliki prioritas lebih tinggi jika ada key yang sama.
+                      Presets lower in the list take higher precedence when keys overlap.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <select
-                      aria-label="Pilih preset untuk dipasang ke project"
+                      aria-label="Select preset to attach to project"
                       value={selectedPresetToAdd}
                       onChange={(e) => setSelectedPresetToAdd(e.target.value)}
                       className="h-8 rounded-[7px] border border-border-strong bg-surface-2 px-2.5 text-[12px] text-fg"
                     >
-                      <option value="">Pilih preset…</option>
+                      <option value="">Select preset…</option>
                       {availablePresets.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name} ({p.entries.length} key)
+                          {p.name} ({p.entries.length} {p.entries.length === 1 ? "key" : "keys"})
                         </option>
                       ))}
                     </select>
@@ -799,20 +799,20 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                       className="btn-press inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-45"
                     >
                       <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span>Pasang Preset</span>
+                      <span>Attach Preset</span>
                     </button>
                   </div>
                 </div>
 
                 {!sharedEnv || sharedEnv.presets.length === 0 ? (
                   <div className="mt-3 rounded-[8px] border border-dashed border-border p-4 text-center text-[12.5px] text-fg-muted">
-                    Belum ada shared preset dipasang.{" "}
+                    No shared presets attached yet.{" "}
                     <button
                       type="button"
                       onClick={() => setRoute({ kind: "presets" })}
                       className="font-medium text-info hover:underline"
                     >
-                      Kelola Env Presets →
+                      Manage Env Presets →
                     </button>
                   </div>
                 ) : (
@@ -830,7 +830,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                             {preset.presetName}
                           </span>
                           <span className="rounded bg-surface px-1.5 py-0.5 font-mono text-[10.5px] text-fg-muted tabular-nums">
-                            {preset.entryCount} key
+                            {preset.entryCount} {preset.entryCount === 1 ? "key" : "keys"}
                           </span>
                           {preset.secretCount > 0 ? (
                             <span className="inline-flex items-center gap-1 rounded bg-warn-soft px-1.5 py-0.5 font-mono text-[10.5px] text-warn tabular-nums">
@@ -842,7 +842,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
-                            aria-label={`Naikkan urutan ${preset.presetName}`}
+                            aria-label={`Move ${preset.presetName} up`}
                             disabled={idx === 0}
                             onClick={() => void handleMovePreset(idx, -1)}
                             className="flex h-7 w-7 items-center justify-center rounded-[6px] border border-border bg-surface text-fg-muted hover:bg-surface-hover hover:text-fg disabled:opacity-35"
@@ -851,7 +851,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                           </button>
                           <button
                             type="button"
-                            aria-label={`Turunkan urutan ${preset.presetName}`}
+                            aria-label={`Move ${preset.presetName} down`}
                             disabled={idx === sharedEnv.presets.length - 1}
                             onClick={() => void handleMovePreset(idx, 1)}
                             className="flex h-7 w-7 items-center justify-center rounded-[6px] border border-border bg-surface text-fg-muted hover:bg-surface-hover hover:text-fg disabled:opacity-35"
@@ -860,14 +860,14 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                           </button>
                           <button
                             type="button"
-                            aria-label={`Lepas preset ${preset.presetName}`}
+                            aria-label={`Detach preset ${preset.presetName}`}
                             onClick={() =>
                               void handleDetachPreset(preset.presetId, preset.presetName)
                             }
                             className="flex h-7 items-center gap-1 rounded-[6px] border border-danger/30 bg-danger-soft px-2 text-[11.5px] font-medium text-danger hover:bg-danger-solid hover:text-white"
                           >
                             <X className="h-3 w-3" aria-hidden="true" />
-                            <span>Lepas</span>
+                            <span>Detach</span>
                           </button>
                         </div>
                       </div>
@@ -881,7 +881,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                 <div className="overflow-hidden rounded-[10px] border border-border bg-surface">
                   <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
                     <span className="text-[12.5px] font-semibold text-fg">
-                      Preview Shared Env ({sharedEnv.entries.length} key)
+                      Shared Env Preview ({sharedEnv.entries.length} {sharedEnv.entries.length === 1 ? "key" : "keys"})
                     </span>
                     <button
                       type="button"
@@ -891,12 +891,12 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                       {revealSecrets ? (
                         <>
                           <EyeOff className="h-3 w-3" aria-hidden="true" />
-                          <span>Sembunyikan</span>
+                          <span>Hide</span>
                         </>
                       ) : (
                         <>
                           <Eye className="h-3 w-3" aria-hidden="true" />
-                          <span>Tampilkan Secret</span>
+                          <span>Reveal Secrets</span>
                         </>
                       )}
                     </button>
@@ -905,9 +905,9 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                     <thead>
                       <tr className="border-b border-border bg-surface-2 text-[11.5px] font-semibold tracking-wide text-fg-muted uppercase">
                         <th className="px-4 py-2">Key</th>
-                        <th className="px-4 py-2">Nilai</th>
-                        <th className="px-4 py-2">Preset Sumber</th>
-                        <th className="px-4 py-2 text-right">Aksi</th>
+                        <th className="px-4 py-2">Value</th>
+                        <th className="px-4 py-2">Source Preset</th>
+                        <th className="px-4 py-2 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border text-[12.5px]">
@@ -933,7 +933,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                             </span>
                             {entry.overriddenSources.length > 0 ? (
                               <span className="ml-1.5 text-[10.5px] text-fg-faint">
-                                (timpa {entry.overriddenSources.join(", ")})
+                                (overrides {entry.overriddenSources.join(", ")})
                               </span>
                             ) : null}
                           </td>
@@ -962,10 +962,10 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                   <div>
                     <h2 className="flex items-center gap-2 text-[13.5px] font-semibold text-fg">
                       <HardDrive className="h-4 w-4 text-warn" aria-hidden="true" />
-                      <span>Storage Gabungan Project</span>
+                      <span>Combined Project Storage</span>
                     </h2>
                     <p className="mt-0.5 text-[12px] text-fg-muted">
-                      Total penggunaan disk seluruh service beserta folder build cache yang dapat dibersihkan.
+                      Total disk usage across all services including cleanable build cache folders.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -979,7 +979,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                         className={cn("h-3.5 w-3.5", storageRefreshing && "animate-spin")}
                         aria-hidden="true"
                       />
-                      <span>Hitung Ulang</span>
+                      <span>Recalculate</span>
                     </button>
                     <button
                       type="button"
@@ -988,7 +988,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                       className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] border border-warn/40 bg-warn-soft px-3 text-[12px] font-medium text-warn hover:opacity-90 disabled:opacity-45"
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span>Bersihkan Build Cache</span>
+                      <span>Clean Build Caches</span>
                     </button>
                   </div>
                 </div>
@@ -1058,7 +1058,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                   htmlFor="project-rename-input"
                   className="text-[13px] font-semibold text-fg"
                 >
-                  Nama Project
+                  Project Name
                 </label>
                 <div className="mt-2 flex gap-2">
                   <input
@@ -1072,7 +1072,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                     type="submit"
                     className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg hover:bg-surface-hover"
                   >
-                    Simpan
+                    Save
                   </button>
                 </div>
               </form>
@@ -1080,10 +1080,10 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
               {/* Danger Zone */}
               <div className="rounded-[10px] border border-danger/35 bg-surface p-4">
                 <h3 className="text-[13px] font-semibold text-danger">
-                  Hapus Project dari DevDock
+                  Remove Project from DevDock
                 </h3>
                 <p className="mt-0.5 text-[12px] text-fg-muted">
-                  Menghapus project hanya menghapus entri di DevDock. Folder dan file kode di disk tidak disentuh.
+                  Removing a project only removes it from DevDock. Folders and code files on disk will not be touched.
                 </p>
                 <button
                   type="button"
@@ -1091,7 +1091,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                   className="btn-press mt-3 flex h-8 items-center gap-1.5 rounded-[7px] bg-danger-solid px-3 text-[12.5px] font-semibold text-white hover:opacity-95"
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Hapus Project</span>
+                  <span>Remove Project</span>
                 </button>
               </div>
             </div>
@@ -1106,17 +1106,17 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
         </h2>
         <div className="mt-3 space-y-2.5">
           <MetricChartCard
-            title="CPU Gabungan Project"
+            title="Project Total CPU"
             currentText={`${chartData.currentCpu.toFixed(1)}%`}
             peakText={`${Math.max(0, ...chartData.cpu).toFixed(1)}%`}
-            statusText={runningCount > 0 ? "Aktif · 2s" : "Idle"}
+            statusText={runningCount > 0 ? "Active · 2s" : "Idle"}
             values={chartData.cpu}
             strokeColorVar="var(--info)"
             paused={chartsPaused}
             onTogglePause={handleToggleChartsPause}
           />
           <MetricChartCard
-            title="RAM Gabungan Project"
+            title="Project Total RAM"
             currentText={
               chartData.currentRam > 0 ? formatBytes(chartData.currentRam) : "0 MB"
             }
@@ -1125,7 +1125,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                 ? formatBytes(Math.max(0, ...chartData.ram))
                 : "0 MB"
             }
-            statusText={runningCount > 0 ? "Aktif · 2s" : "Idle"}
+            statusText={runningCount > 0 ? "Active · 2s" : "Idle"}
             values={chartData.ram}
             strokeColorVar="var(--accent)"
             paused={chartsPaused}
@@ -1134,7 +1134,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
         </div>
 
         <h2 className="mt-5 text-[11px] font-semibold tracking-wider text-fg-faint uppercase">
-          Port Service
+          Service Ports
         </h2>
         <div className="mt-3 space-y-1.5 rounded-[10px] border border-border bg-surface p-3 text-[12px]">
           {project.services.map((svc) => {
@@ -1164,7 +1164,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
         </div>
 
         <h2 className="mt-5 text-[11px] font-semibold tracking-wider text-fg-faint uppercase">
-          Storage Gabungan
+          Combined Storage
         </h2>
         <div className="mt-3 space-y-2 rounded-[10px] border border-border bg-surface p-3.5 text-[12.5px]">
           {storage ? (
@@ -1192,7 +1192,7 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                 onClick={() => setActiveTab("storage")}
                 className="btn-press mt-2 w-full rounded-[6px] border border-border-strong bg-surface-2 py-1.5 text-center text-[11.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
               >
-                Kelola Storage
+                Manage Storage
               </button>
             </>
           ) : (
@@ -1203,9 +1203,9 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
 
       <ConfirmDialog
         open={confirmOpen}
-        title={`Hapus project "${project.name}"?`}
-        description="Menghapus project hanya menghapusnya dari DevDock. Folder dan file kode di disk tidak akan disentuh."
-        confirmLabel="Hapus dari DevDock"
+        title={`Remove project "${project.name}"?`}
+        description="Removing this project only removes it from DevDock. Folders and code files on disk will not be touched."
+        confirmLabel="Remove from DevDock"
         onCancel={() => setConfirmOpen(false)}
         onConfirm={() => {
           setConfirmOpen(false);
@@ -1214,9 +1214,9 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
       />
       <ConfirmDialog
         open={confirmCleanCacheOpen}
-        title={`Bersihkan build cache ${project.name}?`}
-        description="Seluruh folder build/cache (.next, dist, .turbo, .vite, dll.) di semua service dalam project ini akan dihapus. node_modules dan source code tidak disentuh."
-        confirmLabel="Bersihkan Build Cache"
+        title={`Clean build caches for ${project.name}?`}
+        description="All build/cache folders (.next, dist, .turbo, .vite, etc.) across all services in this project will be deleted. node_modules and source code will not be touched."
+        confirmLabel="Clean Build Caches"
         onCancel={() => setConfirmCleanCacheOpen(false)}
         onConfirm={() => {
           setConfirmCleanCacheOpen(false);

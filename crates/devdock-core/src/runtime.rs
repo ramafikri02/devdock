@@ -382,7 +382,7 @@ impl RuntimeResolver {
                     active_node_version,
                     status: NodeRuntimeStatus::MissingInManager,
                     warning: Some(format!(
-                        "Node {req} belum terpasang di {}.",
+                        "Node {req} is not installed in {}.",
                         m.display_name()
                     )),
                     can_install: true,
@@ -415,9 +415,9 @@ impl RuntimeResolver {
             } else {
                 let active_label = active_node_version
                     .as_deref()
-                    .unwrap_or("tidak terdeteksi");
+                    .unwrap_or("not detected");
                 let warning = format!(
-                    "Version manager (fnm) tidak ditemukan. Service membutuhkan Node {req}, sedangkan Node aktif adalah {active_label}."
+                    "Version manager (fnm) not found. Service requires Node {req}, while active Node is {active_label}."
                 );
                 ServiceNodeRuntime {
                     service_id: service.id.clone(),
@@ -468,7 +468,7 @@ impl RuntimeResolver {
     ) -> CoreResult<NodeInstallResult> {
         let Some(manager) = self.active_manager(path_env) else {
             return Err(CoreError::Adapter(
-                "Tidak ada version manager (fnm) yang terdeteksi di PATH".to_string(),
+                "No version manager (fnm) detected in PATH".to_string(),
             ));
         };
 
@@ -477,7 +477,7 @@ impl RuntimeResolver {
             cb(NodeInstallProgress {
                 version: target.clone(),
                 manager: manager.id().to_string(),
-                line: format!("Menjalankan {} install {}…", manager.display_name(), target),
+                line: format!("Running {} install {}…", manager.display_name(), target),
                 done: false,
                 ok: None,
             });
@@ -504,7 +504,7 @@ impl RuntimeResolver {
                     cb(NodeInstallProgress {
                         version: installed.clone(),
                         manager: manager.id().to_string(),
-                        line: format!("Node {installed} berhasil dipasang via {}.", manager.display_name()),
+                        line: format!("Node {installed} installed via {}.", manager.display_name()),
                         done: true,
                         ok: Some(true),
                     });

@@ -471,7 +471,7 @@ export async function setAppSetting(key: string, value: string): Promise<void> {
   await invoke("set_setting", { key, value });
 }
 
-export async function pickFolderDialog(title = "Pilih folder project Node.js"): Promise<string | null> {
+export async function pickFolderDialog(title = "Select Node.js project folder"): Promise<string | null> {
   if (!isTauriRuntime()) {
     return null;
   }
@@ -996,7 +996,7 @@ export async function pickSaveLogFileDialog(
     return null;
   }
   const selected = await save({
-    title: "Simpan log ke file",
+    title: "Save logs to file",
     defaultPath,
     filters: [
       { name: "Log Files", extensions: ["log", "txt"] },
@@ -1397,7 +1397,7 @@ export async function pickExportSaveDialog(
     return null;
   }
   const selected = await save({
-    title: "Export konfigurasi DevDock",
+    title: "Export DevDock configuration",
     defaultPath,
     filters: [{ name: "DevDock Backup", extensions: ["json"] }],
   });
@@ -1409,7 +1409,7 @@ export async function pickImportOpenDialog(): Promise<string | null> {
     return null;
   }
   const selected = await open({
-    title: "Pilih file konfigurasi DevDock",
+    title: "Select DevDock configuration file",
     multiple: false,
     filters: [{ name: "DevDock Backup", extensions: ["json"] }],
   });

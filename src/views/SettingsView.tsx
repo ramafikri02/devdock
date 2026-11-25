@@ -74,7 +74,7 @@ export function SettingsView() {
       await setProxyEnabled(!(proxyStatus?.enabled ?? true));
     } catch (err) {
       pushToast({
-        title: "Gagal mengubah status reverse proxy",
+        title: "Failed to toggle reverse proxy",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -89,12 +89,12 @@ export function SettingsView() {
       const res = await syncEtcHosts();
       await loadHostsPreview();
       pushToast({
-        title: `${res.domainsWritten} domain disinkronkan ke ${res.hostsPath}`,
+        title: `Synced ${res.domainsWritten} ${res.domainsWritten === 1 ? "domain" : "domains"} to ${res.hostsPath}`,
         variant: "success",
       });
     } catch (err) {
       pushToast({
-        title: "Gagal memperbarui file hosts",
+        title: "Failed to update hosts file",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -110,15 +110,15 @@ export function SettingsView() {
           Settings
         </h1>
         <p className="mt-0.5 text-[13px] text-fg-muted">
-          Pengaturan tema, domain lokal *.localhost, environment shell PATH, dan informasi penyimpanan lokal.
+          Appearance, *.localhost local domains, login shell PATH, and local storage info.
         </p>
       </div>
 
       {/* Appearance */}
       <section className="rounded-[10px] border border-border bg-surface p-4">
-        <h2 className="text-[14px] font-semibold text-fg">Tampilan</h2>
+        <h2 className="text-[14px] font-semibold text-fg">Appearance</h2>
         <p className="mt-0.5 text-[12.5px] text-fg-muted">
-          Pilih tema gelap (default) atau tema terang dengan kontras tinggi.
+          Choose dark mode (default) or high-contrast light mode.
         </p>
         <div className="mt-3 flex gap-2">
           <button
@@ -156,11 +156,11 @@ export function SettingsView() {
           <div>
             <h2 className="flex items-center gap-2 text-[14px] font-semibold text-fg">
               <Globe className="h-4 w-4 text-info" aria-hidden="true" />
-              <span>Domain Lokal (*.localhost Reverse Proxy)</span>
+              <span>Local Domains (*.localhost Reverse Proxy)</span>
             </h2>
             <p className="mt-0.5 text-[12.5px] text-fg-muted">
-              Akses setiap service melalui URL seperti{" "}
-              <span className="font-mono text-fg-2">service.localhost</span> (mendukung WebSocket/HMR). Mencoba port 80 lebih dulu dan fallback otomatis ke port :{proxyStatus?.fallbackPort ?? 2999} jika port 80 membutuhkan hak admin.
+              Access each service via URLs like{" "}
+              <span className="font-mono text-fg-2">service.localhost</span> (WebSocket/HMR supported). Binds port 80 first and automatically falls back to :{proxyStatus?.fallbackPort ?? 2999} if port 80 requires elevated privileges.
             </p>
           </div>
           <button
@@ -181,17 +181,17 @@ export function SettingsView() {
             ) : null}
             <span>
               {proxyStatus?.running
-                ? `Aktif (:${proxyStatus.boundPort})`
+                ? `Active (:${proxyStatus.boundPort})`
                 : proxyStatus?.enabled
-                  ? "Mencoba aktif…"
-                  : "Nonaktif"}
+                  ? "Starting…"
+                  : "Disabled"}
             </span>
           </button>
         </div>
 
         {proxyStatus?.usedFallback ? (
           <div className="mt-3 rounded-[8px] border border-warn/35 bg-warn-soft px-3 py-2 text-[12px] text-warn">
-            Port 80 tidak dapat di-bind tanpa privilege root, sehingga proxy aktif di port fallback{" "}
+            Port 80 cannot be bound without root privileges, so the proxy is running on fallback port{" "}
             <span className="font-mono font-semibold">:{proxyStatus.boundPort}</span>.
           </div>
         ) : null}
@@ -205,7 +205,7 @@ export function SettingsView() {
         {proxyStatus && proxyStatus.routes.length > 0 ? (
           <div className="mt-3 space-y-1.5 rounded-[8px] border border-border bg-surface-2 p-3">
             <div className="text-[11px] font-semibold tracking-wider text-fg-faint uppercase">
-              Rute Domain Terdaftar ({proxyStatus.routes.length})
+              Registered Domain Routes ({proxyStatus.routes.length})
             </div>
             <div className="grid gap-1.5 sm:grid-cols-2">
               {proxyStatus.routes.map((route) => (
@@ -235,17 +235,17 @@ export function SettingsView() {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-fg">
               <ShieldCheck className="h-3.5 w-3.5 text-info" aria-hidden="true" />
-              <span>Kompatibilitas Safari & CLI (/etc/hosts)</span>
+              <span>Safari & CLI Compatibility (/etc/hosts)</span>
               {hostsPreview?.alreadySynced ? (
                 <span className="inline-flex items-center gap-1 rounded bg-accent-soft px-1.5 py-0.5 text-[10.5px] text-accent">
                   <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                  Tersinkron
+                  Synced
                 </span>
               ) : null}
             </div>
             <p className="mt-0.5 text-[11.5px] text-fg-muted">
-              Opsional: tulis entri <span className="font-mono">127.0.0.1</span> ke{" "}
-              <span className="font-mono">{hostsPreview?.hostsPath ?? "/etc/hosts"}</span> dengan prompt admin OS sekali klik agar Safari dan <span className="font-mono">curl</span> langsung mengenali domain lokal.
+              Optional: write <span className="font-mono">127.0.0.1</span> entries to{" "}
+              <span className="font-mono">{hostsPreview?.hostsPath ?? "/etc/hosts"}</span> with a one-click OS admin prompt so Safari and <span className="font-mono">curl</span> resolve local domains directly.
             </p>
           </div>
           <button
@@ -259,7 +259,7 @@ export function SettingsView() {
             ) : (
               <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
             )}
-            <span>{syncingHosts ? "Menyinkronkan…" : "Sinkronkan /etc/hosts"}</span>
+            <span>{syncingHosts ? "Syncing…" : "Sync /etc/hosts"}</span>
           </button>
         </div>
       </section>
@@ -268,10 +268,10 @@ export function SettingsView() {
       <section className="rounded-[10px] border border-border bg-surface p-4">
         <h2 className="flex items-center gap-2 text-[14px] font-semibold text-fg">
           <Code2 className="h-4 w-4 text-info" aria-hidden="true" />
-          <span>Quick Actions (Editor & Terminal Default)</span>
+          <span>Quick Actions (Default Editor & Terminal)</span>
         </h2>
         <p className="mt-0.5 text-[12.5px] text-fg-muted">
-          DevDock mendeteksi editor dan terminal yang terpasang di mesin Anda untuk tombol aksi cepat di Service Workbench.
+          DevDock detects editors and terminals installed on your machine for quick action buttons in the Service Workbench.
         </p>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -280,7 +280,7 @@ export function SettingsView() {
               htmlFor="default-editor-select"
               className="text-[12px] font-medium text-fg-2"
             >
-              Editor Default
+              Default Editor
             </label>
             <select
               id="default-editor-select"
@@ -291,13 +291,13 @@ export function SettingsView() {
                   .then((updated) => {
                     setToolSettings(updated);
                     pushToast({
-                      title: "Editor default diperbarui",
+                      title: "Default editor updated",
                       variant: "success",
                     });
                   })
                   .catch((err) => {
                     pushToast({
-                      title: "Gagal menyimpan editor default",
+                      title: "Failed to save default editor",
                       description: err instanceof Error ? err.message : String(err),
                       variant: "danger",
                     });
@@ -305,10 +305,10 @@ export function SettingsView() {
               }}
               className="mt-1.5 h-8 w-full rounded-[7px] border border-border-strong bg-surface-2 px-2.5 text-[12.5px] text-fg"
             >
-              <option value="">Deteksi otomatis</option>
+              <option value="">Auto-detect</option>
               {(toolSettings?.detectedEditors ?? []).map((ed) => (
                 <option key={ed.id} value={ed.id}>
-                  {ed.name} {ed.available ? "(terpasang)" : "(tidak terdeteksi)"}
+                  {ed.name} {ed.available ? "(installed)" : "(not detected)"}
                 </option>
               ))}
             </select>
@@ -319,7 +319,7 @@ export function SettingsView() {
               htmlFor="default-terminal-select"
               className="text-[12px] font-medium text-fg-2"
             >
-              Terminal Default
+              Default Terminal
             </label>
             <select
               id="default-terminal-select"
@@ -330,13 +330,13 @@ export function SettingsView() {
                   .then((updated) => {
                     setToolSettings(updated);
                     pushToast({
-                      title: "Terminal default diperbarui",
+                      title: "Default terminal updated",
                       variant: "success",
                     });
                   })
                   .catch((err) => {
                     pushToast({
-                      title: "Gagal menyimpan terminal default",
+                      title: "Failed to save default terminal",
                       description: err instanceof Error ? err.message : String(err),
                       variant: "danger",
                     });
@@ -344,10 +344,10 @@ export function SettingsView() {
               }}
               className="mt-1.5 h-8 w-full rounded-[7px] border border-border-strong bg-surface-2 px-2.5 text-[12.5px] text-fg"
             >
-              <option value="">Deteksi otomatis</option>
+              <option value="">Auto-detect</option>
               {(toolSettings?.detectedTerminals ?? []).map((term) => (
                 <option key={term.id} value={term.id}>
-                  {term.name} {term.available ? "(terpasang)" : "(tidak terdeteksi)"}
+                  {term.name} {term.available ? "(installed)" : "(not detected)"}
                 </option>
               ))}
             </select>
@@ -364,7 +364,7 @@ export function SettingsView() {
               <span>Login Shell PATH</span>
             </h2>
             <p className="mt-0.5 text-[12.5px] text-fg-muted">
-              Diambil dari login shell pengguna agar `node`, `pnpm`, `yarn`, `bun`, dan `fnm` ditemukan dari aplikasi GUI.
+              Loaded from your login shell so `node`, `pnpm`, `yarn`, `bun`, and `fnm` are available from the GUI app.
             </p>
           </div>
           <button
@@ -377,7 +377,7 @@ export function SettingsView() {
           </button>
         </div>
         <div className="mt-3 max-h-28 overflow-y-auto rounded-[8px] border border-border bg-surface-2 p-2.5 font-mono text-[11.5px] break-all text-fg-2 select-text">
-          {bootstrap?.shellPath || "Memuat PATH…"}
+          {bootstrap?.shellPath || "Loading PATH…"}
         </div>
       </section>
 
@@ -399,10 +399,10 @@ export function SettingsView() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-[14px] font-semibold text-fg">
-              Export & Import Konfigurasi
+              Export & Import Configuration
             </h2>
             <p className="mt-0.5 text-[12.5px] text-fg-muted">
-              Cadangkan atau pindahkan seluruh project, service, preset (termasuk secret terenkripsi), dan settings antar macOS dan Windows dengan remap path otomatis.
+              Back up or migrate all projects, services, presets (including encrypted secrets), and settings across macOS and Windows with automatic path remapping.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -431,14 +431,14 @@ export function SettingsView() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-[14px] font-semibold text-fg">
-              Pembaruan Aplikasi
+              App Updates
             </h2>
             <p className="mt-0.5 text-[12.5px] text-fg-muted">
-              Versi terpasang:{" "}
+              Installed version:{" "}
               <span className="font-mono font-medium text-fg">
                 v{bootstrap?.version ?? "0.1.0"}
               </span>
-              . DevDock memeriksa rilis resmi di GitHub Releases secara otomatis saat diminta.
+              . DevDock checks official releases on GitHub Releases when requested.
             </p>
           </div>
           <button
@@ -454,7 +454,7 @@ export function SettingsView() {
                 })
                 .catch((err) => {
                   pushToast({
-                    title: "Gagal memeriksa pembaruan",
+                    title: "Failed to check for updates",
                     description: err instanceof Error ? err.message : String(err),
                     variant: "danger",
                   });
@@ -468,13 +468,13 @@ export function SettingsView() {
             ) : (
               <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
             )}
-            <span>{checkingUpdate ? "Memeriksa…" : "Periksa Pembaruan"}</span>
+            <span>{checkingUpdate ? "Checking…" : "Check for Updates"}</span>
           </button>
         </div>
 
         {updateCheckedEmpty && !availableUpdate ? (
           <div className="mt-3 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12px] text-fg-muted">
-            Anda sudah menggunakan versi terbaru.
+            You are already on the latest version.
           </div>
         ) : null}
 
@@ -483,7 +483,7 @@ export function SettingsView() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="text-[13px] font-semibold text-fg">
-                  Pembaruan tersedia: v{availableUpdate.version}
+                  Update available: v{availableUpdate.version}
                 </div>
                 {availableUpdate.body ? (
                   <p className="mt-0.5 text-[12px] text-fg-2">{availableUpdate.body}</p>
@@ -500,7 +500,7 @@ export function SettingsView() {
                   }).catch((err) => {
                     setInstallingUpdate(false);
                     pushToast({
-                      title: "Gagal memasang pembaruan",
+                      title: "Failed to install update",
                       description: err instanceof Error ? err.message : String(err),
                       variant: "danger",
                     });
@@ -516,8 +516,8 @@ export function SettingsView() {
                 <span>
                   {installingUpdate
                     ? updateProgress !== null
-                      ? `Mengunduh (${updateProgress}%)…`
-                      : "Mengunduh…"
+                      ? `Downloading (${updateProgress}%)…`
+                      : "Downloading…"
                     : "Install & Restart"}
                 </span>
               </button>

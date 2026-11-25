@@ -117,7 +117,7 @@ export function MetricChartCard({
         <button
           type="button"
           onClick={onTogglePause}
-          aria-label={paused ? `Lanjutkan grafik ${title}` : `Jeda grafik ${title}`}
+          aria-label={paused ? `Resume ${title} chart` : `Pause ${title} chart`}
           title={paused ? "Resume sampling" : "Pause chart"}
           className="btn-press inline-flex h-6 items-center gap-1 rounded-[6px] border border-border-strong bg-surface-2 px-1.5 text-[10.5px] font-medium text-fg-muted hover:bg-surface-hover hover:text-fg"
         >
@@ -139,7 +139,7 @@ export function MetricChartCard({
         <svg
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label={`${title}: ${currentText}, puncak ${peakText}, status ${statusText}`}
+          aria-label={`${title}: ${currentText}, peak ${peakText}, status ${statusText}`}
           className="h-16 w-full"
         >
           <defs>
@@ -170,8 +170,8 @@ export function MetricChartCard({
       </div>
 
       <div className="mt-1.5 flex items-center justify-between text-[11px] text-fg-faint">
-        <span className="font-mono tabular-nums">Puncak: {peakText}</span>
-        <span>{paused ? "Dijeda" : statusText}</span>
+        <span className="font-mono tabular-nums">Peak: {peakText}</span>
+        <span>{paused ? "Paused" : statusText}</span>
       </div>
     </div>
   );
@@ -265,12 +265,12 @@ export function TelemetryAreaChart({
             </span>
             {paused ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] font-medium text-warn">
-                Dijeda
+                Paused
               </span>
             ) : isLive ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent">
                 <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" />
-                Live · 2d
+                Live · 2s
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-fg-faint">
@@ -295,8 +295,8 @@ export function TelemetryAreaChart({
         <button
           type="button"
           onClick={onTogglePause}
-          aria-label={paused ? `Lanjutkan grafik ${title}` : `Jeda grafik ${title}`}
-          title={paused ? "Resume grafik realtime" : "Jeda grafik realtime"}
+          aria-label={paused ? `Resume ${title} chart` : `Pause ${title} chart`}
+          title={paused ? "Resume live chart" : "Pause live chart"}
           className="btn-press inline-flex h-6 shrink-0 items-center gap-1 rounded-[6px] border border-border-strong bg-surface-2 px-2 text-[10.5px] font-medium text-fg-muted hover:bg-surface-hover hover:text-fg"
         >
           {paused ? (
@@ -330,7 +330,7 @@ export function TelemetryAreaChart({
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="none"
           role="img"
-          aria-label={`${title}: saat ini ${currentText}, puncak ${peakText}, rata-rata ${avgText}`}
+          aria-label={`${title}: current ${currentText}, peak ${peakText}, average ${avgText}`}
           className="h-[84px] w-full overflow-visible"
         >
           <defs>
@@ -395,10 +395,10 @@ export function TelemetryAreaChart({
       {/* Footer stats */}
       <div className="mt-2.5 flex items-center justify-between border-t border-border pt-2 font-mono text-[11px] text-fg-faint tabular-nums">
         <span>
-          Puncak <span className="text-fg-2">{peakText}</span>
+          Peak <span className="text-fg-2">{peakText}</span>
         </span>
         <span>
-          Rata-rata <span className="text-fg-2">{avgText}</span>
+          Avg <span className="text-fg-2">{avgText}</span>
         </span>
       </div>
     </div>

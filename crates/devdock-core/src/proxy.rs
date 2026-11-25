@@ -651,7 +651,7 @@ pub fn sync_hosts_file_elevated(domains: &[String]) -> CoreResult<HostsSyncResul
         if !out.status.success() {
             let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
             return Err(CoreError::Adapter(format!(
-                "Gagal memperbarui /etc/hosts: {stderr}"
+                "Failed to update /etc/hosts: {stderr}"
             )));
         }
     }

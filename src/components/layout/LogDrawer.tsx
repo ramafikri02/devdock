@@ -348,7 +348,7 @@ export function LogDrawer() {
       setLineCount(0);
     } catch (err) {
       pushToast({
-        title: "Gagal membersihkan log",
+        title: "Failed to clear logs",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -392,13 +392,13 @@ export function LogDrawer() {
       );
       const basename = filePath.split(/[\\/]/).pop() || filePath;
       pushToast({
-        title: `Log disimpan ke ${basename}`,
-        description: `${savedLines} baris ditulis.`,
+        title: `Logs saved to ${basename}`,
+        description: `${savedLines} ${savedLines === 1 ? "line" : "lines"} written.`,
         variant: "success",
       });
     } catch (err) {
       pushToast({
-        title: "Gagal menyimpan log",
+        title: "Failed to save logs",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -426,7 +426,7 @@ export function LogDrawer() {
       <div
         role="separator"
         aria-orientation="horizontal"
-        aria-label="Ubah tinggi panel log"
+        aria-label="Resize log drawer"
         onMouseDown={handleResizeMouseDown}
         className="group absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize"
       >
@@ -438,7 +438,7 @@ export function LogDrawer() {
         {/* Left: Scope switcher + Process Tabs */}
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">
           <select
-            aria-label="Scope project log"
+            aria-label="Log project scope"
             value={scopeValue}
             onChange={(e) => {
               const val = e.target.value;
@@ -458,7 +458,7 @@ export function LogDrawer() {
                 {p.name}
               </option>
             ))}
-            <option value="all">Semua jalan</option>
+            <option value="all">All running</option>
           </select>
 
           <div className="h-4 w-px shrink-0 bg-slate-800" aria-hidden="true" />
@@ -517,8 +517,8 @@ export function LogDrawer() {
                     e.stopPropagation();
                     hideLogTab(proc.id);
                   }}
-                  aria-label={`Sembunyikan tab ${proc.serviceName} ${proc.script}`}
-                  title="Sembunyikan tab (proses tetap berjalan)"
+                  aria-label={`Hide ${proc.serviceName} ${proc.script} tab`}
+                  title="Hide tab (process keeps running)"
                   className="ml-0.5 rounded p-0.5 text-slate-500 opacity-60 hover:bg-slate-700 hover:text-slate-100 group-hover:opacity-100"
                 >
                   <X className="h-2.5 w-2.5" aria-hidden="true" />
@@ -542,7 +542,7 @@ export function LogDrawer() {
               {restoreMenuOpen ? (
                 <div className="absolute bottom-8 left-0 z-30 min-w-[200px] rounded-[8px] border border-slate-700 bg-slate-900 p-1 shadow-xl">
                   <div className="px-2 py-1 text-[10.5px] font-semibold tracking-wide text-slate-400 uppercase">
-                    Tampilkan kembali tab
+                    Restore hidden tabs
                   </div>
                   {hiddenTabs.map((proc) => (
                     <button
@@ -583,15 +583,15 @@ export function LogDrawer() {
               type="text"
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
-              placeholder="Filter log…"
-              aria-label="Filter output log"
+              placeholder="Filter logs…"
+              aria-label="Filter log output"
               className="h-6 w-36 rounded-[5px] border border-slate-700/80 bg-slate-900 pr-5 pl-6 text-[11.5px] text-slate-200 placeholder:text-slate-500 focus:border-info focus:outline-none sm:w-44"
             />
             {filterText ? (
               <button
                 type="button"
                 onClick={() => setFilterText("")}
-                aria-label="Hapus filter"
+                aria-label="Clear filter"
                 className="absolute right-1 rounded p-0.5 text-slate-400 hover:text-slate-100"
               >
                 <X className="h-2.5 w-2.5" aria-hidden="true" />
@@ -603,7 +603,7 @@ export function LogDrawer() {
             type="button"
             onClick={() => setStderrOnly((v) => !v)}
             aria-pressed={stderrOnly}
-            title="Hanya tampilkan stderr"
+            title="Show stderr only"
             className={cn(
               "btn-press flex h-6 items-center gap-1 rounded-[5px] border px-2 text-[11px] font-medium",
               stderrOnly
@@ -618,8 +618,8 @@ export function LogDrawer() {
           <button
             type="button"
             onClick={() => void handleClear()}
-            aria-label="Bersihkan log"
-            title="Bersihkan buffer log"
+            aria-label="Clear logs"
+            title="Clear log buffer"
             className="btn-press rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
           >
             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -628,8 +628,8 @@ export function LogDrawer() {
           <button
             type="button"
             onClick={() => void handleSaveLogs()}
-            aria-label="Simpan log ke file"
-            title="Simpan log ke file"
+            aria-label="Save logs to file"
+            title="Save logs to file"
             className="btn-press rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
           >
             <Download className="h-3.5 w-3.5" aria-hidden="true" />
@@ -640,7 +640,7 @@ export function LogDrawer() {
           <button
             type="button"
             onClick={() => setLogDrawerMaximized(!logDrawerMaximized)}
-            aria-label={logDrawerMaximized ? "Restore panel log" : "Maximize panel log"}
+            aria-label={logDrawerMaximized ? "Restore log drawer" : "Maximize log drawer"}
             title={logDrawerMaximized ? "Restore" : "Maximize"}
             className="btn-press rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
           >
@@ -654,8 +654,8 @@ export function LogDrawer() {
           <button
             type="button"
             onClick={toggleLogDrawer}
-            aria-label="Tutup panel log"
-            title="Sembunyikan (⌘J)"
+            aria-label="Close log drawer"
+            title="Hide (⌘J)"
             className="btn-press rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
           >
             <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -672,10 +672,10 @@ export function LogDrawer() {
         {lineCount === 0 ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4 font-mono text-[12px] text-slate-500">
             {scopedProcesses.length === 0
-              ? "Belum ada proses pada scope ini. Jalankan script dari Service Workbench untuk melihat output log."
+              ? "No processes in this scope yet. Run a script from the Service Workbench to view log output."
               : filterText || stderrOnly
-                ? "Tidak ada baris log yang cocok dengan filter."
-                : "Menunggu output log…"}
+                ? "No log lines match the current filter."
+                : "Waiting for log output…"}
           </div>
         ) : null}
       </div>

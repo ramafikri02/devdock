@@ -54,7 +54,7 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={onCancel}
-            aria-label="Tutup dialog"
+            aria-label="Close dialog"
             className="rounded p-1 text-fg-muted hover:bg-surface-hover hover:text-fg"
           >
             <X className="h-4 w-4" aria-hidden="true" />
@@ -67,7 +67,7 @@ export function ConfirmDialog({
             onClick={onCancel}
             className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
           >
-            Batal
+            Cancel
           </button>
           <button
             type="button"

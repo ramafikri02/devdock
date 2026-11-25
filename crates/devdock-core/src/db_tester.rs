@@ -85,7 +85,7 @@ impl DbConnectionTester {
     pub fn parse_target(key: &str, raw_url: &str) -> Result<ParsedDbTarget, String> {
         let trimmed = raw_url.trim();
         let kind = Self::detect_db_kind(key, trimmed).ok_or_else(|| {
-            "URL database tidak dikenali (didukung: postgres://, mysql://, mongodb://, redis://)"
+            "Unrecognized database URL (supported: postgres://, mysql://, mongodb://, redis://)"
                 .to_string()
         })?;
 
@@ -109,9 +109,9 @@ impl DbConnectionTester {
         };
 
         let parsed = Url::parse(&normalized_url)
-            .map_err(|_| "Format URL database tidak valid".to_string())?;
+            .map_err(|_| "Invalid database URL format".to_string())?;
         if parsed.host_str().is_none() {
-            return Err("Host database tidak ditemukan pada URL".to_string());
+            return Err("Database host not found in URL".to_string());
         }
 
         let display_target = Self::format_display_target(&parsed);

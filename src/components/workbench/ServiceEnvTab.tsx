@@ -99,7 +99,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
   if (service.isMissing) {
     return (
       <div className="rounded-[10px] border border-border bg-surface p-6 text-center text-[13px] text-fg-muted">
-        Folder service tidak ditemukan. Relokasi folder terlebih dahulu untuk membaca file <code className="font-mono">.env*</code>.
+        Service folder not found. Relocate the folder first to inspect <code className="font-mono">.env*</code> files.
       </div>
     );
   }
@@ -108,16 +108,16 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
     try {
       const res = await updateServiceEnvKey(service.id, targetFile, key, value);
       pushToast({
-        title: `${key} disimpan ke ${res.targetFile}`,
+        title: `Saved ${key} to ${res.targetFile}`,
         description: res.backupPath
-          ? `Backup dibuat di ${res.targetFile}.bak`
+          ? `Backup created at ${res.targetFile}.bak`
           : undefined,
         variant: "success",
       });
       await loadEnv(mode);
     } catch (err) {
       pushToast({
-        title: `Gagal menyimpan ${key}`,
+        title: `Failed to save ${key}`,
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -143,17 +143,17 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
       }
       const res = await writeServiceEnv(service.id, writeTargetFile, payload);
       pushToast({
-        title: `${res.writtenKeys} key ditulis ke ${res.targetFile}`,
+        title: `Wrote ${res.writtenKeys} ${res.writtenKeys === 1 ? "key" : "keys"} to ${res.targetFile}`,
         description: res.backupPath
-          ? `File lama dibackup ke ${res.targetFile}.bak`
-          : "File baru dibuat.",
+          ? `Previous file backed up to ${res.targetFile}.bak`
+          : "Created new file.",
         variant: "success",
       });
       setWritePanelOpen(false);
       await loadEnv(mode);
     } catch (err) {
       pushToast({
-        title: "Gagal menulis file .env",
+        title: "Failed to write .env file",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -183,12 +183,12 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
       setSelectedPresetId("");
       await Promise.all([loadEnv(mode), loadPresets()]);
       pushToast({
-        title: `Preset dipasang ke ${service.name}`,
+        title: `Preset attached to ${service.name}`,
         variant: "success",
       });
     } catch (err) {
       pushToast({
-        title: "Gagal memasang preset",
+        title: "Failed to attach preset",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -200,12 +200,12 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
       await detachPresetFromService(service.id, presetId);
       await Promise.all([loadEnv(mode), loadPresets()]);
       pushToast({
-        title: `Preset "${presetName}" dilepas`,
+        title: `Preset "${presetName}" detached`,
         variant: "info",
       });
     } catch (err) {
       pushToast({
-        title: "Gagal melepas preset",
+        title: "Failed to detach preset",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -227,7 +227,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
       await loadEnv(mode);
     } catch (err) {
       pushToast({
-        title: "Gagal mengubah urutan preset",
+        title: "Failed to reorder presets",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -240,7 +240,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
       <div className="rounded-[10px] border border-border bg-surface p-3.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5 text-[11.5px]">
-            <span className="font-semibold text-fg-muted">Prioritas Resolusi:</span>
+            <span className="font-semibold text-fg-muted">Resolution Order:</span>
             <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-fg-faint">
               shell
             </span>
@@ -254,7 +254,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                       ? "bg-info-soft font-medium text-info"
                       : "bg-surface-2 text-fg-faint line-through opacity-60",
                   )}
-                  title={f.exists ? `${f.keyCount} key` : "File tidak ada"}
+                  title={f.exists ? `${f.keyCount} ${f.keyCount === 1 ? "key" : "keys"}` : "File does not exist"}
                 >
                   {f.name}
                   {f.exists ? ` (${f.keyCount})` : ""}
@@ -313,20 +313,20 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
           <div className="flex items-center gap-2">
             <KeyRound className="h-3.5 w-3.5 text-info" aria-hidden="true" />
             <span className="text-[12.5px] font-semibold text-fg">
-              Env Presets (Inject saat Spawn)
+              Env Presets (Injected on Spawn)
             </span>
           </div>
           <div className="flex items-center gap-1.5">
             <select
-              aria-label="Pilih preset untuk dipasang ke service"
+              aria-label="Select preset to attach to service"
               value={selectedPresetId}
               onChange={(e) => setSelectedPresetId(e.target.value)}
               className="h-7 rounded-[6px] border border-border-strong bg-surface-2 px-2 text-[11.5px] text-fg"
             >
-              <option value="">Pasang preset ke service…</option>
+              <option value="">Attach preset to service…</option>
               {availableServicePresets.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} ({p.entries.length} key)
+                  {p.name} ({p.entries.length} {p.entries.length === 1 ? "key" : "keys"})
                 </option>
               ))}
             </select>
@@ -337,7 +337,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
               className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] bg-accent px-2.5 text-[11.5px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-45"
             >
               <Plus className="h-3 w-3" aria-hidden="true" />
-              <span>Pasang</span>
+              <span>Attach</span>
             </button>
           </div>
         </div>
@@ -346,7 +346,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
           {/* Inherited Project Presets */}
           <div className="rounded-[8px] border border-border bg-surface-2/50 p-2.5">
             <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-fg-muted">
-              <span>Diwariskan dari Project</span>
+              <span>Inherited from Project</span>
               <button
                 type="button"
                 onClick={() =>
@@ -354,12 +354,12 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                 }
                 className="text-info hover:underline"
               >
-                Atur di Project →
+                Manage in Project →
               </button>
             </div>
             {!inspection || inspection.projectPresets.length === 0 ? (
               <p className="text-[11.5px] text-fg-faint">
-                Tidak ada shared preset di level project.
+                No shared presets at the project level.
               </p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
@@ -379,11 +379,11 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
           {/* Service Presets */}
           <div className="rounded-[8px] border border-border bg-surface-2/50 p-2.5">
             <div className="mb-1.5 text-[11px] font-medium text-fg-muted">
-              Preset Khusus Service (Menimpa Project Preset)
+              Service-Specific Presets (Overrides Project Presets)
             </div>
             {!inspection || inspection.servicePresets.length === 0 ? (
               <p className="text-[11.5px] text-fg-faint">
-                Belum ada preset khusus untuk service ini.
+                No service-specific presets attached yet.
               </p>
             ) : (
               <div className="space-y-1">
@@ -399,7 +399,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                     <div className="flex items-center gap-0.5">
                       <button
                         type="button"
-                        aria-label={`Naikkan ${p.presetName}`}
+                        aria-label={`Move ${p.presetName} up`}
                         disabled={idx === 0}
                         onClick={() => void handleMoveServicePreset(idx, -1)}
                         className="flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-surface-hover hover:text-fg disabled:opacity-35"
@@ -408,7 +408,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                       </button>
                       <button
                         type="button"
-                        aria-label={`Turunkan ${p.presetName}`}
+                        aria-label={`Move ${p.presetName} down`}
                         disabled={idx === inspection.servicePresets.length - 1}
                         onClick={() => void handleMoveServicePreset(idx, 1)}
                         className="flex h-6 w-6 items-center justify-center rounded text-fg-muted hover:bg-surface-hover hover:text-fg disabled:opacity-35"
@@ -417,7 +417,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                       </button>
                       <button
                         type="button"
-                        aria-label={`Lepas ${p.presetName}`}
+                        aria-label={`Detach ${p.presetName}`}
                         onClick={() =>
                           void handleDetachServicePreset(p.presetId, p.presetName)
                         }
@@ -445,12 +445,12 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
             {revealSecrets ? (
               <>
                 <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Sembunyikan Secret</span>
+                <span>Hide Secrets</span>
               </>
             ) : (
               <>
                 <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Tampilkan Secret</span>
+                <span>Reveal Secrets</span>
               </>
             )}
           </button>
@@ -461,7 +461,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
             className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] border border-border-strong bg-surface px-2.5 text-[12px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Tambah Key</span>
+            <span>Add Key</span>
           </button>
 
           <button
@@ -470,7 +470,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
             className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-medium text-fg-muted hover:bg-surface-hover hover:text-fg"
           >
             <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Muat Ulang</span>
+            <span>Reload</span>
           </button>
         </div>
 
@@ -480,7 +480,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
           className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12px] font-semibold text-accent-fg hover:opacity-95"
         >
           <FileDown className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>Tulis ke .env</span>
+          <span>Write to .env</span>
         </button>
       </div>
 
@@ -490,16 +490,16 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[12.5px] font-semibold text-fg">
-                Tulis seluruh resolved env ke file
+                Write all resolved env variables to file
               </p>
               <p className="mt-0.5 text-[11.5px] text-fg-muted">
-                File tujuan yang sudah ada akan otomatis dibackup ke{" "}
-                <code className="font-mono text-fg-2">{writeTargetFile}.bak</code> sebelum ditimpa.
+                Any existing target file will be automatically backed up to{" "}
+                <code className="font-mono text-fg-2">{writeTargetFile}.bak</code> before overwriting.
               </p>
             </div>
             <div className="flex items-center gap-2">
               <select
-                aria-label="File target .env"
+                aria-label="Target .env file"
                 value={writeTargetFile}
                 onChange={(e) => setWriteTargetFile(e.target.value)}
                 className="h-8 rounded-[7px] border border-border-strong bg-surface px-2 font-mono text-[12px] text-fg"
@@ -516,7 +516,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                 onClick={() => void handleWriteAll()}
                 className="btn-press h-8 rounded-[7px] bg-accent px-3 text-[12px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
               >
-                {writing ? "Menulis…" : "Tulis & Backup"}
+                {writing ? "Writing…" : "Write & Backup"}
               </button>
             </div>
           </div>
@@ -534,14 +534,14 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
               type="text"
               value={newKey}
               onChange={(e) => setNewKey(e.target.value)}
-              placeholder="NAMA_KEY"
+              placeholder="KEY_NAME"
               className="h-8 rounded-[7px] border border-border-strong bg-surface-2 px-2.5 font-mono text-[12px] text-fg placeholder:text-fg-faint"
             />
             <input
               type="text"
               value={newValue}
               onChange={(e) => setNewValue(e.target.value)}
-              placeholder="nilai"
+              placeholder="value"
               className="h-8 rounded-[7px] border border-border-strong bg-surface-2 px-2.5 font-mono text-[12px] text-fg placeholder:text-fg-faint"
             />
             <select
@@ -560,7 +560,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
               type="submit"
               className="btn-press h-8 rounded-[7px] bg-accent px-3 text-[12px] font-semibold text-accent-fg hover:opacity-95"
             >
-              Simpan
+              Save
             </button>
           </div>
         </form>
@@ -584,8 +584,9 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
           <div className="flex items-center gap-2 text-[12.5px] font-semibold text-fg">
             <AlertTriangle className="h-4 w-4 text-warn" aria-hidden="true" />
             <span>
-              {inspection.missingKeys.length} key dari{" "}
-              <code className="font-mono">.env.example</code> belum terisi
+              {inspection.missingKeys.length} missing{" "}
+              {inspection.missingKeys.length === 1 ? "key" : "keys"} from{" "}
+              <code className="font-mono">.env.example</code>
             </span>
           </div>
           <div className="mt-2.5 space-y-2">
@@ -603,7 +604,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                   onChange={(e) =>
                     setMissingInputs((prev) => ({ ...prev, [m.key]: e.target.value }))
                   }
-                  placeholder={m.exampleValue || "Masukkan nilai…"}
+                  placeholder={m.exampleValue || "Enter value…"}
                   className="h-7 min-w-0 flex-1 rounded-[6px] border border-border-strong bg-surface-2 px-2 font-mono text-[12px] text-fg"
                 />
                 <button
@@ -618,7 +619,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                   className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] bg-accent px-2.5 text-[11.5px] font-semibold text-accent-fg hover:opacity-95"
                 >
                   <Check className="h-3 w-3" aria-hidden="true" />
-                  <span>Simpan ke .env.local</span>
+                  <span>Save to .env.local</span>
                 </button>
               </div>
             ))}
@@ -637,17 +638,17 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
         ) : !inspection || inspection.entries.length === 0 ? (
           <div className="p-6 text-center text-[13px] text-fg-muted">
             <FileCode2 className="mx-auto mb-2 h-6 w-6 text-fg-faint" aria-hidden="true" />
-            Belum ada variabel environment di file <code className="font-mono">.env*</code> untuk mode{" "}
-            <code className="font-mono">{mode}</code>.
+            No environment variables in <code className="font-mono">.env*</code> files for{" "}
+            <code className="font-mono">{mode}</code> mode yet.
           </div>
         ) : (
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-border bg-surface-2 text-[11.5px] font-semibold tracking-wide text-fg-muted uppercase">
                 <th className="px-3.5 py-2.5">Key</th>
-                <th className="px-3.5 py-2.5">Nilai</th>
-                <th className="px-3.5 py-2.5">Sumber</th>
-                <th className="px-3.5 py-2.5 text-right">Aksi</th>
+                <th className="px-3.5 py-2.5">Value</th>
+                <th className="px-3.5 py-2.5">Source</th>
+                <th className="px-3.5 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-[12.5px]">
@@ -669,7 +670,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                         {entry.isSecret ? (
                           <span
                             className="inline-flex items-center gap-0.5 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-fg-muted"
-                            title="Terdeteksi sebagai nilai sensitif"
+                            title="Detected as sensitive value"
                           >
                             <Lock className="h-2.5 w-2.5" aria-hidden="true" />
                             secret
@@ -678,9 +679,9 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                         {entry.isUnknown ? (
                           <span
                             className="rounded bg-warn-soft px-1.5 py-0.5 text-[10px] font-medium text-warn"
-                            title="Key ini tidak ada di .env.example"
+                            title="This key is not in .env.example"
                           >
-                            tidak ada di .env.example
+                            not in .env.example
                           </span>
                         ) : null}
                       </div>
@@ -688,7 +689,7 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                     <td className="px-3.5 py-2 align-middle">
                       <input
                         type={masked ? "password" : "text"}
-                        aria-label={`Nilai untuk ${entry.key}`}
+                        aria-label={`Value for ${entry.key}`}
                         value={draftVal}
                         onChange={(e) =>
                           setDrafts((prev) => ({
@@ -719,9 +720,9 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                       {entry.overriddenSources.length > 0 ? (
                         <span
                           className="ml-1.5 text-[10.5px] text-fg-faint"
-                          title={`Menimpa ${entry.overriddenSources.join(", ")}`}
+                          title={`Overrides ${entry.overriddenSources.join(", ")}`}
                         >
-                          (timpa {entry.overriddenSources.join(", ")})
+                          (overrides {entry.overriddenSources.join(", ")})
                         </span>
                       ) : null}
                     </td>
@@ -752,13 +753,13 @@ export function ServiceEnvTab({ service }: ServiceEnvTabProps) {
                           }
                           title={
                             entry.layerKind === "file"
-                              ? `Simpan perubahan ke ${entry.source}`
-                              : "Simpan sebagai override ke .env.local"
+                              ? `Save changes to ${entry.source}`
+                              : "Save as override to .env.local"
                           }
                           className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] border border-border-strong bg-surface-2 px-2 text-[11.5px] font-medium text-fg hover:bg-surface-hover disabled:opacity-35"
                         >
                           <Save className="h-3 w-3" aria-hidden="true" />
-                          <span>Simpan</span>
+                          <span>Save</span>
                         </button>
                       </div>
                     </td>

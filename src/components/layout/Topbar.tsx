@@ -50,8 +50,8 @@ export function Topbar({
       onScanFolder();
     } else {
       pushToast({
-        title: "Scan Folder tersedia di Wave 2A",
-        description: "Gunakan tombol + Tambah untuk mendaftarkan folder project.",
+        title: "Scan Folder",
+        description: "Use the + Add button to register a project folder.",
         variant: "info",
       });
     }
@@ -62,8 +62,8 @@ export function Topbar({
       onAddProject();
     } else {
       pushToast({
-        title: "Siap menambah project",
-        description: "Akan dihubungkan pada modul registrasi folder.",
+        title: "Ready to add project",
+        description: "Select a project folder to register it.",
         variant: "info",
       });
     }
@@ -129,14 +129,14 @@ export function Topbar({
       >
         <span className="flex items-center gap-2">
           <Search className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>Cari project, service, script…</span>
+          <span>Search projects, services, scripts…</span>
         </span>
         <kbd className="rounded bg-surface px-1.5 py-0.5 font-mono text-[11px] leading-none text-fg-faint">
           ⌘K
         </kbd>
       </button>
 
-      {/* Right: Scan, + Tambah, Theme Toggle */}
+      {/* Right: Scan, + Add, Theme Toggle */}
       <div data-tauri-drag-region className="flex flex-1 items-center justify-end gap-1.5">
         <button
           type="button"
@@ -153,14 +153,14 @@ export function Topbar({
           className="btn-press flex h-7 items-center gap-1.5 rounded-[7px] bg-accent px-2.5 text-[12.5px] font-semibold text-accent-fg hover:opacity-95"
         >
           <Plus className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden="true" />
-          <span>Tambah</span>
+          <span>Add</span>
         </button>
 
         <button
           type="button"
           onClick={() => void toggleTheme()}
-          aria-label={theme === "dark" ? "Ganti ke tema terang" : "Ganti ke tema gelap"}
-          title={theme === "dark" ? "Tema terang" : "Tema gelap"}
+          aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          title={theme === "dark" ? "Light theme" : "Dark theme"}
           className="btn-press flex h-7 w-7 items-center justify-center rounded-[7px] border border-border bg-surface text-fg-muted hover:bg-surface-hover hover:text-fg"
         >
           {theme === "dark" ? (

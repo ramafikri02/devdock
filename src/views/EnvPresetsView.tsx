@@ -111,7 +111,7 @@ export function EnvPresetsView() {
       }));
 
     if (!draftName.trim()) {
-      setFormError("Nama preset tidak boleh kosong.");
+      setFormError("Preset name cannot be empty.");
       return;
     }
 
@@ -124,13 +124,13 @@ export function EnvPresetsView() {
           cleanedEntries,
         );
         pushToast({
-          title: `Preset "${updated.name}" diperbarui`,
+          title: `Preset "${updated.name}" updated`,
           variant: "success",
         });
       } else {
         const created = await createPreset(draftName.trim(), cleanedEntries);
         pushToast({
-          title: `Preset "${created.name}" dibuat`,
+          title: `Preset "${created.name}" created`,
           variant: "success",
         });
       }
@@ -151,12 +151,12 @@ export function EnvPresetsView() {
       await deletePreset(target.id);
       await loadPresets();
       pushToast({
-        title: `Preset "${target.name}" dihapus`,
+        title: `Preset "${target.name}" deleted`,
         variant: "info",
       });
     } catch (err) {
       pushToast({
-        title: "Gagal menghapus preset",
+        title: "Failed to delete preset",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -173,12 +173,12 @@ export function EnvPresetsView() {
               Env Presets
             </h1>
             <span className="rounded-full bg-surface-2 px-2 py-0.5 font-mono text-[11px] text-fg-muted tabular-nums">
-              {presets.length} preset
+              {presets.length} {presets.length === 1 ? "preset" : "presets"}
             </span>
           </div>
           <p className="mt-0.5 text-[13px] text-fg-muted">
-            Preset override-only yang dapat dipasang berurutan di level Project maupun Service. Nilai bertanda{" "}
-            <span className="font-medium text-fg-2">Keychain</span> disimpan di OS secure store dan tidak pernah ditulis ke SQLite.
+            Override-only presets that can be stacked at the Project or Service level. Values marked{" "}
+            <span className="font-medium text-fg-2">Keychain</span> are stored in the OS secure store and never written to SQLite.
           </p>
         </div>
 
@@ -191,12 +191,12 @@ export function EnvPresetsView() {
             {revealSecrets ? (
               <>
                 <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Sembunyikan Secret</span>
+                <span>Hide Secrets</span>
               </>
             ) : (
               <>
                 <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Tampilkan Secret</span>
+                <span>Reveal Secrets</span>
               </>
             )}
           </button>
@@ -207,7 +207,7 @@ export function EnvPresetsView() {
             className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12.5px] font-semibold text-accent-fg hover:opacity-95"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Buat Preset</span>
+            <span>New Preset</span>
           </button>
         </div>
       </div>
@@ -222,12 +222,12 @@ export function EnvPresetsView() {
             <div className="flex items-center gap-2">
               <KeyRound className="h-4 w-4 text-info" aria-hidden="true" />
               <h2 className="text-[14px] font-semibold text-fg">
-                {editingPresetId ? "Edit Env Preset" : "Buat Env Preset Baru"}
+                {editingPresetId ? "Edit Env Preset" : "Create Env Preset"}
               </h2>
             </div>
             <button
               type="button"
-              aria-label="Tutup editor preset"
+              aria-label="Close preset editor"
               onClick={closeEditor}
               className="flex h-7 w-7 items-center justify-center rounded-[6px] text-fg-muted hover:bg-surface-hover hover:text-fg"
             >
@@ -241,14 +241,14 @@ export function EnvPresetsView() {
                 htmlFor="preset-name-input"
                 className="mb-1 block text-[12px] font-medium text-fg-2"
               >
-                Nama Preset
+                Preset Name
               </label>
               <input
                 id="preset-name-input"
                 type="text"
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}
-                placeholder="Mis. DB Staging, Redis Local, Stripe Sandbox"
+                placeholder="e.g. DB Staging, Redis Local, Stripe Sandbox"
                 className="h-8 w-full max-w-md rounded-[7px] border border-border-strong bg-surface-2 px-2.5 text-[13px] text-fg placeholder:text-fg-faint focus:border-info"
               />
             </div>
@@ -264,7 +264,7 @@ export function EnvPresetsView() {
                   className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] border border-border-strong bg-surface-2 px-2 text-[11.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
                 >
                   <Plus className="h-3 w-3" aria-hidden="true" />
-                  <span>Tambah Baris</span>
+                  <span>Add Row</span>
                 </button>
               </div>
 
@@ -276,7 +276,7 @@ export function EnvPresetsView() {
                   >
                     <input
                       type="text"
-                      aria-label={`Key baris ${idx + 1}`}
+                      aria-label={`Row ${idx + 1} key`}
                       value={row.key}
                       onChange={(e) =>
                         updateDraftRow(idx, { key: e.target.value })
@@ -286,7 +286,7 @@ export function EnvPresetsView() {
                     />
                     <input
                       type={row.isSecret && !revealSecrets ? "password" : "text"}
-                      aria-label={`Nilai baris ${idx + 1}`}
+                      aria-label={`Row ${idx + 1} value`}
                       value={row.value}
                       onChange={(e) =>
                         updateDraftRow(idx, { value: e.target.value })
@@ -307,8 +307,8 @@ export function EnvPresetsView() {
                       )}
                       title={
                         row.isSecret
-                          ? "Disimpan di OS Keychain"
-                          : "Disimpan sebagai plain text di SQLite"
+                          ? "Stored in OS Keychain"
+                          : "Stored as plain text in SQLite"
                       }
                     >
                       <Lock className="h-3 w-3" aria-hidden="true" />
@@ -316,7 +316,7 @@ export function EnvPresetsView() {
                     </button>
                     <button
                       type="button"
-                      aria-label={`Hapus baris ${idx + 1}`}
+                      aria-label={`Remove row ${idx + 1}`}
                       onClick={() => removeDraftRow(idx)}
                       className="flex h-8 w-8 items-center justify-center rounded-[7px] border border-border bg-surface-2 text-fg-muted hover:border-danger/40 hover:bg-danger-soft hover:text-danger"
                     >
@@ -342,14 +342,14 @@ export function EnvPresetsView() {
                 onClick={closeEditor}
                 className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
               >
-                Batal
+                Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving}
                 className="btn-press h-8 rounded-[7px] bg-accent px-3.5 text-[12px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
               >
-                {saving ? "Menyimpan…" : "Simpan Preset"}
+                {saving ? "Saving…" : "Save Preset"}
               </button>
             </div>
           </div>
@@ -365,12 +365,12 @@ export function EnvPresetsView() {
             aria-hidden="true"
           />
           <p className="text-[14px] font-medium text-fg">
-            Belum ada Env Preset
+            No Env Presets yet
           </p>
           <p className="mx-auto mt-1 max-w-md text-[12.5px] text-fg-muted">
-            Buat preset seperti <code className="font-mono">DB Staging</code> atau{" "}
-            <code className="font-mono">Redis Local</code> untuk dipakai ulang di banyak project dan service tanpa mengubah file{" "}
-            <code className="font-mono">.env</code> di repo.
+            Create presets like <code className="font-mono">DB Staging</code> or{" "}
+            <code className="font-mono">Redis Local</code> to reuse across projects and services without modifying{" "}
+            <code className="font-mono">.env</code> files in your repos.
           </p>
           <button
             type="button"
@@ -378,7 +378,7 @@ export function EnvPresetsView() {
             className="btn-press mt-4 inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12.5px] font-semibold text-accent-fg hover:opacity-95"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Buat Preset Pertama</span>
+            <span>Create First Preset</span>
           </button>
         </div>
       ) : (
@@ -419,7 +419,7 @@ export function EnvPresetsView() {
                     </button>
                     <button
                       type="button"
-                      aria-label={`Hapus preset ${preset.name}`}
+                      aria-label={`Delete preset ${preset.name}`}
                       onClick={() => setDeleteTarget(preset)}
                       className="btn-press flex h-7 w-7 items-center justify-center rounded-[6px] border border-danger/30 bg-danger-soft text-danger hover:bg-danger-solid hover:text-white"
                     >
@@ -432,7 +432,7 @@ export function EnvPresetsView() {
                 <div className="mt-3 flex-1 overflow-hidden rounded-[8px] border border-border bg-surface-2/60">
                   {preset.entries.length === 0 ? (
                     <div className="px-3 py-2.5 text-[12px] text-fg-faint">
-                      Preset belum memiliki entry.
+                      No entries in this preset yet.
                     </div>
                   ) : (
                     <div className="divide-y divide-border text-[12px]">
@@ -459,7 +459,7 @@ export function EnvPresetsView() {
                           <span className="max-w-[50%] truncate font-mono text-[11.5px] text-fg-muted">
                             {entry.isSecret && !revealSecrets
                               ? "••••••••"
-                              : entry.value || "(kosong)"}
+                              : entry.value || "(empty)"}
                           </span>
                         </div>
                       ))}
@@ -470,11 +470,11 @@ export function EnvPresetsView() {
                 {/* Usages */}
                 <div className="mt-3 border-t border-border pt-2.5">
                   <div className="mb-1 text-[11px] font-medium text-fg-muted">
-                    Dipakai oleh ({preset.usages.length})
+                    Used by ({preset.usages.length})
                   </div>
                   {preset.usages.length === 0 ? (
                     <p className="text-[11.5px] text-fg-faint">
-                      Belum dipasang ke project atau service mana pun.
+                      Not attached to any project or service yet.
                     </p>
                   ) : (
                     <div className="flex flex-wrap gap-1.5">
@@ -516,13 +516,13 @@ export function EnvPresetsView() {
 
       <ConfirmDialog
         open={deleteTarget !== null}
-        title={deleteTarget ? `Hapus preset "${deleteTarget.name}"?` : ""}
+        title={deleteTarget ? `Delete preset "${deleteTarget.name}"?` : ""}
         description={
           deleteTarget && deleteTarget.usages.length > 0
-            ? `Preset ini sedang dipakai oleh ${deleteTarget.usages.length} project/service. Menghapus preset akan melepasnya dan menghapus seluruh nilai secret dari OS Keychain.`
-            : "Preset dan seluruh nilai secret-nya di OS Keychain akan dihapus secara permanen."
+            ? `This preset is currently used by ${deleteTarget.usages.length} ${deleteTarget.usages.length === 1 ? "project/service" : "projects/services"}. Deleting it will detach it and remove all its secret values from the OS Keychain.`
+            : "This preset and all its secret values in the OS Keychain will be permanently deleted."
         }
-        confirmLabel="Hapus Preset"
+        confirmLabel="Delete Preset"
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => void handleConfirmDelete()}
       />

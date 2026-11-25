@@ -114,7 +114,7 @@ function StatusPill({ status }: { status: ServiceEntry["status"] }) {
     return (
       <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-medium text-warn">
         <Network className="h-3 w-3" aria-hidden="true" />
-        Bentrok Port
+        Port Conflict
       </span>
     );
   }
@@ -440,7 +440,7 @@ export function OverviewView({
           dotClass: "bg-info",
         },
         {
-          label: "Source & lain",
+          label: "Source & other",
           bytes: other,
           pct: (other / total) * 100,
           barClass: "bg-border-strong",
@@ -475,7 +475,7 @@ export function OverviewView({
       await runScript(service.id, script);
     } catch (err) {
       pushToast({
-        title: `Gagal menjalankan ${service.name}`,
+        title: `Failed to start ${service.name}`,
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -492,7 +492,7 @@ export function OverviewView({
       }
     } catch (err) {
       pushToast({
-        title: "Gagal menghentikan proses",
+        title: "Failed to stop process",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -510,8 +510,8 @@ export function OverviewView({
             <button
               type="button"
               onClick={() => openLogsForProcess(item.activeProcesses[0].id)}
-              aria-label={`Lihat log ${item.service.name}`}
-              title="Lihat log"
+              aria-label={`View logs for ${item.service.name}`}
+              title="View logs"
               className="btn-press inline-flex h-7 items-center rounded-[6px] border border-border-strong bg-surface-2 px-2 text-fg-muted hover:bg-surface-hover hover:text-fg"
             >
               <TerminalSquare className="h-3.5 w-3.5" aria-hidden="true" />
@@ -533,7 +533,7 @@ export function OverviewView({
             className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] border border-warn/50 bg-warn-soft px-2.5 text-[11.5px] font-medium text-warn hover:opacity-90"
           >
             <Network className="h-3 w-3" aria-hidden="true" />
-            <span>Pakai port lain</span>
+            <span>Use Free Port</span>
           </button>
         ) : !item.service.isMissing && hasScripts ? (
           <button
@@ -550,7 +550,7 @@ export function OverviewView({
             )}
           >
             <Play className="h-3 w-3 fill-current" aria-hidden="true" />
-            <span>{item.status === "crashed" ? "Jalankan lagi" : "Start"}</span>
+            <span>{item.status === "crashed" ? "Run Again" : "Start"}</span>
           </button>
         ) : null}
 
@@ -564,8 +564,8 @@ export function OverviewView({
                 serviceId: item.service.id,
               })
             }
-            aria-label={`Buka Workbench ${item.service.name}`}
-            title="Buka Workbench"
+            aria-label={`Open ${item.service.name} Workbench`}
+            title="Open Workbench"
             className="btn-press inline-flex h-7 w-7 items-center justify-center rounded-[6px] border border-border bg-surface-2 text-fg-muted hover:border-border-strong hover:bg-surface-hover hover:text-fg"
           >
             <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -627,7 +627,7 @@ export function OverviewView({
               </p>
             ) : item.status === "conflict" ? (
               <p className="mt-0.5 truncate text-[11px] text-warn">
-                Port :{item.service.port} dipakai {item.conflictProcessName} (PID{" "}
+                Port :{item.service.port} in use by {item.conflictProcessName} (PID{" "}
                 {item.conflictPid})
               </p>
             ) : null}
@@ -653,7 +653,7 @@ export function OverviewView({
               </div>
               <Sparkline
                 values={cpuValues}
-                label={`Sparkline CPU ${item.service.name}: ${currentCpu.toFixed(1)}%`}
+                label={`CPU sparkline for ${item.service.name}: ${currentCpu.toFixed(1)}%`}
                 strokeClass="stroke-accent"
                 fillClass="fill-accent/15"
                 className="h-5 w-14 shrink-0"
@@ -663,7 +663,7 @@ export function OverviewView({
             <span className="hidden font-mono text-[11px] text-fg-faint tabular-nums sm:inline">
               {item.service.defaultScript
                 ? item.service.defaultScript
-                : Object.keys(item.service.scripts)[0] ?? "tanpa script"}
+                : Object.keys(item.service.scripts)[0] ?? "no scripts"}
             </span>
           )}
 
@@ -681,8 +681,8 @@ export function OverviewView({
         <div>
           <h1 className="text-[19px] font-semibold tracking-tight text-fg">Overview</h1>
           <p className="mt-0.5 text-[13px] text-fg-muted">
-            <span className="font-mono tabular-nums">{projectCount}</span> project ·{" "}
-            <span className="font-mono tabular-nums">{serviceCount}</span> service terdaftar
+            <span className="font-mono tabular-nums">{projectCount}</span> {projectCount === 1 ? "project" : "projects"} ·{" "}
+            <span className="font-mono tabular-nums">{serviceCount}</span> registered {serviceCount === 1 ? "service" : "services"}
             {bootstrap ? <> · Core v{bootstrap.version}</> : null}
           </p>
         </div>
@@ -690,7 +690,7 @@ export function OverviewView({
 
       {/* Layer 1: Compact Health & Operational Status Strip */}
       <div className="grid grid-cols-2 divide-y divide-border overflow-hidden rounded-[10px] border border-border bg-surface sm:grid-cols-4 sm:divide-x sm:divide-y-0">
-        {/* Jalan */}
+        {/* Running */}
         <button
           type="button"
           onClick={() => setFilter((f) => (f === "running" ? "all" : "running"))}
@@ -700,7 +700,7 @@ export function OverviewView({
           )}
         >
           <div className="min-w-0">
-            <div className="text-[11.5px] font-medium text-fg-muted">Jalan</div>
+            <div className="text-[11.5px] font-medium text-fg-muted">Running</div>
             <div className="mt-0.5 flex items-baseline gap-1 font-mono tabular-nums">
               <span
                 className={cn(
@@ -723,7 +723,7 @@ export function OverviewView({
           />
         </button>
 
-        {/* Crash */}
+        {/* Crashed */}
         <button
           type="button"
           onClick={() => setFilter((f) => (f === "issues" ? "all" : "issues"))}
@@ -733,7 +733,7 @@ export function OverviewView({
           )}
         >
           <div className="min-w-0">
-            <div className="text-[11.5px] font-medium text-fg-muted">Crash</div>
+            <div className="text-[11.5px] font-medium text-fg-muted">Crashed</div>
             <div
               className={cn(
                 "mt-0.5 font-mono text-[18px] font-semibold tabular-nums",
@@ -753,7 +753,7 @@ export function OverviewView({
           />
         </button>
 
-        {/* Bentrok Port */}
+        {/* Port Conflicts */}
         <button
           type="button"
           onClick={() => setRoute({ kind: "ports" })}
@@ -761,7 +761,7 @@ export function OverviewView({
         >
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 text-[11.5px] font-medium text-fg-muted">
-              <span>Bentrok Port</span>
+              <span>Port Conflicts</span>
             </div>
             <div className="mt-0.5 flex items-baseline gap-1.5 font-mono tabular-nums">
               <span
@@ -773,7 +773,7 @@ export function OverviewView({
                 {conflictCount}
               </span>
               <span className="truncate font-sans text-[11px] text-fg-faint">
-                {conflictCount > 0 ? "Buka Inspector" : "Aman"}
+                {conflictCount > 0 ? "Open Inspector" : "Clear"}
               </span>
             </div>
           </div>
@@ -796,8 +796,8 @@ export function OverviewView({
                 <button
                   type="button"
                   onClick={() => void refreshGlobalStorage(true)}
-                  aria-label="Hitung ulang storage global"
-                  title="Hitung ulang storage"
+                  aria-label="Recalculate global storage"
+                  title="Recalculate storage"
                   className="rounded p-0.5 text-fg-faint hover:bg-surface-hover hover:text-fg"
                 >
                   <RefreshCw
@@ -833,11 +833,11 @@ export function OverviewView({
       {/* Layer 2: Live Telemetry & Analytics Row */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
         <TelemetryAreaChart
-          title="CPU Total"
+          title="Total CPU"
           currentText={`${totalCpu.toFixed(1)}%`}
           peakText={`${cpuStats.peak.toFixed(1)}%`}
           avgText={`${cpuStats.avg.toFixed(1)}%`}
-          subtitle={runningCount > 0 ? `${runningCount} proses aktif` : "Tidak ada proses aktif"}
+          subtitle={runningCount > 0 ? `${runningCount} active ${runningCount === 1 ? "process" : "processes"}` : "No active processes"}
           points={cpuSeries}
           formatValue={(v) => `${v.toFixed(1)}%`}
           strokeColorVar="var(--info)"
@@ -847,11 +847,11 @@ export function OverviewView({
         />
 
         <TelemetryAreaChart
-          title="RAM Total"
+          title="Total RAM"
           currentText={totalRam > 0 ? formatBytes(totalRam) : "0 MB"}
           peakText={ramStats.peak > 0 ? formatBytes(ramStats.peak) : "0 MB"}
           avgText={ramStats.avg > 0 ? formatBytes(ramStats.avg) : "0 MB"}
-          subtitle="Pohon proses DevDock"
+          subtitle="DevDock process tree"
           points={ramSeries}
           formatValue={(v) => (v > 0 ? formatBytes(v) : "0 MB")}
           strokeColorVar="var(--accent)"
@@ -867,14 +867,14 @@ export function OverviewView({
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <div className="text-[12px] font-medium text-fg-muted">
-                    Top Konsumsi Aktif
+                    Top Active Consumers
                   </div>
                   <div className="mt-0.5 text-[11.5px] text-fg-faint">
-                    Urutan pemakaian RAM terbesar
+                    Sorted by highest RAM usage
                   </div>
                 </div>
                 <span className="rounded-full bg-accent-soft px-2 py-0.5 font-mono text-[10.5px] font-medium text-accent tabular-nums">
-                  {runningCount} aktif
+                  {runningCount} active
                 </span>
               </div>
 
@@ -915,7 +915,7 @@ export function OverviewView({
               </div>
 
               <div className="mt-3 border-t border-border pt-2 text-[11px] text-fg-faint">
-                Klik service untuk membuka grafik lengkap di Workbench
+                Click a service to open full charts in Workbench
               </div>
             </>
           ) : (
@@ -923,19 +923,19 @@ export function OverviewView({
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <div className="text-[12px] font-medium text-fg-muted">
-                    Distribusi Storage
+                    Storage Distribution
                   </div>
                   <div className="mt-0.5 text-[11.5px] text-fg-faint">
                     {storageBreakdown
-                      ? `Total ${formatBytes(storageBreakdown.totalBytes)} lintas ${projectCount} project`
-                      : "Belum ada data storage"}
+                      ? `Total ${formatBytes(storageBreakdown.totalBytes)} across ${projectCount} ${projectCount === 1 ? "project" : "projects"}`
+                      : "No storage data yet"}
                   </div>
                 </div>
                 {serviceCount > 0 ? (
                   <button
                     type="button"
                     onClick={() => void refreshGlobalStorage(true)}
-                    aria-label="Hitung ulang distribusi storage"
+                    aria-label="Recalculate storage distribution"
                     className="btn-press inline-flex h-6 items-center gap-1 rounded-[6px] border border-border-strong bg-surface-2 px-2 text-[10.5px] font-medium text-fg-muted hover:bg-surface-hover hover:text-fg"
                   >
                     <RefreshCw
@@ -992,12 +992,12 @@ export function OverviewView({
                 </div>
               ) : (
                 <div className="my-auto py-4 text-center text-[12px] text-fg-faint">
-                  Tambahkan project untuk melihat distribusi storage.
+                  Add a project to view storage distribution.
                 </div>
               )}
 
               <div className="mt-3 flex items-center justify-between border-t border-border pt-2 font-mono text-[11px] text-fg-faint tabular-nums">
-                <span>Bisa dibersihkan</span>
+                <span>Reclaimable</span>
                 <span className="text-warn">
                   {storageBreakdown
                     ? formatBytes(storageBreakdown.reclaimableBytes)
@@ -1014,7 +1014,7 @@ export function OverviewView({
         <section className="space-y-2.5">
           <div className="flex items-center justify-between">
             <h2 className="text-[12px] font-semibold tracking-wider text-fg-faint uppercase">
-              Aktif & Perlu Perhatian ({attentionEntries.length})
+              Active & Needs Attention ({attentionEntries.length})
             </h2>
           </div>
           <div className="divide-y divide-border overflow-hidden rounded-[10px] border border-border bg-surface">
@@ -1032,11 +1032,11 @@ export function OverviewView({
             </div>
             <div className="min-w-0 flex-1">
               <h2 className="text-[14.5px] font-semibold text-fg">
-                DevDock siap digunakan
+                DevDock is ready
               </h2>
               <p className="mt-1 text-[13px] text-fg-muted">
-                Tambahkan folder project Node.js untuk mendeteksi package manager,
-                framework, dan daftar script secara otomatis.
+                Add a Node.js project folder to automatically detect its package manager,
+                framework, and scripts.
               </p>
               {onAddProject ? (
                 <div className="mt-4">
@@ -1046,7 +1046,7 @@ export function OverviewView({
                     className="btn-press inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[13px] font-semibold text-accent-fg hover:opacity-95"
                   >
                     <FolderPlus className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-                    <span>Tambah Project</span>
+                    <span>Add Project</span>
                   </button>
                 </div>
               ) : null}
@@ -1088,15 +1088,15 @@ export function OverviewView({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Filter service, port…"
-                  aria-label="Filter project atau service"
+                  placeholder="Filter services, ports…"
+                  aria-label="Filter projects or services"
                   className="h-8 w-44 rounded-[7px] border border-border bg-surface pr-7 pl-8 text-[12.5px] text-fg placeholder:text-fg-faint focus:border-info focus:outline-none sm:w-52"
                 />
                 {searchQuery ? (
                   <button
                     type="button"
                     onClick={() => setSearchQuery("")}
-                    aria-label="Hapus pencarian"
+                    aria-label="Clear search"
                     className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-0.5 text-fg-faint hover:text-fg"
                   >
                     <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1109,10 +1109,10 @@ export function OverviewView({
                 <select
                   value={selectedProjectId}
                   onChange={(e) => setSelectedProjectId(e.target.value)}
-                  aria-label="Filter berdasarkan project"
+                  aria-label="Filter by project"
                   className="h-8 rounded-[7px] border border-border bg-surface px-2.5 text-[12.5px] text-fg focus:border-info focus:outline-none"
                 >
-                  <option value="all">Semua Project ({projects.length})</option>
+                  <option value="all">All Projects ({projects.length})</option>
                   {projects.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name} ({p.services.length})
@@ -1125,13 +1125,13 @@ export function OverviewView({
               <div
                 className="inline-flex h-8 items-center rounded-[7px] border border-border bg-surface p-0.5 text-[12px]"
                 role="tablist"
-                aria-label="Filter status service"
+                aria-label="Filter service status"
               >
                 {(
                   [
-                    ["all", "Semua"],
-                    ["running", "Jalan"],
-                    ["issues", "Bermasalah"],
+                    ["all", "All"],
+                    ["running", "Running"],
+                    ["issues", "Issues"],
                   ] as const
                 ).map(([key, label]) => (
                   <button
@@ -1159,7 +1159,7 @@ export function OverviewView({
                   onClick={toggleAllProjectsCollapse}
                   className="btn-press h-8 rounded-[7px] border border-border bg-surface px-2.5 text-[12px] font-medium text-fg-muted hover:border-border-strong hover:text-fg"
                 >
-                  {allCollapsed ? "Expand semua" : "Lipat semua"}
+                  {allCollapsed ? "Expand All" : "Collapse All"}
                 </button>
               ) : null}
 
@@ -1167,13 +1167,13 @@ export function OverviewView({
               <div
                 className="inline-flex h-8 items-center rounded-[7px] border border-border bg-surface p-0.5"
                 role="group"
-                aria-label="Mode tampilan daftar service"
+                aria-label="Service list layout mode"
               >
                 <button
                   type="button"
                   onClick={() => setLayoutMode("grouped")}
                   aria-pressed={layoutMode === "grouped"}
-                  aria-label="Tampilan daftar per project"
+                  aria-label="Grouped list view"
                   title="Grouped List"
                   className={cn(
                     "inline-flex h-6.5 w-7 items-center justify-center rounded-[5px] transition-colors",
@@ -1188,7 +1188,7 @@ export function OverviewView({
                   type="button"
                   onClick={() => setLayoutMode("cards")}
                   aria-pressed={layoutMode === "cards"}
-                  aria-label="Tampilan kartu grid"
+                  aria-label="Cards grid view"
                   title="Cards Grid"
                   className={cn(
                     "inline-flex h-6.5 w-7 items-center justify-center rounded-[5px] transition-colors",
@@ -1206,7 +1206,7 @@ export function OverviewView({
           {/* Content: Empty Filter State / Grouped List / Cards Grid */}
           {filteredEntries.length === 0 ? (
             <div className="rounded-[10px] border border-dashed border-border bg-surface p-8 text-center text-[13px] text-fg-muted">
-              Tidak ada service yang cocok dengan filter saat ini.
+              No services match the current filter.
             </div>
           ) : layoutMode === "grouped" ? (
             <div className="space-y-3">
@@ -1259,8 +1259,8 @@ export function OverviewView({
                           aria-expanded={!isCollapsed}
                           aria-label={
                             isCollapsed
-                              ? `Tampilkan service di ${project.name}`
-                              : `Lipat service di ${project.name}`
+                              ? `Expand services in ${project.name}`
+                              : `Collapse services in ${project.name}`
                           }
                           className="inline-flex h-6 w-6 items-center justify-center rounded-[5px] text-fg-muted hover:bg-surface-hover hover:text-fg"
                         >
@@ -1299,7 +1299,7 @@ export function OverviewView({
                                 : "bg-surface-2 text-fg-muted",
                           )}
                         >
-                          {runningInProj}/{project.services.length} jalan
+                          {runningInProj}/{project.services.length} running
                         </span>
 
                         {firstGit?.branch ? (
@@ -1373,7 +1373,7 @@ export function OverviewView({
                             }
                             className="btn-press h-7 rounded-[6px] border border-border-strong bg-surface px-2.5 text-[11.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
                           >
-                            Buka Project
+                            Open Project
                           </button>
                         ) : null}
                       </div>
@@ -1400,8 +1400,8 @@ export function OverviewView({
                               <Package className="h-3.5 w-3.5 text-fg-faint" aria-hidden="true" />
                               <span>
                                 {showUtilities
-                                  ? `Sembunyikan ${effectiveUtility.length} package lainnya`
-                                  : `+ ${effectiveUtility.length} package lainnya (tanpa script dev/start)`}
+                                  ? `Hide ${effectiveUtility.length} other ${effectiveUtility.length === 1 ? "package" : "packages"}`
+                                  : `+ ${effectiveUtility.length} other ${effectiveUtility.length === 1 ? "package" : "packages"} (no dev/start script)`}
                               </span>
                             </button>
                             {showUtilities ? (
@@ -1494,7 +1494,7 @@ export function OverviewView({
                         </div>
                         <Sparkline
                           values={cpuValues}
-                          label={`Sparkline CPU ${item.service.name}: ${currentCpu.toFixed(1)}%`}
+                          label={`CPU sparkline for ${item.service.name}: ${currentCpu.toFixed(1)}%`}
                           strokeClass={
                             item.status === "crashed"
                               ? "stroke-danger"
@@ -1522,7 +1522,7 @@ export function OverviewView({
                         </p>
                       ) : item.status === "conflict" ? (
                         <p className="mt-2 truncate text-[11.5px] text-warn">
-                          Port :{item.service.port} dipakai {item.conflictProcessName} (PID{" "}
+                          Port :{item.service.port} in use by {item.conflictProcessName} (PID{" "}
                           {item.conflictPid})
                         </p>
                       ) : null}
@@ -1540,7 +1540,7 @@ export function OverviewView({
                         }
                         className="text-[12px] font-medium text-fg-muted hover:text-fg"
                       >
-                        Buka Workbench
+                        Open Workbench
                       </button>
                       {renderServiceActionButtons(item, false)}
                     </div>

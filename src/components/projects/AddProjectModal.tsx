@@ -46,7 +46,7 @@ export function AddProjectModal() {
 
   const handleBrowse = async () => {
     setError(null);
-    const chosen = await pickFolderDialog("Pilih folder project Node.js");
+    const chosen = await pickFolderDialog("Select Node.js project folder");
     if (chosen) {
       setFolder(chosen);
     }
@@ -55,7 +55,7 @@ export function AddProjectModal() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!folder.trim()) {
-      setError("Pilih atau masukkan path folder terlebih dahulu.");
+      setError("Please select or enter a folder path first.");
       return;
     }
     setSubmitting(true);
@@ -78,7 +78,7 @@ export function AddProjectModal() {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Tambah Project atau Service"
+      aria-label="Add Project or Service"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-[1px]"
       onClick={close}
     >
@@ -88,12 +88,12 @@ export function AddProjectModal() {
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="text-[14.5px] font-semibold text-fg">
-            Tambah Folder Project / Service
+            Add Project / Service Folder
           </h2>
           <button
             type="button"
             onClick={close}
-            aria-label="Tutup dialog"
+            aria-label="Close dialog"
             className="btn-press rounded p-1 text-fg-muted hover:bg-surface-hover hover:text-fg"
           >
             <X className="h-4 w-4" aria-hidden="true" />
@@ -114,7 +114,7 @@ export function AddProjectModal() {
                     : "text-fg-muted hover:text-fg",
                 )}
               >
-                Project Baru
+                New Project
               </button>
               <button
                 type="button"
@@ -131,7 +131,7 @@ export function AddProjectModal() {
                     : "text-fg-muted hover:text-fg",
                 )}
               >
-                Gabung ke Project
+                Attach to Project
               </button>
             </div>
           ) : null}
@@ -143,7 +143,7 @@ export function AddProjectModal() {
                 htmlFor="target-project"
                 className="block text-[12px] font-medium text-fg-2"
               >
-                Project Tujuan
+                Target Project
               </label>
               <select
                 id="target-project"
@@ -153,7 +153,7 @@ export function AddProjectModal() {
               >
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} ({p.services.length} service)
+                    {p.name} ({p.services.length} {p.services.length === 1 ? "service" : "services"})
                   </option>
                 ))}
               </select>
@@ -166,7 +166,7 @@ export function AddProjectModal() {
               htmlFor="folder-path"
               className="block text-[12px] font-medium text-fg-2"
             >
-              Folder Project (memiliki package.json)
+              Project Folder (contains package.json)
             </label>
             <div className="flex gap-2">
               <input
@@ -183,7 +183,7 @@ export function AddProjectModal() {
                 className="btn-press flex h-9 shrink-0 items-center gap-1.5 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
               >
                 <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Pilih…</span>
+                <span>Browse…</span>
               </button>
             </div>
           </div>
@@ -195,15 +195,15 @@ export function AddProjectModal() {
               className="block text-[12px] font-medium text-fg-2"
             >
               {mode === "attach"
-                ? "Nama Service (opsional)"
-                : "Nama Project (opsional)"}
+                ? "Service Name (optional)"
+                : "Project Name (optional)"}
             </label>
             <input
               id="display-name"
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Kosongkan untuk pakai nama dari package.json"
+              placeholder="Leave blank to use package.json name"
               className="h-9 w-full rounded-[7px] border border-border-strong bg-surface-2 px-2.5 text-[13px] text-fg placeholder:text-fg-faint"
             />
           </div>
@@ -224,14 +224,14 @@ export function AddProjectModal() {
               onClick={close}
               className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
             >
-              Batal
+              Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
               className="btn-press h-8 rounded-[7px] bg-accent px-3.5 text-[12.5px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
             >
-              {submitting ? "Menyimpan…" : "Tambahkan"}
+              {submitting ? "Saving…" : "Add"}
             </button>
           </div>
         </form>

@@ -35,12 +35,12 @@ export function StatusBar() {
             )}
             aria-hidden="true"
           />
-          <span className="font-mono tabular-nums">{runningCount} jalan</span>
+          <span className="font-mono tabular-nums">{runningCount} running</span>
         </span>
         {crashedCount > 0 ? (
           <span className="flex items-center gap-1.5 text-danger">
             <span className="h-2 w-2 rounded-full bg-danger" aria-hidden="true" />
-            <span className="font-mono tabular-nums">{crashedCount} crash</span>
+            <span className="font-mono tabular-nums">{crashedCount} crashed</span>
           </span>
         ) : null}
         {portConflictCount > 0 ? (
@@ -51,7 +51,7 @@ export function StatusBar() {
           >
             <span className="h-2 w-2 rounded-full bg-warn" aria-hidden="true" />
             <span className="font-mono tabular-nums">
-              {portConflictCount} bentrok port
+              {portConflictCount} port {portConflictCount === 1 ? "conflict" : "conflicts"}
             </span>
           </button>
         ) : null}
@@ -89,8 +89,8 @@ export function StatusBar() {
           onClick={() => setRoute({ kind: "settings" })}
           title={
             proxyStatus?.running
-              ? `Reverse proxy *.localhost aktif di port ${proxyStatus.boundPort}`
-              : "Buka pengaturan reverse proxy"
+              ? `*.localhost reverse proxy active on port ${proxyStatus.boundPort}`
+              : "Open reverse proxy settings"
           }
           className={cn(
             "hidden items-center gap-1 rounded px-1 font-mono sm:flex",

@@ -117,10 +117,10 @@ export function Sidebar({ projectsSlot }: SidebarProps) {
                 aria-hidden="true"
               />
               <p className="text-[12px] text-fg-muted">
-                Belum ada project terdaftar.
+                No projects registered yet.
               </p>
               <p className="mt-0.5 text-[11.5px] text-fg-faint">
-                Klik + Tambah untuk mulai.
+                Click + Add to get started.
               </p>
             </div>
           )}
@@ -148,7 +148,7 @@ export function Sidebar({ projectsSlot }: SidebarProps) {
             className="h-2 w-2 rounded-full bg-accent shadow-[0_0_5px_var(--accent)]"
             aria-hidden="true"
           />
-          <span>Tray aktif</span>
+          <span>Tray active</span>
         </div>
       </div>
     </aside>

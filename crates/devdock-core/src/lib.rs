@@ -991,14 +991,14 @@ impl DevDockCore {
             let script_opt = steps[idx].script.clone();
             if svc.is_missing {
                 steps[idx].state = OrchestrationStepState::Skipped;
-                steps[idx].error = Some("Folder service tidak ditemukan".to_string());
+                steps[idx].error = Some("Service folder not found".to_string());
                 self.processes
                     .emit_event(ProcessEvent::OrchestrationStep(steps[idx].clone()));
                 continue;
             }
             let Some(script) = script_opt else {
                 steps[idx].state = OrchestrationStepState::Skipped;
-                steps[idx].error = Some("Tidak ada script yang dapat dijalankan".to_string());
+                steps[idx].error = Some("No runnable script found".to_string());
                 self.processes
                     .emit_event(ProcessEvent::OrchestrationStep(steps[idx].clone()));
                 continue;

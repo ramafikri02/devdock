@@ -275,7 +275,7 @@ export function ServiceWorkbenchView({
       await runScript(service.id, scriptName);
     } catch (err) {
       pushToast({
-        title: `Gagal menjalankan "${scriptName}"`,
+        title: `Failed to run "${scriptName}"`,
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -295,7 +295,7 @@ export function ServiceWorkbenchView({
       await runScript(service.id, scriptName);
     } catch (err) {
       pushToast({
-        title: "Gagal mengganti port dan menjalankan script",
+        title: "Failed to switch port and run script",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -312,7 +312,7 @@ export function ServiceWorkbenchView({
       await killPortOwner(pid);
       await refreshPorts();
       pushToast({
-        title: `Proses PID ${pid} berhasil dihentikan`,
+        title: `Killed process PID ${pid}`,
         variant: "success",
       });
       setPortConflict(null);
@@ -321,7 +321,7 @@ export function ServiceWorkbenchView({
       }
     } catch (err) {
       pushToast({
-        title: `Gagal menghentikan PID ${pid}`,
+        title: `Failed to kill PID ${pid}`,
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -340,8 +340,8 @@ export function ServiceWorkbenchView({
     const parsed = Number(trimmed);
     if (!Number.isInteger(parsed) || parsed < 1024 || parsed > 65535) {
       pushToast({
-        title: "Port tidak valid",
-        description: "Masukkan angka port antara 1024 hingga 65535.",
+        title: "Invalid port",
+        description: "Enter a port number between 1024 and 65535.",
         variant: "warn",
       });
       return;
@@ -355,7 +355,7 @@ export function ServiceWorkbenchView({
       await stopProcess(processId);
     } catch (err) {
       pushToast({
-        title: "Gagal menghentikan proses",
+        title: "Failed to stop process",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -370,7 +370,7 @@ export function ServiceWorkbenchView({
       await restartProcess(processId);
     } catch (err) {
       pushToast({
-        title: "Gagal me-restart proses",
+        title: "Failed to restart process",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -391,13 +391,13 @@ export function ServiceWorkbenchView({
         : "stopped";
 
   const handleRelocateWithPicker = async () => {
-    const picked = await pickFolderDialog(`Relokasi folder untuk ${service.name}`);
+    const picked = await pickFolderDialog(`Relocate folder for ${service.name}`);
     if (!picked) return;
     try {
       await relocateService(service.id, picked);
     } catch (err) {
       pushToast({
-        title: "Gagal merelokasi folder",
+        title: "Failed to relocate folder",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -411,7 +411,7 @@ export function ServiceWorkbenchView({
       await relocateService(service.id, relocateInput.trim());
     } catch (err) {
       pushToast({
-        title: "Gagal merelokasi folder",
+        title: "Failed to relocate folder",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -425,7 +425,7 @@ export function ServiceWorkbenchView({
       await renameService(service.id, serviceNameInput.trim());
     } catch (err) {
       pushToast({
-        title: "Gagal mengganti nama service",
+        title: "Failed to rename service",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -439,7 +439,7 @@ export function ServiceWorkbenchView({
       await renameProject(project.id, projectNameInput.trim());
     } catch (err) {
       pushToast({
-        title: "Gagal mengganti nama project",
+        title: "Failed to rename project",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -457,7 +457,7 @@ export function ServiceWorkbenchView({
       setNodeRuntime(updated);
     } catch (err) {
       pushToast({
-        title: "Gagal menyimpan override versi Node",
+        title: "Failed to save Node version override",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -466,18 +466,18 @@ export function ServiceWorkbenchView({
 
   const handleInstallNode = async (version: string) => {
     setInstallingNode(true);
-    setInstallProgressLine(`Memasang Node ${version} via fnm…`);
+    setInstallProgressLine(`Installing Node ${version} via fnm…`);
     try {
       const res = await installNodeVersion(version);
       pushToast({
-        title: `Node ${res.version} berhasil dipasang via ${res.manager}`,
+        title: `Installed Node ${res.version} via ${res.manager}`,
         variant: "success",
       });
       const updated = await inspectServiceNodeRuntime(service.id);
       setNodeRuntime(updated);
     } catch (err) {
       pushToast({
-        title: `Gagal memasang Node ${version}`,
+        title: `Failed to install Node ${version}`,
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -501,7 +501,7 @@ export function ServiceWorkbenchView({
                 {service.isMissing ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 text-[11.5px] font-medium text-warn">
                     <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                    Folder tidak ditemukan
+                    Folder not found
                   </span>
                 ) : latestServiceStatus === "running" ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-[11.5px] font-medium text-accent">
@@ -606,7 +606,7 @@ export function ServiceWorkbenchView({
                   <button
                     type="button"
                     onClick={() => void openExternalUrl(serviceProxyRoute.url)}
-                    title={`Buka ${serviceProxyRoute.url}`}
+                    title={`Open ${serviceProxyRoute.url}`}
                     className="btn-press inline-flex items-center gap-1 rounded-[6px] border border-info/35 bg-info-soft px-2 py-0.5 font-mono text-[11.5px] font-medium text-info hover:opacity-90"
                   >
                     <Globe className="h-3 w-3" aria-hidden="true" />
@@ -623,8 +623,8 @@ export function ServiceWorkbenchView({
                     )}
                     title={
                       gitInfo.isDirty
-                        ? `${gitInfo.changedFiles} file berubah`
-                        : "Working tree bersih"
+                        ? `${gitInfo.changedFiles} changed ${gitInfo.changedFiles === 1 ? "file" : "files"}`
+                        : "Clean working tree"
                     }
                   >
                     <GitBranch className="h-3 w-3" aria-hidden="true" />
@@ -650,7 +650,7 @@ export function ServiceWorkbenchView({
                     onClick={() =>
                       void openServiceQuickAction(service.id, "editor").catch((e) =>
                         pushToast({
-                          title: "Gagal membuka Editor",
+                          title: "Failed to open Editor",
                           description: e instanceof Error ? e.message : String(e),
                           variant: "danger",
                         }),
@@ -667,7 +667,7 @@ export function ServiceWorkbenchView({
                     onClick={() =>
                       void openServiceQuickAction(service.id, "terminal").catch((e) =>
                         pushToast({
-                          title: "Gagal membuka Terminal",
+                          title: "Failed to open Terminal",
                           description: e instanceof Error ? e.message : String(e),
                           variant: "danger",
                         }),
@@ -684,7 +684,7 @@ export function ServiceWorkbenchView({
                     onClick={() =>
                       void openServiceQuickAction(service.id, "browser").catch((e) =>
                         pushToast({
-                          title: "Gagal membuka Browser",
+                          title: "Failed to open Browser",
                           description: e instanceof Error ? e.message : String(e),
                           variant: "danger",
                         }),
@@ -702,7 +702,7 @@ export function ServiceWorkbenchView({
                       void openServiceQuickAction(service.id, "file_manager").catch(
                         (e) =>
                           pushToast({
-                            title: "Gagal membuka Finder/Explorer",
+                            title: "Failed to open Finder / Explorer",
                             description: e instanceof Error ? e.message : String(e),
                             variant: "danger",
                           }),
@@ -767,7 +767,7 @@ export function ServiceWorkbenchView({
                 />
                 <div>
                   <p className="text-[13px] font-semibold text-fg">
-                    Folder service tidak ditemukan di disk
+                    Service folder not found on disk
                   </p>
                   <p className="mt-0.5 font-mono text-[11.5px] text-fg-muted">
                     {service.path}
@@ -781,7 +781,7 @@ export function ServiceWorkbenchView({
                   className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] border border-border-strong bg-surface px-3 text-[12.5px] font-medium text-fg hover:bg-surface-hover"
                 >
                   <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Relokasi Folder</span>
+                  <span>Relocate Folder</span>
                 </button>
                 <button
                   type="button"
@@ -789,7 +789,7 @@ export function ServiceWorkbenchView({
                   className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-danger-solid px-3 text-[12.5px] font-semibold text-white hover:opacity-95"
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Hapus</span>
+                  <span>Remove</span>
                 </button>
               </div>
             </div>
@@ -809,8 +809,8 @@ export function ServiceWorkbenchView({
                 <div className="min-w-0">
                   <p className="text-[13px] font-semibold text-fg">
                     {nodeRuntime.status === "missing_in_manager"
-                      ? `Node ${nodeRuntime.requiredVersion} belum terpasang di ${nodeRuntime.versionManager ?? "fnm"}`
-                      : "Versi Node aktif tidak cocok"}
+                      ? `Node ${nodeRuntime.requiredVersion} is not installed in ${nodeRuntime.versionManager ?? "fnm"}`
+                      : "Active Node version mismatch"}
                   </p>
                   <p className="mt-0.5 text-[12px] text-fg-muted">
                     {nodeRuntime.warning}
@@ -836,7 +836,7 @@ export function ServiceWorkbenchView({
                   )}
                   <span>
                     {installingNode
-                      ? "Memasang…"
+                      ? "Installing…"
                       : `Install Node ${nodeRuntime.installTarget} via ${nodeRuntime.versionManager ?? "fnm"}`}
                   </span>
                 </button>
@@ -858,13 +858,13 @@ export function ServiceWorkbenchView({
                   />
                   <div>
                     <p className="text-[13px] font-semibold text-fg">
-                      Bentrok Port :{portConflict.check.port} sebelum menjalankan{" "}
+                      Port :{portConflict.check.port} conflict before running{" "}
                       <span className="font-mono">{portConflict.scriptName}</span>
                     </p>
                     <p className="mt-0.5 text-[12px] text-fg-muted">
                       {portConflict.check.owner ? (
                         <>
-                          Sedang dipakai oleh{" "}
+                          Currently in use by{" "}
                           <span className="font-mono font-medium text-fg">
                             {portConflict.check.owner.processName}
                           </span>{" "}
@@ -875,7 +875,7 @@ export function ServiceWorkbenchView({
                           ).
                         </>
                       ) : (
-                        "Port sedang dipakai oleh proses lain di mesin lokal."
+                        "Port is currently in use by another process on this machine."
                       )}
                     </p>
                   </div>
@@ -890,7 +890,7 @@ export function ServiceWorkbenchView({
                       className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
                     >
                       <Network className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span>Pakai :{portConflict.check.suggestedPort}</span>
+                      <span>Use :{portConflict.check.suggestedPort}</span>
                     </button>
                   ) : null}
                   {portConflict.check.owner ? (
@@ -911,7 +911,7 @@ export function ServiceWorkbenchView({
                     onClick={() => setPortConflict(null)}
                     className="btn-press flex h-8 items-center rounded-[7px] border border-border-strong bg-surface px-3 text-[12px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
                   >
-                    Batal
+                    Cancel
                   </button>
                 </div>
               </div>
@@ -965,7 +965,7 @@ export function ServiceWorkbenchView({
                     className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
                   >
                     <Play className="h-3 w-3 fill-current" aria-hidden="true" />
-                    <span>Jalankan lagi</span>
+                    <span>Run Again</span>
                   </button>
                   <button
                     type="button"
@@ -973,7 +973,7 @@ export function ServiceWorkbenchView({
                     className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] border border-border-strong bg-surface px-2.5 text-[12px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
                   >
                     <TerminalSquare className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span>Log</span>
+                    <span>Logs</span>
                   </button>
                 </div>
               </div>
@@ -1058,8 +1058,8 @@ export function ServiceWorkbenchView({
               {scriptEntries.length === 0 ? (
                 <div className="p-6 text-center text-[13px] text-fg-muted">
                   {service.isMissing
-                    ? "Folder tidak ditemukan. Relokasi folder untuk membaca scripts dari package.json."
-                    : "Tidak ada script ditemukan di package.json."}
+                    ? "Folder not found. Relocate the folder to read scripts from package.json."
+                    : "No scripts found in package.json."}
                 </div>
               ) : (
                 <table className="w-full border-collapse text-left">
@@ -1069,7 +1069,7 @@ export function ServiceWorkbenchView({
                       <th className="px-4 py-2.5">Command</th>
                       <th className="px-4 py-2.5">Status</th>
                       <th className="px-4 py-2.5">Auto-Restart</th>
-                      <th className="px-4 py-2.5 text-right">Aksi</th>
+                      <th className="px-4 py-2.5 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border text-[13px]">
@@ -1167,7 +1167,7 @@ export function ServiceWorkbenchView({
                               type="button"
                               role="switch"
                               aria-checked={autoRestartOn}
-                              aria-label={`Auto-restart untuk ${name}`}
+                              aria-label={`Auto-restart for ${name}`}
                               onClick={() =>
                                 void setScriptAutoRestart(
                                   service.id,
@@ -1239,7 +1239,7 @@ export function ServiceWorkbenchView({
                                     service.isMissing || busyAction !== null
                                   }
                                   onClick={() => void handleRunScript(name)}
-                                  title={`Jalankan via ${effectivePm} run ${name}`}
+                                  title={`Run via ${effectivePm} run ${name}`}
                                   className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] bg-accent px-2.5 text-[11.5px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-45"
                                 >
                                   <Play
@@ -1258,8 +1258,8 @@ export function ServiceWorkbenchView({
                                       activeRun?.id ?? latestRun.id,
                                     )
                                   }
-                                  title="Lihat log proses"
-                                  aria-label={`Lihat log ${name}`}
+                                  title="View process logs"
+                                  aria-label={`View logs for ${name}`}
                                   className="btn-press inline-flex h-7 items-center justify-center rounded-[6px] border border-border-strong bg-surface-2 px-2 text-fg-muted hover:bg-surface-hover hover:text-fg"
                                 >
                                   <TerminalSquare
@@ -1302,10 +1302,10 @@ export function ServiceWorkbenchView({
                   htmlFor="rename-service-input"
                   className="block text-[13px] font-semibold text-fg"
                 >
-                  Nama Service
+                  Service Name
                 </label>
                 <p className="mt-0.5 text-[12px] text-fg-muted">
-                  Nama tampilan di sidebar & workbench (tidak mengubah package.json).
+                  Display name in the sidebar & workbench (does not modify package.json).
                 </p>
                 <div className="mt-3 flex gap-2">
                   <input
@@ -1319,7 +1319,7 @@ export function ServiceWorkbenchView({
                     type="submit"
                     className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg hover:bg-surface-hover"
                   >
-                    Simpan
+                    Save
                   </button>
                 </div>
               </form>
@@ -1333,7 +1333,7 @@ export function ServiceWorkbenchView({
                   htmlFor="rename-project-input"
                   className="block text-[13px] font-semibold text-fg"
                 >
-                  Nama Project Induk
+                  Parent Project Name
                 </label>
                 <div className="mt-3 flex gap-2">
                   <input
@@ -1347,7 +1347,7 @@ export function ServiceWorkbenchView({
                     type="submit"
                     className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg hover:bg-surface-hover"
                   >
-                    Simpan
+                    Save
                   </button>
                 </div>
               </form>
@@ -1361,9 +1361,9 @@ export function ServiceWorkbenchView({
                   Package Manager
                 </label>
                 <p className="mt-0.5 text-[12px] text-fg-muted">
-                  Terdeteksi otomatis:{" "}
+                  Auto-detected:{" "}
                   <span className="font-mono text-fg-2">{service.detectedPm}</span>.
-                  Override jika deteksi tidak sesuai.
+                  Override if detection is inaccurate.
                 </p>
                 <select
                   id="pm-override-select"
@@ -1394,17 +1394,17 @@ export function ServiceWorkbenchView({
                   htmlFor="node-version-override-input"
                   className="block text-[13px] font-semibold text-fg"
                 >
-                  Versi Node.js
+                  Node.js Version
                 </label>
                 <p className="mt-0.5 text-[12px] text-fg-muted">
-                  Prioritas deteksi:{" "}
+                  Detection priority:{" "}
                   <span className="font-mono text-fg-2">.nvmrc</span> →{" "}
                   <span className="font-mono text-fg-2">.node-version</span> →{" "}
                   <span className="font-mono text-fg-2">engines.node</span>.
                   {nodeRuntime?.detectedVersion ? (
                     <>
                       {" "}
-                      Terdeteksi:{" "}
+                      Detected:{" "}
                       <span className="font-mono text-fg-2">
                         {nodeRuntime.detectedVersion} (
                         {NODE_SOURCE_LABELS[nodeRuntime.detectedSource]})
@@ -1412,7 +1412,7 @@ export function ServiceWorkbenchView({
                       .
                     </>
                   ) : (
-                    " Tidak ada file versi Node di folder ini."
+                    " No Node version file found in this folder."
                   )}
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -1421,12 +1421,12 @@ export function ServiceWorkbenchView({
                     type="text"
                     value={nodeOverrideInput}
                     onChange={(e) => setNodeOverrideInput(e.target.value)}
-                    placeholder="Auto (kosongkan) atau mis. 20.11.1 / 22"
+                    placeholder="Auto (blank) or e.g. 20.11.1 / 22"
                     className="h-8 w-64 rounded-[7px] border border-border-strong bg-surface-2 px-2.5 font-mono text-[12.5px] text-fg"
                   />
                   {nodeRuntime && nodeRuntime.installedVersions.length > 0 ? (
                     <select
-                      aria-label="Pilih versi Node terpasang di fnm"
+                      aria-label="Select Node version installed in fnm"
                       value=""
                       onChange={(e) => {
                         if (e.target.value) {
@@ -1435,7 +1435,7 @@ export function ServiceWorkbenchView({
                       }}
                       className="h-8 rounded-[7px] border border-border-strong bg-surface-2 px-2.5 font-mono text-[12px] text-fg-2"
                     >
-                      <option value="">Terpasang di fnm…</option>
+                      <option value="">Installed in fnm…</option>
                       {nodeRuntime.installedVersions.map((ver) => (
                         <option key={ver} value={ver}>
                           {ver}
@@ -1447,7 +1447,7 @@ export function ServiceWorkbenchView({
                     type="submit"
                     className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg hover:bg-surface-hover"
                   >
-                    Simpan
+                    Save
                   </button>
                   {service.nodeVersionOverride ? (
                     <button
@@ -1458,7 +1458,7 @@ export function ServiceWorkbenchView({
                       }}
                       className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface px-2.5 text-[12px] text-fg-muted hover:bg-surface-hover hover:text-fg"
                     >
-                      Reset ke Auto
+                      Reset to Auto
                     </button>
                   ) : null}
                 </div>
@@ -1498,10 +1498,10 @@ export function ServiceWorkbenchView({
                   htmlFor="service-port-input"
                   className="block text-[13px] font-semibold text-fg"
                 >
-                  Port & Metode Injeksi
+                  Port & Injection Method
                 </label>
                 <p className="mt-0.5 text-[12px] text-fg-muted">
-                  Port persisten disuntikkan otomatis sesuai framework ({FRAMEWORK_LABELS[service.detectedFramework]}).
+                  Persistent port injected automatically for {FRAMEWORK_LABELS[service.detectedFramework]}.
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <input
@@ -1511,11 +1511,11 @@ export function ServiceWorkbenchView({
                     max={65535}
                     value={portInput}
                     onChange={(e) => setPortInput(e.target.value)}
-                    placeholder="Auto (default framework)"
+                    placeholder="Auto (framework default)"
                     className="h-8 w-44 rounded-[7px] border border-border-strong bg-surface-2 px-2.5 font-mono text-[12.5px] text-fg tabular-nums"
                   />
                   <select
-                    aria-label="Metode injeksi port"
+                    aria-label="Port injection method"
                     value={service.portInjection ?? "auto"}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -1526,23 +1526,23 @@ export function ServiceWorkbenchView({
                     }}
                     className="h-8 rounded-[7px] border border-border-strong bg-surface-2 px-2.5 text-[12.5px] text-fg"
                   >
-                    <option value="auto">Injeksi: Auto (Framework)</option>
-                    <option value="env">PORT env var saja</option>
-                    <option value="flag">--port CLI flag saja</option>
+                    <option value="auto">Injection: Auto (Framework)</option>
+                    <option value="env">PORT env var only</option>
+                    <option value="flag">--port CLI flag only</option>
                     <option value="both">PORT env + --port flag</option>
                   </select>
                   <button
                     type="submit"
                     className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg hover:bg-surface-hover"
                   >
-                    Simpan
+                    Save
                   </button>
                   <button
                     type="button"
                     onClick={() => void assignNextFreePort(service.id)}
                     className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface px-2.5 text-[12px] text-fg-2 hover:bg-surface-hover hover:text-fg"
                   >
-                    Cari Port Kosong
+                    Find Free Port
                   </button>
                 </div>
               </form>
@@ -1556,7 +1556,7 @@ export function ServiceWorkbenchView({
                   htmlFor="relocate-path-input"
                   className="block text-[13px] font-semibold text-fg"
                 >
-                  Lokasi Folder di Disk
+                  Folder Location on Disk
                 </label>
                 <div className="mt-3 flex gap-2">
                   <input
@@ -1572,13 +1572,13 @@ export function ServiceWorkbenchView({
                     className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
                   >
                     <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span>Pilih…</span>
+                    <span>Browse…</span>
                   </button>
                   <button
                     type="submit"
                     className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg hover:bg-surface-hover"
                   >
-                    Simpan
+                    Save
                   </button>
                 </div>
               </form>
@@ -1586,10 +1586,10 @@ export function ServiceWorkbenchView({
               {/* Danger zone */}
               <div className="rounded-[10px] border border-danger/35 bg-surface p-4">
                 <h3 className="text-[13px] font-semibold text-danger">
-                  Hapus dari DevDock
+                  Remove from DevDock
                 </h3>
                 <p className="mt-0.5 text-[12px] text-fg-muted">
-                  Menghapus hanya mencabut pendaftaran di DevDock. Folder dan file kode di disk tidak akan dihapus.
+                  Removing only unregisters this entry from DevDock. Your folders and code files on disk will not be deleted.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
@@ -1598,7 +1598,7 @@ export function ServiceWorkbenchView({
                     className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] border border-danger/50 bg-danger-soft px-3 text-[12.5px] font-medium text-danger hover:bg-danger-solid hover:text-white"
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span>Hapus Service</span>
+                    <span>Remove Service</span>
                   </button>
                   {!isSingleServiceProject ? (
                     <button
@@ -1607,7 +1607,7 @@ export function ServiceWorkbenchView({
                       className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-danger-solid px-3 text-[12.5px] font-semibold text-white hover:opacity-95"
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span>Hapus Seluruh Project ({project.name})</span>
+                      <span>Remove Entire Project ({project.name})</span>
                     </button>
                   ) : null}
                 </div>
@@ -1624,17 +1624,17 @@ export function ServiceWorkbenchView({
         </h2>
         <div className="mt-3 space-y-2.5">
           <MetricChartCard
-            title="CPU Pohon Proses"
+            title="Process Tree CPU"
             currentText={`${chartData.currentCpu.toFixed(1)}%`}
             peakText={`${Math.max(0, ...chartData.cpu).toFixed(1)}%`}
-            statusText={activeServiceProcesses.length > 0 ? "Aktif · 2s" : "Idle"}
+            statusText={activeServiceProcesses.length > 0 ? "Active · 2s" : "Idle"}
             values={chartData.cpu}
             strokeColorVar="var(--info)"
             paused={chartsPaused}
             onTogglePause={handleToggleChartsPause}
           />
           <MetricChartCard
-            title="RAM Pohon Proses"
+            title="Process Tree RAM"
             currentText={
               chartData.currentRam > 0 ? formatBytes(chartData.currentRam) : "0 MB"
             }
@@ -1643,7 +1643,7 @@ export function ServiceWorkbenchView({
                 ? formatBytes(Math.max(0, ...chartData.ram))
                 : "0 MB"
             }
-            statusText={activeServiceProcesses.length > 0 ? "Aktif · 2s" : "Idle"}
+            statusText={activeServiceProcesses.length > 0 ? "Active · 2s" : "Idle"}
             values={chartData.ram}
             strokeColorVar="var(--accent)"
             paused={chartsPaused}
@@ -1715,7 +1715,7 @@ export function ServiceWorkbenchView({
             <span className="text-fg-muted">Auto-Restart</span>
             <span className="font-mono text-fg tabular-nums">
               {service.autoRestartScripts.length > 0
-                ? `${service.autoRestartScripts.length} script (3×/60d)`
+                ? `${service.autoRestartScripts.length} ${service.autoRestartScripts.length === 1 ? "script" : "scripts"} (3×/60s)`
                 : "Off"}
             </span>
           </div>
@@ -1726,7 +1726,7 @@ export function ServiceWorkbenchView({
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-fg-muted">Proses Aktif</span>
+            <span className="text-fg-muted">Active Processes</span>
             <span
               className={cn(
                 "font-mono tabular-nums",
@@ -1750,14 +1750,14 @@ export function ServiceWorkbenchView({
             </div>
           ) : null}
           <div className="flex items-center justify-between">
-            <span className="text-fg-muted">Status Folder</span>
+            <span className="text-fg-muted">Folder Status</span>
             <span
               className={cn(
                 "font-medium",
                 service.isMissing ? "text-warn" : "text-accent",
               )}
             >
-              {service.isMissing ? "Missing" : "Tersedia"}
+              {service.isMissing ? "Missing" : "Available"}
             </span>
           </div>
         </div>
@@ -1791,7 +1791,7 @@ export function ServiceWorkbenchView({
                 onClick={() => setTab("storage")}
                 className="btn-press mt-2 w-full rounded-[6px] border border-border-strong bg-surface-2 py-1.5 text-center text-[11.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
               >
-                Kelola Storage
+                Manage Storage
               </button>
             </>
           ) : (
@@ -1804,11 +1804,11 @@ export function ServiceWorkbenchView({
         open={confirmRemoveTarget !== null}
         title={
           confirmRemoveTarget === "project"
-            ? `Hapus project "${project.name}"?`
-            : `Hapus service "${service.name}"?`
+            ? `Remove project "${project.name}"?`
+            : `Remove service "${service.name}"?`
         }
-        description="Tindakan ini hanya menghapus entri dari DevDock. Folder dan file kode asli Anda di disk tidak akan disentuh."
-        confirmLabel="Hapus dari DevDock"
+        description="This only removes the entry from DevDock. Your folders and code files on disk will not be touched."
+        confirmLabel="Remove from DevDock"
         onCancel={() => setConfirmRemoveTarget(null)}
         onConfirm={() => {
           const target = confirmRemoveTarget;
@@ -1824,11 +1824,11 @@ export function ServiceWorkbenchView({
         open={confirmKillConflictPid !== null}
         title={
           confirmKillConflictPid !== null
-            ? `Kill proses PID ${confirmKillConflictPid}?`
+            ? `Kill process PID ${confirmKillConflictPid}?`
             : ""
         }
-        description="Proses pemilik port akan dihentikan (SIGTERM lalu SIGKILL) agar port dapat langsung digunakan oleh service ini."
-        confirmLabel="Kill & Jalankan"
+        description="The process holding this port will be terminated (SIGTERM followed by SIGKILL) so this service can use the port immediately."
+        confirmLabel="Kill & Run"
         onCancel={() => setConfirmKillConflictPid(null)}
         onConfirm={() => {
           if (confirmKillConflictPid !== null) {

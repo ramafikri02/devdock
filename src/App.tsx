@@ -231,7 +231,7 @@ export default function App() {
         <div
           role="alertdialog"
           aria-modal="true"
-          aria-label="Konfirmasi keluar DevDock"
+          aria-label="Confirm quit DevDock"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]"
           onClick={() => {
             if (!quitBusy) setQuitActiveCount(null);
@@ -248,20 +248,20 @@ export default function App() {
               <div>
                 <h2 className="text-[15px] font-semibold text-fg">
                   {quitActiveCount > 0
-                    ? "Hentikan semua proses sebelum keluar?"
-                    : "Keluar dari DevDock?"}
+                    ? "Stop all processes before quitting?"
+                    : "Quit DevDock?"}
                 </h2>
                 {quitActiveCount > 0 ? (
                   <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">
-                    Saat ini ada{" "}
+                    There {quitActiveCount === 1 ? "is" : "are"} currently{" "}
                     <span className="font-mono font-semibold text-fg tabular-nums">
                       {quitActiveCount}
                     </span>{" "}
-                    proses yang masih berjalan. Anda dapat menghentikan seluruh pohon proses atau membiarkannya tetap berjalan di latar belakang.
+                    running {quitActiveCount === 1 ? "process" : "processes"}. You can stop the entire process tree or leave {quitActiveCount === 1 ? "it" : "them"} running in the background.
                   </p>
                 ) : (
                   <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">
-                    DevDock akan ditutup sepenuhnya dan berhenti berjalan di latar belakang. Jika hanya ingin menyembunyikan jendela, tutup dengan tombol X agar tetap aktif di menu bar.
+                    DevDock will close completely and stop running in the background. To keep it active in the menu bar, close the window with the close button instead.
                   </p>
                 )}
               </div>
@@ -273,7 +273,7 @@ export default function App() {
                 onClick={() => setQuitActiveCount(null)}
                 className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg disabled:opacity-50"
               >
-                Batal
+                Cancel
               </button>
               {quitActiveCount > 0 ? (
                 <>
@@ -286,7 +286,7 @@ export default function App() {
                     }}
                     className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg hover:bg-surface-hover disabled:opacity-50"
                   >
-                    Biarkan Jalan & Keluar
+                    Leave Running & Quit
                   </button>
                   <button
                     type="button"
@@ -297,7 +297,7 @@ export default function App() {
                     }}
                     className="btn-press h-8 rounded-[7px] bg-danger-solid px-3 text-[12.5px] font-semibold text-white hover:opacity-95 disabled:opacity-50"
                   >
-                    Stop Semua & Keluar
+                    Stop All & Quit
                   </button>
                 </>
               ) : (
@@ -310,7 +310,7 @@ export default function App() {
                   }}
                   className="btn-press h-8 rounded-[7px] bg-danger-solid px-3 text-[12.5px] font-semibold text-white hover:opacity-95 disabled:opacity-50"
                 >
-                  Keluar DevDock
+                  Quit DevDock
                 </button>
               )}
             </div>

@@ -73,7 +73,7 @@ export function ScanFolderModal() {
 
   const runScan = async (targetPath: string, targetDepth: number) => {
     if (!targetPath.trim()) {
-      setError("Pilih folder induk terlebih dahulu.");
+      setError("Please select a parent folder first.");
       return;
     }
     setScanning(true);
@@ -113,7 +113,7 @@ export function ScanFolderModal() {
   };
 
   const handleBrowse = async () => {
-    const picked = await pickFolderDialog("Pilih folder induk untuk di-scan");
+    const picked = await pickFolderDialog("Select parent folder to scan");
     if (picked) {
       setRootPath(picked);
       void runScan(picked, depth);
@@ -199,7 +199,7 @@ export function ScanFolderModal() {
         setRoute({ kind: "project", projectId: lastProjectId });
       }
       pushToast({
-        title: `${createdCount} project berhasil didaftarkan`,
+        title: `Registered ${createdCount} ${createdCount === 1 ? "project" : "projects"}`,
         variant: "success",
       });
       close();
@@ -213,12 +213,12 @@ export function ScanFolderModal() {
   const handleGroupSelected = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!groupName.trim()) {
-      setError("Masukkan nama project untuk grup ini (mis. LMS App).");
+      setError("Enter a project name for this group (e.g. LMS App).");
       return;
     }
     const folders = Array.from(selectedServices);
     if (folders.length < 2) {
-      setError("Pilih minimal 2 folder service untuk digabung menjadi 1 Project.");
+      setError("Select at least 2 service folders to group into 1 project.");
       return;
     }
 
@@ -229,7 +229,7 @@ export function ScanFolderModal() {
       await loadProjects();
       setRoute({ kind: "project", projectId: project.id });
       pushToast({
-        title: `Project "${project.name}" (${project.services.length} service) dibuat`,
+        title: `Project "${project.name}" (${project.services.length} services) created`,
         variant: "success",
       });
       close();
@@ -257,13 +257,13 @@ export function ScanFolderModal() {
           <div className="flex items-center gap-2">
             <FolderSearch className="h-4 w-4 text-info" aria-hidden="true" />
             <h2 className="text-[14.5px] font-semibold text-fg">
-              Scan Folder Induk
+              Scan Parent Folder
             </h2>
           </div>
           <button
             type="button"
             onClick={close}
-            aria-label="Tutup dialog"
+            aria-label="Close dialog"
             className="btn-press rounded p-1 text-fg-muted hover:bg-surface-hover hover:text-fg"
           >
             <X className="h-4 w-4" aria-hidden="true" />
@@ -278,7 +278,7 @@ export function ScanFolderModal() {
                 htmlFor="scan-root-path"
                 className="block text-[12px] font-medium text-fg-2"
               >
-                Folder Induk
+                Parent Folder
               </label>
               <div className="flex gap-2">
                 <input
@@ -295,7 +295,7 @@ export function ScanFolderModal() {
                   className="btn-press flex h-8.5 shrink-0 items-center gap-1.5 rounded-[7px] border border-border-strong bg-surface px-3 text-[12.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
                 >
                   <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Pilih…</span>
+                  <span>Browse…</span>
                 </button>
               </div>
             </div>
@@ -305,7 +305,7 @@ export function ScanFolderModal() {
                 htmlFor="scan-depth"
                 className="block text-[12px] font-medium text-fg-2"
               >
-                Kedalaman
+                Depth
               </label>
               <select
                 id="scan-depth"
@@ -315,7 +315,7 @@ export function ScanFolderModal() {
               >
                 {[1, 2, 3, 4, 5, 6].map((d) => (
                   <option key={d} value={d}>
-                    {d} level
+                    {d} {d === 1 ? "level" : "levels"}
                   </option>
                 ))}
               </select>
@@ -327,14 +327,14 @@ export function ScanFolderModal() {
               onClick={() => void runScan(rootPath, depth)}
               className="btn-press h-8.5 rounded-[7px] bg-accent px-3.5 text-[12.5px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
             >
-              {scanning ? "Memindai…" : "Mulai Scan"}
+              {scanning ? "Scanning…" : "Start Scan"}
             </button>
           </div>
           <p className="mt-2 text-[11.5px] text-fg-faint">
-            Otomatis melewati <code className="font-mono">node_modules</code>,{" "}
+            Automatically skips <code className="font-mono">node_modules</code>,{" "}
             <code className="font-mono">.git</code>,{" "}
             <code className="font-mono">dist</code>,{" "}
-            <code className="font-mono">.next</code>, dan mendeteksi monorepo{" "}
+            <code className="font-mono">.next</code>, and detects monorepo{" "}
             <code className="font-mono">workspaces</code> /{" "}
             <code className="font-mono">pnpm-workspace.yaml</code>.
           </p>
@@ -355,7 +355,7 @@ export function ScanFolderModal() {
           {scanning ? (
             <div className="space-y-3" aria-busy="true" aria-live="polite">
               <p className="text-[12.5px] text-fg-muted">
-                Memindai folder hingga kedalaman {depth}…
+                Scanning folders up to depth {depth}…
               </p>
               {[1, 2, 3, 4].map((i) => (
                 <div
@@ -367,24 +367,24 @@ export function ScanFolderModal() {
           ) : result ? (
             result.candidates.length === 0 ? (
               <div className="py-10 text-center text-[13px] text-fg-muted">
-                Tidak ada codebase Node.js ditemukan di folder ini (memindai{" "}
+                No Node.js codebases found in this folder (scanned{" "}
                 <span className="font-mono tabular-nums">{result.scannedDirs}</span>{" "}
-                direktori).
+                directories).
               </div>
             ) : (
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between text-[12px] text-fg-muted">
                   <span>
-                    Ditemukan{" "}
+                    Found{" "}
                     <strong className="font-mono text-fg tabular-nums">
                       {result.candidates.length}
                     </strong>{" "}
-                    kandidat dari{" "}
+                    {result.candidates.length === 1 ? "candidate" : "candidates"} across{" "}
                     <span className="font-mono tabular-nums">{result.scannedDirs}</span>{" "}
-                    direktori
+                    directories
                   </span>
                   <span className="font-mono text-[11.5px] text-fg-faint tabular-nums">
-                    {totalSelectedCount} dipilih
+                    {totalSelectedCount} selected
                   </span>
                 </div>
 
@@ -417,7 +417,7 @@ export function ScanFolderModal() {
                               {c.alreadyRegistered ? (
                                 <span className="inline-flex items-center gap-1 rounded bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-medium text-accent">
                                   <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                                  Sudah terdaftar
+                                  Already registered
                                 </span>
                               ) : null}
                             </div>
@@ -457,7 +457,7 @@ export function ScanFolderModal() {
                                   </span>
                                 </span>
                                 {pkg.alreadyRegistered ? (
-                                  <span className="text-[11px] text-accent">Terdaftar</span>
+                                  <span className="text-[11px] text-accent">Registered</span>
                                 ) : (
                                   <span className="font-mono text-[11px] text-fg-faint tabular-nums">
                                     {pkg.scriptCount} scripts
@@ -506,7 +506,7 @@ export function ScanFolderModal() {
                           {c.alreadyRegistered ? (
                             <span className="inline-flex items-center gap-1 rounded bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-medium text-accent">
                               <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                              Sudah terdaftar
+                              Already registered
                             </span>
                           ) : null}
                         </div>
@@ -521,7 +521,7 @@ export function ScanFolderModal() {
             )
           ) : (
             <div className="py-10 text-center text-[13px] text-fg-muted">
-              Pilih folder induk lalu klik <strong>Mulai Scan</strong> untuk menemukan seluruh project Node.js dan monorepo.
+              Select a parent folder and click <strong>Start Scan</strong> to discover Node.js projects and monorepos.
             </div>
           )}
         </div>
@@ -539,7 +539,7 @@ export function ScanFolderModal() {
                   autoFocus
                   value={groupName}
                   onChange={(e) => setGroupName(e.target.value)}
-                  placeholder="Nama Project gabungan (mis. LMS App)"
+                  placeholder="Grouped project name (e.g. LMS App)"
                   className="h-8 min-w-0 flex-1 rounded-[7px] border border-border-strong bg-surface px-2.5 text-[13px] text-fg placeholder:text-fg-faint"
                 />
                 <button
@@ -547,7 +547,7 @@ export function ScanFolderModal() {
                   onClick={() => setGroupMode(false)}
                   className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface px-3 text-[12.5px] font-medium text-fg-2 hover:bg-surface-hover"
                 >
-                  Batal
+                  Cancel
                 </button>
                 <button
                   type="submit"
@@ -555,16 +555,16 @@ export function ScanFolderModal() {
                   className="btn-press h-8 rounded-[7px] bg-accent px-3.5 text-[12.5px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
                 >
                   {saving
-                    ? "Menyimpan…"
-                    : `Buat 1 Project (${selectedServices.size} folder)`}
+                    ? "Saving…"
+                    : `Create 1 Project (${selectedServices.size} folders)`}
                 </button>
               </form>
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-[12px] text-fg-muted">
                   {selectedServices.size >= 2
-                    ? `${selectedServices.size} folder standalone dipilih — bisa digabung jadi 1 Project.`
-                    : "Pilih kandidat yang ingin didaftarkan ke DevDock."}
+                    ? `${selectedServices.size} standalone folders selected — can be grouped into 1 project.`
+                    : "Select candidates to register in DevDock."}
                 </span>
                 <div className="flex items-center gap-2">
                   {selectedServices.size >= 2 ? (
@@ -574,7 +574,7 @@ export function ScanFolderModal() {
                       onClick={() => setGroupMode(true)}
                       className="btn-press h-8 rounded-[7px] border border-info/50 bg-info-soft px-3 text-[12.5px] font-medium text-info hover:opacity-95"
                     >
-                      Gabung jadi 1 Project ({selectedServices.size})
+                      Group into 1 Project ({selectedServices.size})
                     </button>
                   ) : null}
                   <button
@@ -583,7 +583,7 @@ export function ScanFolderModal() {
                     onClick={() => void handleRegisterSeparately()}
                     className="btn-press h-8 rounded-[7px] bg-accent px-3.5 text-[12.5px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
                   >
-                    {saving ? "Menyimpan…" : `Daftarkan Terpisah (${totalSelectedCount})`}
+                    {saving ? "Saving…" : `Register Separately (${totalSelectedCount})`}
                   </button>
                 </div>
               </div>

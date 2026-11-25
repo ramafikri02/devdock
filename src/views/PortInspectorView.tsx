@@ -126,7 +126,7 @@ export function PortInspectorView() {
     try {
       await killPortOwner(target.pid);
       pushToast({
-        title: `Port ${target.port} berhasil dibebaskan (PID ${target.pid} dihentikan)`,
+        title: `Freed port ${target.port} (killed PID ${target.pid})`,
         variant: "success",
       });
       setSelectedKeys((prev) => {
@@ -141,7 +141,7 @@ export function PortInspectorView() {
       await refreshPorts();
     } catch (err) {
       pushToast({
-        title: `Gagal menghentikan PID ${target.pid}`,
+        title: `Failed to kill PID ${target.pid}`,
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -164,17 +164,17 @@ export function PortInspectorView() {
 
       if (failed === 0) {
         pushToast({
-          title: `${succeeded} proses berhasil dihentikan`,
+          title: `Killed ${succeeded} ${succeeded === 1 ? "process" : "processes"}`,
           variant: "success",
         });
       } else if (succeeded > 0) {
         pushToast({
-          title: `${succeeded} proses dihentikan, ${failed} gagal`,
+          title: `Killed ${succeeded} ${succeeded === 1 ? "process" : "processes"}, ${failed} failed`,
           variant: "warn",
         });
       } else {
         pushToast({
-          title: `Gagal menghentikan ${failed} proses terpilih`,
+          title: `Failed to kill ${failed} selected ${failed === 1 ? "process" : "processes"}`,
           variant: "danger",
         });
       }
@@ -195,16 +195,16 @@ export function PortInspectorView() {
             Port Inspector
           </h1>
           <p className="mt-0.5 text-[13px] text-fg-muted">
-            <span className="font-mono tabular-nums">{entries.length}</span> port TCP lokal aktif
+            <span className="font-mono tabular-nums">{entries.length}</span> active local TCP {entries.length === 1 ? "port" : "ports"}
             {conflictCount > 0 ? (
               <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 font-mono text-[11.5px] font-medium text-warn tabular-nums">
                 <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                {conflictCount} bentrok
+                {conflictCount} {conflictCount === 1 ? "conflict" : "conflicts"}
               </span>
             ) : (
               <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[11.5px] font-medium text-accent">
                 <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                Tidak ada bentrok
+                No conflicts
               </span>
             )}
           </p>
@@ -229,14 +229,14 @@ export function PortInspectorView() {
         <div
           className="inline-flex rounded-[8px] border border-border bg-surface p-0.5 text-[12.5px]"
           role="tablist"
-          aria-label="Filter port"
+          aria-label="Filter ports"
         >
           {(
             [
-              ["all", `Semua (${entries.length})`],
-              ["conflicts", `Bentrok (${conflictCount})`],
+              ["all", `All (${entries.length})`],
+              ["conflicts", `Conflicts (${conflictCount})`],
               ["devdock", "DevDock"],
-              ["external", "Eksternal"],
+              ["external", "External"],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -266,8 +266,8 @@ export function PortInspectorView() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari port, PID, proses…"
-            aria-label="Cari port, PID, atau nama proses"
+            placeholder="Search port, PID, process…"
+            aria-label="Search port, PID, or process name"
             className="h-8 w-full rounded-[7px] border border-border-strong bg-surface-2 pr-3 pl-8 text-[12.5px] text-fg placeholder:text-fg-faint"
           />
         </div>
@@ -281,7 +281,7 @@ export function PortInspectorView() {
               {selectedEntries.length}
             </span>
             <span className="text-fg-muted">
-              port dipilih ({uniqueSelectedPids.length} proses unik)
+              {selectedEntries.length === 1 ? "port" : "ports"} selected ({uniqueSelectedPids.length} unique {uniqueSelectedPids.length === 1 ? "process" : "processes"})
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -292,7 +292,7 @@ export function PortInspectorView() {
               className="btn-press inline-flex h-7 items-center gap-1 rounded-[6px] border border-border-strong bg-surface-2 px-2.5 text-[11.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg disabled:opacity-45"
             >
               <X className="h-3 w-3" aria-hidden="true" />
-              <span>Batal</span>
+              <span>Cancel</span>
             </button>
             <button
               type="button"
@@ -304,7 +304,7 @@ export function PortInspectorView() {
               <span>
                 {killingBulk
                   ? "Killing…"
-                  : `Kill Terpilih (${uniqueSelectedPids.length})`}
+                  : `Kill Selected (${uniqueSelectedPids.length})`}
               </span>
             </button>
           </div>
@@ -322,8 +322,8 @@ export function PortInspectorView() {
             />
             <p className="text-[13px] font-medium text-fg">
               {portsLoading
-                ? "Memindai port lokal…"
-                : "Tidak ada port listening yang cocok dengan filter."}
+                ? "Scanning local ports…"
+                : "No listening ports match the current filter."}
             </p>
           </div>
         ) : (
@@ -337,16 +337,16 @@ export function PortInspectorView() {
                     checked={allFilteredSelected}
                     disabled={killingBulk || filtered.length === 0}
                     onChange={toggleSelectAllFiltered}
-                    aria-label="Pilih semua port yang ditampilkan"
+                    aria-label="Select all displayed ports"
                     className="h-3.5 w-3.5 cursor-pointer rounded border-border-strong accent-accent align-middle"
                   />
                 </th>
                 <th className="px-4 py-2.5">Port</th>
-                <th className="px-4 py-2.5">Proses</th>
+                <th className="px-4 py-2.5">Process</th>
                 <th className="px-4 py-2.5">PID</th>
-                <th className="px-4 py-2.5">Pemilik</th>
+                <th className="px-4 py-2.5">Owner</th>
                 <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5 text-right">Aksi</th>
+                <th className="px-4 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-[13px]">
@@ -368,7 +368,7 @@ export function PortInspectorView() {
                       checked={isSelected}
                       disabled={killingBulk}
                       onChange={() => toggleRowSelection(entry)}
-                      aria-label={`Pilih port :${entry.port} PID ${entry.pid}`}
+                      aria-label={`Select port :${entry.port} PID ${entry.pid}`}
                       className="h-3.5 w-3.5 cursor-pointer rounded border-border-strong accent-accent align-middle"
                     />
                   </td>
@@ -391,7 +391,7 @@ export function PortInspectorView() {
                       </span>
                     ) : (
                       <span className="inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 text-[11.5px] font-medium text-fg-muted">
-                        Eksternal
+                        External
                       </span>
                     )}
                   </td>
@@ -399,7 +399,7 @@ export function PortInspectorView() {
                     {entry.isConflict ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 text-[11.5px] font-medium text-warn">
                         <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                        Bentrok dengan {entry.conflictServiceName}
+                        Conflicts with {entry.conflictServiceName}
                       </span>
                     ) : (
                       <span className="text-[12px] text-fg-muted">Listening</span>
@@ -428,27 +428,27 @@ export function PortInspectorView() {
         open={killTarget !== null}
         title={
           killTarget
-            ? `Hentikan proses ${killTarget.processName} (PID ${killTarget.pid})?`
+            ? `Kill process ${killTarget.processName} (PID ${killTarget.pid})?`
             : ""
         }
         description={
           killTarget
-            ? `Port :${killTarget.port} sedang dipakai oleh ${killTarget.processName} (PID ${killTarget.pid}). Proses akan menerima SIGTERM lalu SIGKILL jika tidak berhenti.`
+            ? `Port :${killTarget.port} is currently in use by ${killTarget.processName} (PID ${killTarget.pid}). The process will receive SIGTERM followed by SIGKILL if it does not exit.`
             : ""
         }
-        confirmLabel="Kill Proses"
+        confirmLabel="Kill Process"
         onCancel={() => setKillTarget(null)}
         onConfirm={() => void handleConfirmKill()}
       />
 
       <ConfirmDialog
         open={confirmBulkOpen}
-        title={`Hentikan ${uniqueSelectedPids.length} proses terpilih?`}
-        description={`Akan menghentikan ${uniqueSelectedPids.length} proses unik yang mencakup ${selectedEntries.length} port terpilih (${uniqueSelectedPids
+        title={`Kill ${uniqueSelectedPids.length} selected ${uniqueSelectedPids.length === 1 ? "process" : "processes"}?`}
+        description={`This will terminate ${uniqueSelectedPids.length} unique ${uniqueSelectedPids.length === 1 ? "process" : "processes"} covering ${selectedEntries.length} selected ${selectedEntries.length === 1 ? "port" : "ports"} (${uniqueSelectedPids
           .slice(0, 5)
           .map((e) => `${e.processName} :${e.port}`)
-          .join(", ")}${uniqueSelectedPids.length > 5 ? ", …" : ""}). Setiap proses akan menerima SIGTERM lalu SIGKILL jika tidak berhenti.`}
-        confirmLabel={`Kill ${uniqueSelectedPids.length} Proses`}
+          .join(", ")}${uniqueSelectedPids.length > 5 ? ", …" : ""}). Each process will receive SIGTERM followed by SIGKILL if it does not exit.`}
+        confirmLabel={`Kill ${uniqueSelectedPids.length} ${uniqueSelectedPids.length === 1 ? "Process" : "Processes"}`}
         onCancel={() => setConfirmBulkOpen(false)}
         onConfirm={() => void handleConfirmBulkKill()}
       />

@@ -65,7 +65,7 @@ export function ServiceStorageTab({
   if (service.isMissing) {
     return (
       <div className="rounded-[10px] border border-border bg-surface p-6 text-center text-[13px] text-fg-muted">
-        Folder service tidak ditemukan. Relokasi folder untuk menganalisis penggunaan storage.
+        Service folder not found. Relocate the folder to analyze storage usage.
       </div>
     );
   }
@@ -81,13 +81,13 @@ export function ServiceStorageTab({
       onReportChange?.(res.updatedReport);
       void refreshGlobalStorage(false);
       pushToast({
-        title: `Folder "${res.deletedFolder}" dihapus`,
-        description: `${formatBytes(res.freedBytes)} ruang disk berhasil dibebaskan.`,
+        title: `Deleted "${res.deletedFolder}"`,
+        description: `Freed ${formatBytes(res.freedBytes)} of disk space.`,
         variant: "success",
       });
     } catch (err) {
       pushToast({
-        title: `Gagal menghapus ${folder.name}`,
+        title: `Failed to delete ${folder.name}`,
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -108,14 +108,14 @@ export function ServiceStorageTab({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-[12.5px] text-fg-muted">
           {loading ? (
-            <span>Menghitung ukuran folder…</span>
+            <span>Calculating folder sizes…</span>
           ) : report ? (
             <span>
               Total{" "}
               <strong className="font-mono text-fg tabular-nums">
                 {formatBytes(report.totalBytes)}
               </strong>{" "}
-              · Dapat dibersihkan:{" "}
+              · Reclaimable:{" "}
               <strong className="font-mono text-warn tabular-nums">
                 {formatBytes(report.reclaimableBytes)}
               </strong>
@@ -124,7 +124,7 @@ export function ServiceStorageTab({
               ) : null}
             </span>
           ) : (
-            <span>Siap menghitung penggunaan disk service.</span>
+            <span>Ready to calculate service disk usage.</span>
           )}
         </div>
 
@@ -138,7 +138,7 @@ export function ServiceStorageTab({
             className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
             aria-hidden="true"
           />
-          <span>{loading ? "Menghitung…" : "Refresh"}</span>
+          <span>{loading ? "Calculating…" : "Refresh"}</span>
         </button>
       </div>
 
@@ -173,7 +173,7 @@ export function ServiceStorageTab({
                 {formatBytes(report.nodeModulesBytes)}
               </div>
               <div className="mt-0.5 font-mono text-[11px] text-fg-faint tabular-nums">
-                {nmPct}% dari total
+                {nmPct}% of total
               </div>
             </div>
 
@@ -186,20 +186,20 @@ export function ServiceStorageTab({
                 {formatBytes(report.buildCacheBytes)}
               </div>
               <div className="mt-0.5 font-mono text-[11px] text-fg-faint tabular-nums">
-                {buildPct}% dari total
+                {buildPct}% of total
               </div>
             </div>
 
             <div className="rounded-[10px] border border-border bg-surface p-3.5">
               <div className="flex items-center justify-between text-[12px] text-fg-muted">
-                <span>Source & Lainnya</span>
+                <span>Source & Other</span>
                 <HardDrive className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
               </div>
               <div className="mt-1.5 font-mono text-[18px] font-semibold text-fg tabular-nums">
                 {formatBytes(report.sourceBytes)}
               </div>
               <div className="mt-0.5 font-mono text-[11px] text-fg-faint tabular-nums">
-                {srcPct}% dari total
+                {srcPct}% of total
               </div>
             </div>
           </div>
@@ -236,12 +236,12 @@ export function ServiceStorageTab({
           {/* Cleanable folders table */}
           <div className="overflow-hidden rounded-[10px] border border-border bg-surface">
             <div className="border-b border-border bg-surface-2 px-4 py-2.5 text-[11.5px] font-semibold tracking-wide text-fg-muted uppercase">
-              Folder yang Aman Dibersihkan
+              Safe-to-Clean Folders
             </div>
             {report.cleanableFolders.length === 0 ? (
               <div className="flex items-center justify-center gap-2 p-6 text-[13px] text-fg-muted">
                 <Sparkles className="h-4 w-4 text-accent" aria-hidden="true" />
-                <span>Bersih — tidak ada folder node_modules atau build cache yang ditemukan.</span>
+                <span>Clean — no node_modules or build cache folders found.</span>
               </div>
             ) : (
               <div className="divide-y divide-border">
@@ -279,7 +279,7 @@ export function ServiceStorageTab({
                           className="btn-press inline-flex h-7.5 items-center gap-1.5 rounded-[7px] border border-danger/45 bg-danger-soft px-2.5 text-[12px] font-medium text-danger hover:bg-danger-solid hover:text-white disabled:opacity-50"
                         >
                           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                          <span>{isDeleting ? "Menghapus…" : "Hapus"}</span>
+                          <span>{isDeleting ? "Deleting…" : "Delete"}</span>
                         </button>
                       </div>
                     </div>
@@ -295,15 +295,15 @@ export function ServiceStorageTab({
         open={confirmTarget !== null}
         title={
           confirmTarget
-            ? `Hapus "${confirmTarget.name}" (${formatBytes(confirmTarget.sizeBytes)})?`
+            ? `Delete "${confirmTarget.name}" (${formatBytes(confirmTarget.sizeBytes)})?`
             : ""
         }
         description={
           confirmTarget
-            ? `Folder ${confirmTarget.path} akan dihapus secara permanen dari disk untuk membebaskan ${formatBytes(confirmTarget.sizeBytes)}. Source code Anda tidak akan disentuh.`
+            ? `Folder ${confirmTarget.path} will be permanently deleted from disk to free ${formatBytes(confirmTarget.sizeBytes)}. Your source code will not be touched.`
             : ""
         }
-        confirmLabel="Hapus Permanen"
+        confirmLabel="Delete Permanently"
         onCancel={() => setConfirmTarget(null)}
         onConfirm={() => void handleConfirmDelete()}
       />

@@ -56,7 +56,7 @@ function ToastCard({ toast }: { toast: ToastItem }) {
       <button
         type="button"
         onClick={() => dismissToast(toast.id)}
-        aria-label="Tutup notifikasi"
+        aria-label="Dismiss notification"
         className="btn-press rounded-md p-1 text-fg-muted hover:bg-surface-hover hover:text-fg"
       >
         <X className="h-3.5 w-3.5" aria-hidden="true" />

@@ -453,7 +453,7 @@ impl ProcessManager {
                                 }
                                 Err(spawn_err) => {
                                     let reason = format!(
-                                        "Gagal melakukan auto-restart: {spawn_err}"
+                                        "Auto-restart failed: {spawn_err}"
                                     );
                                     finalize_crash(
                                         &inner_wait,
@@ -469,7 +469,7 @@ impl ProcessManager {
                             }
                         } else {
                             let reason = format!(
-                                "Auto-restart dihentikan: crash melebihi {}× dalam {} detik",
+                                "Auto-restart stopped: exceeded {} crashes within {}s",
                                 policy.max_restarts,
                                 policy.window.as_secs()
                             );
@@ -490,7 +490,7 @@ impl ProcessManager {
                         }
                     } else {
                         let reason = format!(
-                            "Proses berhenti tak terduga (exit code {})",
+                            "Process exited unexpectedly (exit code {})",
                             exit_code
                                 .map(|c| c.to_string())
                                 .unwrap_or_else(|| "unknown".to_string())

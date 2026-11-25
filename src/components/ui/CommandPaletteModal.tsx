@@ -49,28 +49,28 @@ export function CommandPaletteModal() {
       {
         id: "ws:overview",
         group: "Workspace",
-        label: "Buka Overview",
+        label: "Open Overview",
         icon: LayoutGrid,
         run: () => setRoute({ kind: "overview" }),
       },
       {
         id: "ws:ports",
         group: "Workspace",
-        label: "Buka Port Inspector",
+        label: "Open Port Inspector",
         icon: Network,
         run: () => setRoute({ kind: "ports" }),
       },
       {
         id: "ws:presets",
         group: "Workspace",
-        label: "Buka Env Presets",
+        label: "Open Env Presets",
         icon: KeyRound,
         run: () => setRoute({ kind: "presets" }),
       },
       {
         id: "ws:settings",
         group: "Workspace",
-        label: "Buka Settings",
+        label: "Open Settings",
         icon: Settings,
         run: () => setRoute({ kind: "settings" }),
       },
@@ -105,7 +105,7 @@ export function CommandPaletteModal() {
         items.push({
           id: `proj:open:${proj.id}`,
           group: "Projects",
-          label: `Buka Project ${proj.name}`,
+          label: `Open Project ${proj.name}`,
           hint: `${proj.services.length} services`,
           icon: FolderKanban,
           run: () => setRoute({ kind: "project", projectId: proj.id }),
@@ -277,13 +277,13 @@ export function CommandPaletteModal() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari project, service, script, atau perintah…"
+            placeholder="Search projects, services, scripts, or commands…"
             className="w-full bg-transparent text-[13.5px] text-fg placeholder:text-fg-faint focus:outline-none"
           />
           <button
             type="button"
             onClick={() => setOpen(false)}
-            aria-label="Tutup command palette"
+            aria-label="Close command palette"
             className="rounded p-1 text-fg-muted hover:bg-surface-hover hover:text-fg"
           >
             <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -293,7 +293,7 @@ export function CommandPaletteModal() {
         <div className="max-h-80 overflow-y-auto p-1.5" role="listbox">
           {filtered.length === 0 ? (
             <div className="px-3 py-6 text-center text-[12.5px] text-fg-muted">
-              Tidak ada project, service, atau perintah yang cocok.
+              No matching projects, services, or commands.
             </div>
           ) : (
             filtered.map((action, idx) => {

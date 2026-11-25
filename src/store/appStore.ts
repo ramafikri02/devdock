@@ -281,7 +281,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     } catch (err) {
       get().pushToast({
-        title: "Gagal memuat konfigurasi awal",
+        title: "Failed to load initial configuration",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -326,8 +326,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ proxyStatus: status });
     get().pushToast({
       title: status.running
-        ? `Reverse proxy *.localhost aktif di :${status.boundPort}`
-        : "Reverse proxy *.localhost dimatikan",
+        ? `*.localhost reverse proxy active on :${status.boundPort}`
+        : "*.localhost reverse proxy disabled",
       variant: status.running ? "success" : "info",
     });
   },
@@ -374,7 +374,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ presets });
     } catch (err) {
       get().pushToast({
-        title: "Gagal memuat Env Presets",
+        title: "Failed to load Env Presets",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -389,7 +389,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       void get().loadGitInfo();
     } catch (err) {
       get().pushToast({
-        title: "Gagal memuat daftar project",
+        title: "Failed to load projects",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -514,12 +514,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         bootstrap: s.bootstrap ? { ...s.bootstrap, shellPath } : s.bootstrap,
       }));
       get().pushToast({
-        title: "Login shell PATH diperbarui",
+        title: "Login shell PATH refreshed",
         variant: "success",
       });
     } catch (err) {
       get().pushToast({
-        title: "Gagal menyegarkan PATH",
+        title: "Failed to refresh PATH",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -541,7 +541,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ route: { kind: "project", projectId: project.id } });
     }
     get().pushToast({
-      title: `Project "${project.name}" ditambahkan`,
+      title: `Project "${project.name}" added`,
       variant: "success",
     });
     return project;
@@ -552,7 +552,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().loadProjects();
     set({ route: { kind: "project", projectId: project.id } });
     get().pushToast({
-      title: `Project "${project.name}" (${project.services.length} service) ditambahkan`,
+      title: `Project "${project.name}" (${project.services.length} ${project.services.length === 1 ? "service" : "services"}) added`,
       variant: "success",
     });
     return project;
@@ -569,7 +569,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
     });
     get().pushToast({
-      title: `Service "${service.name}" ditambahkan ke project`,
+      title: `Service "${service.name}" added to project`,
       variant: "success",
     });
   },
@@ -578,7 +578,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     await apiRefreshService(serviceId);
     await get().loadProjects();
     get().pushToast({
-      title: "package.json disegarkan",
+      title: "package.json refreshed",
       variant: "info",
     });
   },
@@ -587,7 +587,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const updated = await apiRenameProject(projectId, newName);
     await get().loadProjects();
     get().pushToast({
-      title: `Project diganti nama menjadi "${updated.name}"`,
+      title: `Project renamed to "${updated.name}"`,
       variant: "success",
     });
   },
@@ -596,7 +596,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const updated = await apiRenameService(serviceId, newName);
     await get().loadProjects();
     get().pushToast({
-      title: `Service diganti nama menjadi "${updated.name}"`,
+      title: `Service renamed to "${updated.name}"`,
       variant: "success",
     });
   },
@@ -606,8 +606,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().loadProjects();
     get().pushToast({
       title: pm
-        ? `Package manager di-override ke ${pm}`
-        : "Package manager dikembalikan ke deteksi otomatis",
+        ? `Package manager overridden to ${pm}`
+        : "Package manager reset to auto-detect",
       variant: "success",
     });
   },
@@ -617,8 +617,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().loadProjects();
     get().pushToast({
       title: version?.trim()
-        ? `Versi Node di-override ke ${version.trim()}`
-        : "Versi Node dikembalikan ke deteksi otomatis",
+        ? `Node version overridden to ${version.trim()}`
+        : "Node version reset to auto-detect",
       variant: "success",
     });
   },
@@ -628,8 +628,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().loadProjects();
     get().pushToast({
       title: enabled
-        ? `Auto-restart diaktifkan untuk "${scriptName}" (maks 3×/60d)`
-        : `Auto-restart dimatikan untuk "${scriptName}"`,
+        ? `Auto-restart enabled for "${scriptName}" (max 3×/60s)`
+        : `Auto-restart disabled for "${scriptName}"`,
       variant: "info",
     });
   },
@@ -640,8 +640,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     void get().refreshPorts();
     get().pushToast({
       title: port
-        ? `Port service diatur ke :${port}`
-        : "Port service dikembalikan ke default",
+        ? `Service port set to :${port}`
+        : "Service port reset to default",
       variant: "success",
     });
   },
@@ -651,8 +651,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().loadProjects();
     get().pushToast({
       title: method
-        ? `Metode inject port diatur ke ${method}`
-        : "Metode inject port dikembalikan ke otomatis",
+        ? `Port injection method set to ${method}`
+        : "Port injection method reset to auto",
       variant: "success",
     });
   },
@@ -662,8 +662,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().loadProjects();
     get().pushToast({
       title: defaultScript
-        ? `Default script diatur ke "${defaultScript}"`
-        : "Default script dikosongkan",
+        ? `Default script set to "${defaultScript}"`
+        : "Default script cleared",
       variant: "success",
     });
   },
@@ -699,13 +699,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().pushToast({
         title:
           failedCount > 0
-            ? `Start All selesai (${failedCount} gagal)`
-            : `${res.status.runningServices}/${res.status.totalServices} service berjalan`,
+            ? `Start All finished (${failedCount} failed)`
+            : `${res.status.runningServices}/${res.status.totalServices} services running`,
         variant: failedCount > 0 ? "warn" : "success",
       });
     } catch (err) {
       get().pushToast({
-        title: "Gagal menjalankan semua service",
+        title: "Failed to start all services",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -724,12 +724,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       const res = await apiStopProjectAll(projectId);
       await Promise.all([get().loadProcesses(), get().refreshPorts()]);
       get().pushToast({
-        title: `${res.stoppedProcessIds.length} proses dihentikan`,
+        title: `Stopped ${res.stoppedProcessIds.length} ${res.stoppedProcessIds.length === 1 ? "process" : "processes"}`,
         variant: "info",
       });
     } catch (err) {
       get().pushToast({
-        title: "Gagal menghentikan semua service",
+        title: "Failed to stop all services",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -751,12 +751,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       const res = await apiRestartProjectAll(projectId);
       await Promise.all([get().loadProcesses(), get().refreshPorts()]);
       get().pushToast({
-        title: `Project di-restart (${res.status.runningServices}/${res.status.totalServices} berjalan)`,
+        title: `Project restarted (${res.status.runningServices}/${res.status.totalServices} running)`,
         variant: "success",
       });
     } catch (err) {
       get().pushToast({
-        title: "Gagal me-restart semua service",
+        title: "Failed to restart all services",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -774,8 +774,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().pushToast({
       title:
         cleaned.length > 0
-          ? `${cleaned.length} folder build cache dibersihkan`
-          : "Tidak ada build cache untuk dibersihkan",
+          ? `Cleaned ${cleaned.length} build cache ${cleaned.length === 1 ? "folder" : "folders"}`
+          : "No build caches to clean",
       variant: cleaned.length > 0 ? "success" : "info",
     });
     return freed;
@@ -787,7 +787,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     void get().refreshPorts();
     if (updated.port) {
       get().pushToast({
-        title: `Port kosong :${updated.port} ditetapkan untuk ${updated.name}`,
+        title: `Assigned free port :${updated.port} to ${updated.name}`,
         variant: "success",
       });
     }
@@ -798,7 +798,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const updated = await apiRelocateService(serviceId, newFolder);
     await get().loadProjects();
     get().pushToast({
-      title: `Folder "${updated.name}" berhasil direlokasi`,
+      title: `Relocated "${updated.name}" folder`,
       variant: "success",
     });
   },
@@ -808,8 +808,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().loadProjects();
     set({ route: { kind: "overview" } });
     get().pushToast({
-      title: "Service dihapus dari DevDock",
-      description: "File asli di disk tidak disentuh.",
+      title: "Service removed from DevDock",
+      description: "Original files on disk were not modified.",
       variant: "info",
     });
   },
@@ -819,8 +819,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().loadProjects();
     set({ route: { kind: "overview" } });
     get().pushToast({
-      title: "Project dihapus dari DevDock",
-      description: "File asli di disk tidak disentuh.",
+      title: "Project removed from DevDock",
+      description: "Original files on disk were not modified.",
       variant: "info",
     });
   },

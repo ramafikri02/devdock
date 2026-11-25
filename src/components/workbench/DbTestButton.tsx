@@ -37,13 +37,13 @@ export function DbTestButton({ envKey, onTest }: DbTestButtonProps) {
         type="button"
         disabled={testing}
         onClick={() => void handleClick()}
-        aria-label={`Test koneksi database untuk ${envKey}`}
+        aria-label={`Test database connection for ${envKey}`}
         className="btn-press inline-flex h-7 items-center gap-1.5 rounded-[6px] border border-info/40 bg-info-soft px-2 text-[11.5px] font-medium text-info hover:opacity-90 disabled:cursor-wait disabled:opacity-65"
       >
         {testing ? (
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-            <span>Menghubungkan…</span>
+            <span>Connecting…</span>
           </>
         ) : (
           <>
@@ -67,10 +67,10 @@ export function DbTestButton({ envKey, onTest }: DbTestButtonProps) {
         ) : (
           <div
             className="inline-flex max-w-[260px] items-center gap-1 rounded bg-danger-soft px-1.5 py-0.5 text-[10.5px] text-danger"
-            title={result.error ?? "Koneksi gagal"}
+            title={result.error ?? "Connection failed"}
           >
             <XCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
-            <span className="truncate">{result.error ?? "Koneksi gagal"}</span>
+            <span className="truncate">{result.error ?? "Connection failed"}</span>
           </div>
         )
       ) : null}

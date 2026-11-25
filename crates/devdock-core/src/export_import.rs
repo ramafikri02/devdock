@@ -150,7 +150,7 @@ impl<'a> ExportImportManager<'a> {
                 .filter(|p| !p.is_empty())
                 .ok_or_else(|| {
                     CoreError::Validation(
-                        "Passphrase wajib diisi saat menyertakan secret".to_string(),
+                        "Passphrase is required when including secrets".to_string(),
                     )
                 })?;
             Some(encrypt_secrets_map(&secrets_map, pass)?)
@@ -562,11 +562,11 @@ fn resolve_service_path(
 
 fn parse_and_validate_bundle(raw_json: &str) -> CoreResult<ExportBundle> {
     let bundle: ExportBundle = serde_json::from_str(raw_json)
-        .map_err(|e| CoreError::Validation(format!("File export tidak valid: {e}")))?;
+        .map_err(|e| CoreError::Validation(format!("Invalid export file: {e}")))?;
 
     if bundle.format_version == 0 || bundle.format_version > EXPORT_FORMAT_VERSION {
         return Err(CoreError::Validation(format!(
-            "Versi format export v{} tidak didukung (versi didukung: v{EXPORT_FORMAT_VERSION})",
+            "Unsupported export format version v{} (supported: v{EXPORT_FORMAT_VERSION})",
             bundle.format_version
         )));
     }
@@ -590,7 +590,7 @@ fn decrypt_bundle_secrets(
     let Some(pass) = trimmed else {
         if require_when_present {
             return Err(CoreError::Validation(
-                "File ini berisi secret terenkripsi; masukkan passphrase untuk mengimpor.".to_string(),
+                "This file contains encrypted secrets; enter the passphrase to import.".to_string(),
             ));
         }
         return Ok((false, None));
@@ -649,16 +649,16 @@ fn decrypt_secrets_map(
 ) -> CoreResult<DecryptedSecretsMap> {
     let salt = BASE64
         .decode(&blob.salt_b64)
-        .map_err(|_| CoreError::Validation("Data salt export rusak".to_string()))?;
+        .map_err(|_| CoreError::Validation("Corrupted export salt data".to_string()))?;
     let nonce_bytes = BASE64
         .decode(&blob.nonce_b64)
-        .map_err(|_| CoreError::Validation("Data nonce export rusak".to_string()))?;
+        .map_err(|_| CoreError::Validation("Corrupted export nonce data".to_string()))?;
     let ciphertext = BASE64
         .decode(&blob.ciphertext_b64)
-        .map_err(|_| CoreError::Validation("Data ciphertext export rusak".to_string()))?;
+        .map_err(|_| CoreError::Validation("Corrupted export ciphertext data".to_string()))?;
 
     if nonce_bytes.len() != 12 {
-        return Err(CoreError::Validation("Panjang nonce tidak valid".to_string()));
+        return Err(CoreError::Validation("Invalid nonce length".to_string()));
     }
 
     let key = derive_aes_key(passphrase, &salt, blob.iterations.max(1));
@@ -666,10 +666,12 @@ fn decrypt_secrets_map(
         .map_err(|e| CoreError::Adapter(format!("Cipher init error: {e}")))?;
     let plaintext = cipher
         .decrypt(Nonce::from_slice(&nonce_bytes), ciphertext.as_ref())
-        .map_err(|_| CoreError::Validation("Passphrase salah atau data secret rusak".to_string()))?;
+        .map_err(|_| {
+            CoreError::Validation("Incorrect passphrase or corrupted secret data".to_string())
+        })?;
 
     serde_json::from_slice(&plaintext)
-        .map_err(|e| CoreError::Validation(format!("Format secret hasil dekripsi tidak valid: {e}")))
+        .map_err(|e| CoreError::Validation(format!("Invalid decrypted secret format: {e}")))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -871,7 +873,7 @@ pub fn validate_relocated_folder(
             package_name: None,
             expected_package_name: expected_package_name.map(ToString::to_string),
             matches_package_name: false,
-            warning: Some("Folder tidak ditemukan di disk".to_string()),
+            warning: Some("Folder not found on disk".to_string()),
         };
     }
 
@@ -881,13 +883,13 @@ pub fn validate_relocated_folder(
         (Some(expected), Some(actual)) => (
             false,
             Some(format!(
-                "Nama package.json tidak cocok: diharapkan '{expected}', ditemukan '{actual}'"
+                "package.json name mismatch: expected '{expected}', found '{actual}'"
             )),
         ),
         (Some(expected), None) => (
             false,
             Some(format!(
-                "package.json tidak ditemukan atau tidak memiliki field 'name' (diharapkan '{expected}')"
+                "package.json not found or missing 'name' field (expected '{expected}')"
             )),
         ),
         (None, _) => (true, None),

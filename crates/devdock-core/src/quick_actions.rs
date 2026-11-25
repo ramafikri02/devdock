@@ -264,7 +264,7 @@ pub fn open_folder_in_editor(
     #[cfg(not(windows))]
     {
         Err(CoreError::Adapter(format!(
-            "Editor '{chosen_id}' tidak ditemukan di PATH atau /Applications"
+            "Editor '{chosen_id}' not found in PATH or /Applications"
         )))
     }
 }

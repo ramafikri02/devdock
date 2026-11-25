@@ -42,10 +42,10 @@ export function SidebarProjects() {
           aria-hidden="true"
         />
         <p className="text-[12px] text-fg-muted">
-          Belum ada project terdaftar.
+          No projects registered yet.
         </p>
         <p className="mt-0.5 text-[11.5px] text-fg-faint">
-          Klik + Tambah untuk mulai.
+          Click + Add to get started.
         </p>
       </div>
     );
@@ -134,7 +134,7 @@ export function SidebarProjects() {
                 onClick={() =>
                   setExpanded((prev) => ({ ...prev, [project.id]: !isOpen }))
                 }
-                aria-label={isOpen ? `Tutup ${project.name}` : `Buka ${project.name}`}
+                aria-label={isOpen ? `Collapse ${project.name}` : `Expand ${project.name}`}
                 className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-fg-muted hover:text-fg"
               >
                 <ChevronRight
@@ -192,8 +192,8 @@ export function SidebarProjects() {
                   }}
                   aria-label={
                     anyRunning
-                      ? `Stop semua service ${project.name}`
-                      : `Start semua service ${project.name}`
+                      ? `Stop all services in ${project.name}`
+                      : `Start all services in ${project.name}`
                   }
                   title={anyRunning ? "Stop All" : "Start All"}
                   className={cn(

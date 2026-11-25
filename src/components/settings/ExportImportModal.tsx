@@ -49,16 +49,16 @@ export function ExportConfigModal({ open, onClose }: ExportModalProps) {
     if (includeSecrets) {
       if (!passphrase.trim()) {
         pushToast({
-          title: "Passphrase wajib diisi",
-          description: "Masukkan passphrase untuk mengenkripsi secret.",
+          title: "Passphrase required",
+          description: "Enter a passphrase to encrypt secrets.",
           variant: "warn",
         });
         return;
       }
       if (passphrase !== confirmPassphrase) {
         pushToast({
-          title: "Passphrase tidak cocok",
-          description: "Pastikan konfirmasi passphrase sama persis.",
+          title: "Passphrases do not match",
+          description: "Make sure both passphrase fields match exactly.",
           variant: "warn",
         });
         return;
@@ -76,10 +76,10 @@ export function ExportConfigModal({ open, onClose }: ExportModalProps) {
         includeSecrets ? passphrase : null,
       );
       pushToast({
-        title: `Export berhasil (${summary.projectCount} project, ${summary.presetCount} preset)`,
+        title: `Export complete (${summary.projectCount} ${summary.projectCount === 1 ? "project" : "projects"}, ${summary.presetCount} ${summary.presetCount === 1 ? "preset" : "presets"})`,
         description: summary.includesSecrets
-          ? `${summary.secretCount} secret dienkripsi ke ${summary.outputPath}`
-          : `Disimpan tanpa secret ke ${summary.outputPath}`,
+          ? `${summary.secretCount} ${summary.secretCount === 1 ? "secret" : "secrets"} encrypted to ${summary.outputPath}`
+          : `Saved without secrets to ${summary.outputPath}`,
         variant: "success",
       });
       setPassphrase("");
@@ -87,7 +87,7 @@ export function ExportConfigModal({ open, onClose }: ExportModalProps) {
       onClose();
     } catch (err) {
       pushToast({
-        title: "Gagal mengekspor konfigurasi",
+        title: "Failed to export configuration",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -100,7 +100,7 @@ export function ExportConfigModal({ open, onClose }: ExportModalProps) {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Export Konfigurasi"
+      aria-label="Export Configuration"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]"
       onClick={onClose}
     >
@@ -113,16 +113,16 @@ export function ExportConfigModal({ open, onClose }: ExportModalProps) {
           <div>
             <h2 className="flex items-center gap-2 text-[15px] font-semibold text-fg">
               <Download className="h-4 w-4 text-info" aria-hidden="true" />
-              <span>Export Konfigurasi DevDock</span>
+              <span>Export DevDock Configuration</span>
             </h2>
             <p className="mt-0.5 text-[12.5px] text-fg-muted">
-              Simpan project, service, urutan start, preset, dan settings ke satu file berversi untuk backup atau pindah OS.
+              Save projects, services, start order, presets, and settings to a versioned file for backup or OS migration.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Tutup dialog export"
+            aria-label="Close export dialog"
             className="rounded p-1 text-fg-muted hover:bg-surface-hover hover:text-fg"
           >
             <X className="h-4 w-4" aria-hidden="true" />
@@ -140,10 +140,10 @@ export function ExportConfigModal({ open, onClose }: ExportModalProps) {
             <div>
               <div className="flex items-center gap-1.5 text-[13px] font-medium text-fg">
                 <Lock className="h-3.5 w-3.5 text-warn" aria-hidden="true" />
-                <span>Sertakan secret terenkripsi (disarankan)</span>
+                <span>Include encrypted secrets (recommended)</span>
               </div>
               <p className="mt-0.5 text-[11.5px] text-fg-muted">
-                Secret dari Keychain akan dienkripsi menggunakan AES-256-GCM + passphrase sebelum ditulis ke file.
+                Secrets from the OS Keychain will be encrypted using AES-256-GCM + passphrase before writing to disk.
               </p>
             </div>
           </label>
@@ -155,14 +155,14 @@ export function ExportConfigModal({ open, onClose }: ExportModalProps) {
                   htmlFor="export-passphrase"
                   className="text-[12px] font-medium text-fg-2"
                 >
-                  Passphrase Enkripsi
+                  Encryption Passphrase
                 </label>
                 <input
                   id="export-passphrase"
                   type="password"
                   value={passphrase}
                   onChange={(e) => setPassphrase(e.target.value)}
-                  placeholder="Masukkan passphrase…"
+                  placeholder="Enter passphrase…"
                   className="mt-1 h-8 w-full rounded-[7px] border border-border-strong bg-surface-2 px-2.5 text-[13px] text-fg focus:border-info focus:outline-none"
                 />
               </div>
@@ -171,14 +171,14 @@ export function ExportConfigModal({ open, onClose }: ExportModalProps) {
                   htmlFor="export-passphrase-confirm"
                   className="text-[12px] font-medium text-fg-2"
                 >
-                  Konfirmasi Passphrase
+                  Confirm Passphrase
                 </label>
                 <input
                   id="export-passphrase-confirm"
                   type="password"
                   value={confirmPassphrase}
                   onChange={(e) => setConfirmPassphrase(e.target.value)}
-                  placeholder="Ulangi passphrase…"
+                  placeholder="Re-enter passphrase…"
                   className="mt-1 h-8 w-full rounded-[7px] border border-border-strong bg-surface-2 px-2.5 text-[13px] text-fg focus:border-info focus:outline-none"
                 />
               </div>
@@ -192,7 +192,7 @@ export function ExportConfigModal({ open, onClose }: ExportModalProps) {
             onClick={onClose}
             className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
           >
-            Batal
+            Cancel
           </button>
           <button
             type="submit"
@@ -204,7 +204,7 @@ export function ExportConfigModal({ open, onClose }: ExportModalProps) {
             ) : (
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
             )}
-            <span>Pilih Lokasi & Export</span>
+            <span>Choose Location & Export</span>
           </button>
         </div>
       </form>
@@ -257,7 +257,7 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
       }
     } catch (err) {
       pushToast({
-        title: "Gagal membaca file import",
+        title: "Failed to read import file",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -278,14 +278,14 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
   };
 
   const handlePickNewParent = async () => {
-    const picked = await pickFolderDialog("Pilih folder induk tujuan di mesin ini");
+    const picked = await pickFolderDialog("Select target parent folder on this machine");
     if (!picked || !filePath) return;
     setNewParent(picked);
     await refreshPreview(filePath, passphrase, oldParent, picked, pathOverrides);
   };
 
   const handlePickServiceFolder = async (serviceKey: string, serviceName: string) => {
-    const picked = await pickFolderDialog(`Pilih folder untuk ${serviceName}`);
+    const picked = await pickFolderDialog(`Select folder for ${serviceName}`);
     if (!picked || !filePath) return;
     const nextOverrides = { ...pathOverrides, [serviceKey]: picked };
     setPathOverrides(nextOverrides);
@@ -305,17 +305,17 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
       );
       await init();
       pushToast({
-        title: `Import berhasil (${result.projectsImported} project, ${result.servicesImported} service)`,
+        title: `Import complete (${result.projectsImported} ${result.projectsImported === 1 ? "project" : "projects"}, ${result.servicesImported} ${result.servicesImported === 1 ? "service" : "services"})`,
         description:
           result.secretsStored > 0
-            ? `${result.secretsStored} secret disimpan ke OS Keychain.`
+            ? `${result.secretsStored} ${result.secretsStored === 1 ? "secret" : "secrets"} stored in OS Keychain.`
             : undefined,
         variant: result.missingServices > 0 ? "warn" : "success",
       });
       onClose();
     } catch (err) {
       pushToast({
-        title: "Gagal mengimpor konfigurasi",
+        title: "Failed to import configuration",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -328,7 +328,7 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Import Konfigurasi & Remap Path"
+      aria-label="Import Configuration & Remap Paths"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]"
       onClick={onClose}
     >
@@ -340,16 +340,16 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
           <div>
             <h2 className="flex items-center gap-2 text-[15px] font-semibold text-fg">
               <Upload className="h-4 w-4 text-info" aria-hidden="true" />
-              <span>Import Konfigurasi & Remap Path</span>
+              <span>Import Configuration & Remap Paths</span>
             </h2>
             <p className="mt-0.5 text-[12.5px] text-fg-muted">
-              Pulihkan project, preset, secret, dan petakan ulang path folder jika berpindah mesin atau OS.
+              Restore projects, presets, and secrets, and remap folder paths when moving between machines or operating systems.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Tutup dialog import"
+            aria-label="Close import dialog"
             className="rounded p-1 text-fg-muted hover:bg-surface-hover hover:text-fg"
           >
             <X className="h-4 w-4" aria-hidden="true" />
@@ -364,7 +364,7 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
               className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg hover:bg-surface-hover"
             >
               <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>{filePath ? "Ganti File…" : "Pilih File Backup (.json)…"}</span>
+              <span>{filePath ? "Change File…" : "Choose Backup File (.json)…"}</span>
             </button>
             {filePath ? (
               <span className="truncate font-mono text-[11.5px] text-fg-muted">
@@ -380,20 +380,20 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
               {/* Bundle Summary */}
               <div className="flex flex-wrap items-center gap-2 rounded-[8px] border border-border bg-surface-2 px-3.5 py-2.5 text-[12px]">
                 <span className="font-mono text-fg">
-                  v{preview.formatVersion} · dari {preview.sourceOs}
+                  v{preview.formatVersion} · from {preview.sourceOs}
                 </span>
                 <span>·</span>
                 <span className="font-mono tabular-nums text-fg-2">
-                  {preview.projectCount} project, {preview.serviceCount} service, {preview.presetCount} preset
+                  {preview.projectCount} {preview.projectCount === 1 ? "project" : "projects"}, {preview.serviceCount} {preview.serviceCount === 1 ? "service" : "services"}, {preview.presetCount} {preview.presetCount === 1 ? "preset" : "presets"}
                 </span>
                 {preview.missingCount > 0 ? (
                   <span className="rounded bg-warn-soft px-1.5 py-0.5 font-mono text-[11px] text-warn tabular-nums">
-                    {preview.missingCount} path belum ditemukan
+                    {preview.missingCount} missing {preview.missingCount === 1 ? "path" : "paths"}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 rounded bg-accent-soft px-1.5 py-0.5 text-[11px] text-accent">
                     <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                    Semua path valid
+                    All paths valid
                   </span>
                 )}
               </div>
@@ -407,15 +407,15 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
                       className="flex items-center gap-1.5 text-[12.5px] font-medium text-fg"
                     >
                       <Lock className="h-3.5 w-3.5 text-warn" aria-hidden="true" />
-                      <span>Passphrase Secret ({preview.secretCount} secret)</span>
+                      <span>Secrets Passphrase ({preview.secretCount} {preview.secretCount === 1 ? "secret" : "secrets"})</span>
                     </label>
                     {preview.passphraseVerified ? (
                       <span className="text-[11.5px] font-medium text-accent">
-                        ✓ Passphrase cocok
+                        ✓ Passphrase verified
                       </span>
                     ) : (
                       <span className="text-[11.5px] font-medium text-warn">
-                        Masukkan passphrase untuk dekripsi
+                        Enter passphrase to decrypt
                       </span>
                     )}
                   </div>
@@ -425,7 +425,7 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
                       type="password"
                       value={passphrase}
                       onChange={(e) => setPassphrase(e.target.value)}
-                      placeholder="Masukkan passphrase…"
+                      placeholder="Enter passphrase…"
                       className="h-8 flex-1 rounded-[7px] border border-border-strong bg-surface px-2.5 text-[12.5px] text-fg focus:border-info focus:outline-none"
                     />
                     <button
@@ -442,7 +442,7 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
                       }
                       className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface px-3 text-[12px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
                     >
-                      Verifikasi
+                      Verify
                     </button>
                   </div>
                 </div>
@@ -453,26 +453,26 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
                 <div className="rounded-[8px] border border-border bg-surface-2 p-3">
                   <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-fg">
                     <FolderSync className="h-4 w-4 text-info" aria-hidden="true" />
-                    <span>Remap Folder Induk Sekaligus</span>
+                    <span>Bulk Remap Parent Folder</span>
                   </div>
                   <p className="mt-0.5 text-[11.5px] text-fg-muted">
-                    Ubah awalan path lama (misal <span className="font-mono">/Users/fikri/H2o</span>) ke folder baru di mesin ini (misal <span className="font-mono">D:\code\H2o</span>).
+                    Replace the old path prefix (e.g. <span className="font-mono">/Users/dev/code</span>) with the new folder on this machine (e.g. <span className="font-mono">D:\code</span>).
                   </p>
                   <div className="mt-2.5 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
                     <input
                       type="text"
-                      aria-label="Prefix folder lama"
+                      aria-label="Old parent folder prefix"
                       value={oldParent}
                       onChange={(e) => setOldParent(e.target.value)}
-                      placeholder="Folder induk lama…"
+                      placeholder="Old parent folder…"
                       className="h-8 rounded-[7px] border border-border-strong bg-surface px-2.5 font-mono text-[12px] text-fg focus:border-info focus:outline-none"
                     />
                     <input
                       type="text"
-                      aria-label="Prefix folder baru"
+                      aria-label="New parent folder prefix"
                       value={newParent}
                       onChange={(e) => setNewParent(e.target.value)}
-                      placeholder="Folder induk baru…"
+                      placeholder="New parent folder…"
                       className="h-8 rounded-[7px] border border-border-strong bg-surface px-2.5 font-mono text-[12px] text-fg focus:border-info focus:outline-none"
                     />
                     <div className="flex gap-1.5">
@@ -481,7 +481,7 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
                         onClick={() => void handlePickNewParent()}
                         className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface px-2.5 text-[12px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
                       >
-                        Pilih…
+                        Browse…
                       </button>
                       <button
                         type="button"
@@ -497,7 +497,7 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
                         }
                         className="btn-press h-8 rounded-[7px] bg-info px-2.5 text-[12px] font-semibold text-white hover:opacity-95"
                       >
-                        Terapkan
+                        Apply
                       </button>
                     </div>
                   </div>
@@ -518,12 +518,12 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
                         {svc.existsOnDisk && svc.packageNameMatches ? (
                           <span className="inline-flex items-center gap-1 rounded bg-accent-soft px-1.5 py-0.5 text-[10.5px] text-accent">
                             <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                            cocok
+                            matched
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 rounded bg-warn-soft px-1.5 py-0.5 text-[10.5px] text-warn">
                             <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                            {svc.existsOnDisk ? "nama package.json beda" : "tidak ditemukan"}
+                            {svc.existsOnDisk ? "package.json mismatch" : "not found"}
                           </span>
                         )}
                       </div>
@@ -541,7 +541,7 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
                       }
                       className="btn-press h-7 shrink-0 rounded-[6px] border border-border-strong bg-surface px-2.5 text-[11.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
                     >
-                      Relokasi…
+                      Relocate…
                     </button>
                   </div>
                 ))}
@@ -549,7 +549,7 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
             </>
           ) : (
             <div className="rounded-[8px] border border-dashed border-border p-6 text-center text-[12.5px] text-fg-muted">
-              Pilih file backup <span className="font-mono">.json</span> hasil export DevDock untuk meninjau isi dan memetakan path folder.
+              Select a DevDock backup <span className="font-mono">.json</span> file to preview contents and remap folder paths.
             </div>
           )}
         </div>
@@ -560,7 +560,7 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
             onClick={onClose}
             className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
           >
-            Batal
+            Cancel
           </button>
           <button
             type="button"
@@ -577,7 +577,7 @@ export function ImportConfigModal({ open, onClose }: ImportModalProps) {
             ) : (
               <Upload className="h-3.5 w-3.5" aria-hidden="true" />
             )}
-            <span>Import Konfigurasi</span>
+            <span>Import Configuration</span>
           </button>
         </div>
       </div>

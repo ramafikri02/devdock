@@ -228,13 +228,15 @@ fn build_tray_menu(app: &AppHandle, core: &DevDockCore) -> tauri::Result<Menu<ta
     let processes = core.list_processes();
     let active_count = processes.iter().filter(|p| p.status.is_active()).count();
 
-    let status_label = if active_count > 0 {
-        format!("DevDock · {active_count} proses berjalan")
+    let status_label = if active_count == 1 {
+        "DevDock · 1 running process".to_string()
+    } else if active_count > 1 {
+        format!("DevDock · {active_count} running processes")
     } else {
         "DevDock · Idle".to_string()
     };
     let header_item = MenuItem::with_id(app, "tray:status", status_label, false, None::<&str>)?;
-    let show_item = MenuItem::with_id(app, "tray:show", "Tampilkan DevDock", true, None::<&str>)?;
+    let show_item = MenuItem::with_id(app, "tray:show", "Show DevDock", true, None::<&str>)?;
     menu.append(&header_item)?;
     menu.append(&show_item)?;
 
@@ -346,7 +348,7 @@ fn build_tray_menu(app: &AppHandle, core: &DevDockCore) -> tauri::Result<Menu<ta
     menu.append(&MenuItem::with_id(
         app,
         "tray:quit",
-        "Keluar DevDock",
+        "Quit DevDock",
         true,
         None::<&str>,
     )?)?;
