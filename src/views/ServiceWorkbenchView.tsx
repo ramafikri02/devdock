@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   AlertTriangle,
+  FileCode2,
   FolderOpen,
   Package,
   RefreshCw,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/tauri";
 import { useAppStore } from "@/store/appStore";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ServiceEnvTab } from "@/components/workbench/ServiceEnvTab";
 import { cn } from "@/lib/cn";
 
 interface ServiceWorkbenchViewProps {
@@ -25,7 +27,7 @@ interface ServiceWorkbenchViewProps {
   service: Service;
 }
 
-type WorkbenchTab = "scripts" | "settings";
+type WorkbenchTab = "scripts" | "env" | "settings";
 
 export function ServiceWorkbenchView({
   project,
@@ -249,6 +251,22 @@ export function ServiceWorkbenchView({
               <button
                 type="button"
                 role="tab"
+                aria-selected={tab === "env"}
+                onClick={() => setTab("env")}
+                className={cn(
+                  "flex items-center gap-1.5 border-b-2 px-3 py-2 text-[13px] font-medium transition-colors",
+                  tab === "env"
+                    ? "border-info text-fg"
+                    : "border-transparent text-fg-muted hover:text-fg",
+                )}
+              >
+                <FileCode2 className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Env</span>
+              </button>
+
+              <button
+                type="button"
+                role="tab"
                 aria-selected={tab === "settings"}
                 onClick={() => setTab("settings")}
                 className={cn(
@@ -311,6 +329,9 @@ export function ServiceWorkbenchView({
               )}
             </div>
           ) : null}
+
+          {/* Tab content: Env */}
+          {tab === "env" ? <ServiceEnvTab service={service} /> : null}
 
           {/* Tab content: Settings */}
           {tab === "settings" ? (

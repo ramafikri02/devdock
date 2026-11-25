@@ -1,5 +1,6 @@
 pub mod adapter;
 pub mod db;
+pub mod env_resolver;
 pub mod error;
 pub mod models;
 pub mod registry;
@@ -9,9 +10,11 @@ pub mod traits;
 
 use crate::adapter::{AdapterRegistry, ProjectAdapter};
 use crate::db::Database;
+use crate::env_resolver::EnvResolver;
 use crate::error::{CoreError, CoreResult};
 use crate::models::{
-    AppBootstrapInfo, PackageManager, Project, ScanResult, Service, ServiceDescriptor,
+    AppBootstrapInfo, EnvWriteResult, PackageManager, Project, ScanResult, Service,
+    ServiceDescriptor, ServiceEnvInspection,
 };
 use crate::registry::ProjectRegistry;
 use crate::scanner::FolderScanner;
@@ -241,5 +244,35 @@ impl DevDockCore {
     ) -> CoreResult<Project> {
         self.registry()
             .register_grouped_project(project_name, folders, root_path)
+    }
+
+    pub fn inspect_service_env(
+        &self,
+        service_id: &str,
+        mode: Option<&str>,
+    ) -> CoreResult<ServiceEnvInspection> {
+        let service = self.get_service(service_id)?;
+        EnvResolver::inspect_service(&service, mode)
+    }
+
+    pub fn write_service_env(
+        &self,
+        service_id: &str,
+        target_file: &str,
+        entries: &std::collections::BTreeMap<String, String>,
+    ) -> CoreResult<EnvWriteResult> {
+        let service = self.get_service(service_id)?;
+        EnvResolver::write_env_file(&service, target_file, entries)
+    }
+
+    pub fn update_service_env_key(
+        &self,
+        service_id: &str,
+        target_file: &str,
+        key: &str,
+        value: &str,
+    ) -> CoreResult<EnvWriteResult> {
+        let service = self.get_service(service_id)?;
+        EnvResolver::update_env_key(&service, target_file, key, value)
     }
 }

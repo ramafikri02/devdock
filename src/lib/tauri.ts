@@ -99,6 +99,45 @@ export interface ScanResult {
   candidates: ScanCandidate[];
 }
 
+export interface EnvFileInfo {
+  name: string;
+  path: string;
+  exists: boolean;
+  keyCount: number;
+}
+
+export interface ResolvedEnvEntry {
+  key: string;
+  value: string;
+  source: string;
+  isSecret: boolean;
+  isUnknown: boolean;
+  overriddenSources: string[];
+}
+
+export interface MissingEnvKey {
+  key: string;
+  exampleValue: string;
+  isSecret: boolean;
+}
+
+export interface ServiceEnvInspection {
+  serviceId: string;
+  mode: string;
+  availableModes: string[];
+  files: EnvFileInfo[];
+  hasExampleFile: boolean;
+  entries: ResolvedEnvEntry[];
+  missingKeys: MissingEnvKey[];
+}
+
+export interface EnvWriteResult {
+  targetFile: string;
+  targetPath: string;
+  backupPath: string | null;
+  writtenKeys: number;
+}
+
 export function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
@@ -220,6 +259,42 @@ export async function registerGroupedProject(
     projectName,
     folders,
     rootPath: rootPath ?? null,
+  });
+}
+
+export async function inspectServiceEnv(
+  serviceId: string,
+  mode?: string,
+): Promise<ServiceEnvInspection> {
+  return invoke<ServiceEnvInspection>("inspect_service_env", {
+    serviceId,
+    mode: mode ?? null,
+  });
+}
+
+export async function writeServiceEnv(
+  serviceId: string,
+  targetFile: string,
+  entries: Record<string, string>,
+): Promise<EnvWriteResult> {
+  return invoke<EnvWriteResult>("write_service_env", {
+    serviceId,
+    targetFile,
+    entries,
+  });
+}
+
+export async function updateServiceEnvKey(
+  serviceId: string,
+  targetFile: string,
+  key: string,
+  value: string,
+): Promise<EnvWriteResult> {
+  return invoke<EnvWriteResult>("update_service_env_key", {
+    serviceId,
+    targetFile,
+    key,
+    value,
   });
 }
 

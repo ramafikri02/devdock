@@ -184,3 +184,52 @@ pub struct ScanResult {
     pub scanned_dirs: usize,
     pub candidates: Vec<ScanCandidate>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnvFileInfo {
+    pub name: String,
+    pub path: String,
+    pub exists: bool,
+    pub key_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedEnvEntry {
+    pub key: String,
+    pub value: String,
+    pub source: String,
+    pub is_secret: bool,
+    pub is_unknown: bool,
+    pub overridden_sources: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MissingEnvKey {
+    pub key: String,
+    pub example_value: String,
+    pub is_secret: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceEnvInspection {
+    pub service_id: String,
+    pub mode: String,
+    pub available_modes: Vec<String>,
+    pub files: Vec<EnvFileInfo>,
+    pub has_example_file: bool,
+    pub entries: Vec<ResolvedEnvEntry>,
+    pub missing_keys: Vec<MissingEnvKey>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnvWriteResult {
+    pub target_file: String,
+    pub target_path: String,
+    pub backup_path: Option<String>,
+    pub written_keys: usize,
+}

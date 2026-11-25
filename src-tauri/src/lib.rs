@@ -1,8 +1,11 @@
-use devdock_core::models::{AppBootstrapInfo, PackageManager, Project, ScanResult, Service};
+use devdock_core::models::{
+    AppBootstrapInfo, EnvWriteResult, PackageManager, Project, ScanResult, Service,
+    ServiceEnvInspection,
+};
 use devdock_core::traits::{InMemoryNotifier, InMemorySecretStore};
 use devdock_core::DevDockCore;
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -218,6 +221,45 @@ fn register_grouped_project(
     Ok(project)
 }
 
+#[tauri::command]
+fn inspect_service_env(
+    state: State<'_, AppState>,
+    service_id: String,
+    mode: Option<String>,
+) -> Result<ServiceEnvInspection, String> {
+    state
+        .core
+        .inspect_service_env(&service_id, mode.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn write_service_env(
+    state: State<'_, AppState>,
+    service_id: String,
+    target_file: String,
+    entries: BTreeMap<String, String>,
+) -> Result<EnvWriteResult, String> {
+    state
+        .core
+        .write_service_env(&service_id, &target_file, &entries)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn update_service_env_key(
+    state: State<'_, AppState>,
+    service_id: String,
+    target_file: String,
+    key: String,
+    value: String,
+) -> Result<EnvWriteResult, String> {
+    state
+        .core
+        .update_service_env_key(&service_id, &target_file, &key, &value)
+        .map_err(|e| e.to_string())
+}
+
 fn create_package_json_watcher(app_handle: AppHandle) -> Option<WatcherState> {
     let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
         if let Ok(event) = res {
@@ -283,6 +325,9 @@ pub fn run() {
             remove_project,
             scan_folder,
             register_grouped_project,
+            inspect_service_env,
+            write_service_env,
+            update_service_env_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running DevDock Tauri application");
