@@ -3,6 +3,7 @@ import { KeyRound, Network } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { CommandPaletteModal } from "@/components/ui/CommandPaletteModal";
 import { AddProjectModal } from "@/components/projects/AddProjectModal";
+import { ScanFolderModal } from "@/components/projects/ScanFolderModal";
 import { SidebarProjects } from "@/components/projects/SidebarProjects";
 import { OverviewView } from "@/views/OverviewView";
 import { SettingsView } from "@/views/SettingsView";
@@ -19,6 +20,7 @@ export default function App() {
   const route = useAppStore((s) => s.route);
   const setRoute = useAppStore((s) => s.setRoute);
   const openAddProjectModal = useAppStore((s) => s.openAddProjectModal);
+  const openScanModal = useAppStore((s) => s.openScanModal);
 
   useEffect(() => {
     void init();
@@ -145,12 +147,14 @@ export default function App() {
       <AppShell
         projectsSlot={<SidebarProjects />}
         onAddProject={() => openAddProjectModal(null)}
+        onScanFolder={() => openScanModal()}
         breadcrumbSegments={breadcrumbSegments}
       >
         {renderMain()}
       </AppShell>
       <CommandPaletteModal />
       <AddProjectModal />
+      <ScanFolderModal />
     </>
   );
 }

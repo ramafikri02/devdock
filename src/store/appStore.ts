@@ -9,6 +9,7 @@ import {
   refreshService as apiRefreshService,
   refreshShellPath,
   registerFolderAsProject,
+  registerGroupedProject as apiRegisterGroupedProject,
   relocateService as apiRelocateService,
   removeProject as apiRemoveProject,
   removeService as apiRemoveService,
@@ -48,6 +49,7 @@ interface AppState {
   commandPaletteOpen: boolean;
   addProjectModalOpen: boolean;
   addProjectDefaultTargetId: string | null;
+  scanModalOpen: boolean;
 
   init: () => Promise<void>;
   loadProjects: () => Promise<void>;
@@ -59,9 +61,16 @@ interface AppState {
   setCommandPaletteOpen: (open: boolean) => void;
   openAddProjectModal: (targetProjectId?: string | null) => void;
   closeAddProjectModal: () => void;
+  openScanModal: () => void;
+  closeScanModal: () => void;
   refreshPath: () => Promise<void>;
 
   registerProject: (folder: string, projectName?: string) => Promise<Project>;
+  registerGroupedProject: (
+    projectName: string,
+    folders: string[],
+    rootPath?: string | null,
+  ) => Promise<Project>;
   attachService: (
     projectId: string,
     folder: string,
@@ -101,6 +110,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   commandPaletteOpen: false,
   addProjectModalOpen: false,
   addProjectDefaultTargetId: null,
+  scanModalOpen: false,
 
   init: async () => {
     try {
@@ -156,6 +166,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ addProjectModalOpen: true, addProjectDefaultTargetId: targetProjectId }),
   closeAddProjectModal: () =>
     set({ addProjectModalOpen: false, addProjectDefaultTargetId: null }),
+  openScanModal: () => set({ scanModalOpen: true }),
+  closeScanModal: () => set({ scanModalOpen: false }),
 
   refreshPath: async () => {
     try {
@@ -192,6 +204,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     get().pushToast({
       title: `Project "${project.name}" ditambahkan`,
+      variant: "success",
+    });
+    return project;
+  },
+
+  registerGroupedProject: async (projectName, folders, rootPath = null) => {
+    const project = await apiRegisterGroupedProject(projectName, folders, rootPath);
+    await get().loadProjects();
+    set({ route: { kind: "project", projectId: project.id } });
+    get().pushToast({
+      title: `Project "${project.name}" (${project.services.length} service) ditambahkan`,
       variant: "success",
     });
     return project;

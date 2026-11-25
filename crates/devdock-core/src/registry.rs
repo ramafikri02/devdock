@@ -189,6 +189,97 @@ impl<'a> ProjectRegistry<'a> {
         self.get_project(&project_id)
     }
 
+    pub fn register_grouped_project(
+        &self,
+        project_name: &str,
+        folders: &[PathBuf],
+        root_path: Option<&Path>,
+    ) -> CoreResult<Project> {
+        let trimmed_name = project_name.trim();
+        if trimmed_name.is_empty() {
+            return Err(CoreError::Validation(
+                "Project name cannot be empty".to_string(),
+            ));
+        }
+        if folders.is_empty() {
+            return Err(CoreError::Validation(
+                "At least one service folder must be provided".to_string(),
+            ));
+        }
+
+        let mut prepared = Vec::with_capacity(folders.len());
+        let mut seen_paths = std::collections::HashSet::new();
+
+        for folder in folders {
+            let normalized = Self::normalize_folder(folder)?;
+            let path_str = normalized.to_string_lossy().to_string();
+            if !seen_paths.insert(path_str.clone()) {
+                return Err(CoreError::DuplicatePath(format!(
+                    "Duplicate folder in selection: {path_str}"
+                )));
+            }
+            self.check_duplicate_path(&path_str, None)?;
+
+            let adapter = self.adapters.detect(&normalized).ok_or_else(|| {
+                CoreError::InvalidFolder(format!(
+                    "No supported project found in {} (expected package.json)",
+                    normalized.display()
+                ))
+            })?;
+            let desc = adapter.describe(&normalized)?;
+            let default_script = Self::pick_default_script(&desc.scripts);
+            prepared.push((desc.name, path_str, adapter.id().to_string(), default_script));
+        }
+
+        let root_path_str = match root_path {
+            Some(rp) => {
+                let norm = Self::normalize_folder(rp)?;
+                Some(norm.to_string_lossy().to_string())
+            }
+            None => None,
+        };
+
+        let now = Utc::now().to_rfc3339();
+        let project_id = Uuid::new_v4().to_string();
+
+        self.db.with_conn(|conn| {
+            let tx = conn.unchecked_transaction()?;
+            tx.execute(
+                "INSERT INTO project (id, name, root_path, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![project_id, trimmed_name, root_path_str, now, now],
+            )?;
+
+            for (idx, (svc_name, path_str, adapter_id, default_script)) in
+                prepared.iter().enumerate()
+            {
+                let service_id = Uuid::new_v4().to_string();
+                tx.execute(
+                    "INSERT INTO service (
+                        id, project_id, name, path, adapter, start_order, default_script,
+                        created_at, updated_at
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    params![
+                        service_id,
+                        project_id,
+                        svc_name,
+                        path_str,
+                        adapter_id,
+                        idx as i32,
+                        default_script,
+                        now,
+                        now
+                    ],
+                )?;
+            }
+
+            tx.commit()?;
+            Ok(())
+        })?;
+
+        self.get_project(&project_id)
+    }
+
     pub fn attach_folder_to_project(
         &self,
         project_id: &str,

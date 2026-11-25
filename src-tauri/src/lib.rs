@@ -1,4 +1,4 @@
-use devdock_core::models::{AppBootstrapInfo, PackageManager, Project, Service};
+use devdock_core::models::{AppBootstrapInfo, PackageManager, Project, ScanResult, Service};
 use devdock_core::traits::{InMemoryNotifier, InMemorySecretStore};
 use devdock_core::DevDockCore;
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
@@ -186,6 +186,38 @@ fn remove_project(state: State<'_, AppState>, project_id: String) -> Result<(), 
     Ok(())
 }
 
+#[tauri::command]
+async fn scan_folder(
+    state: State<'_, AppState>,
+    root: String,
+    max_depth: Option<usize>,
+) -> Result<ScanResult, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.scan_folder(PathBuf::from(root).as_path(), max_depth)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn register_grouped_project(
+    state: State<'_, AppState>,
+    project_name: String,
+    folders: Vec<String>,
+    root_path: Option<String>,
+) -> Result<Project, String> {
+    let paths: Vec<PathBuf> = folders.into_iter().map(PathBuf::from).collect();
+    let root_pb = root_path.map(PathBuf::from);
+    let project = state
+        .core
+        .register_grouped_project(&project_name, &paths, root_pb.as_deref())
+        .map_err(|e| e.to_string())?;
+    state.sync_watchers();
+    Ok(project)
+}
+
 fn create_package_json_watcher(app_handle: AppHandle) -> Option<WatcherState> {
     let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
         if let Ok(event) = res {
@@ -249,6 +281,8 @@ pub fn run() {
             relocate_service,
             remove_service,
             remove_project,
+            scan_folder,
+            register_grouped_project,
         ])
         .run(tauri::generate_context!())
         .expect("error while running DevDock Tauri application");

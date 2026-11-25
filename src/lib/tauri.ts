@@ -69,6 +69,36 @@ export interface AppBootstrapInfo {
   adapters: string[];
 }
 
+export type ScanCandidateKind = "service" | "monorepo";
+
+export interface ScanWorkspacePackage {
+  name: string;
+  path: string;
+  packageManager: PackageManager;
+  framework: Framework;
+  scriptCount: number;
+  alreadyRegistered: boolean;
+}
+
+export interface ScanCandidate {
+  kind: ScanCandidateKind;
+  name: string;
+  path: string;
+  adapter: string;
+  packageManager: PackageManager;
+  framework: Framework;
+  scriptCount: number;
+  alreadyRegistered: boolean;
+  workspacePackages: ScanWorkspacePackage[];
+}
+
+export interface ScanResult {
+  rootPath: string;
+  maxDepth: number;
+  scannedDirs: number;
+  candidates: ScanCandidate[];
+}
+
 export function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
@@ -172,6 +202,25 @@ export async function removeService(serviceId: string): Promise<void> {
 
 export async function removeProject(projectId: string): Promise<void> {
   await invoke("remove_project", { projectId });
+}
+
+export async function scanFolder(
+  root: string,
+  maxDepth = 3,
+): Promise<ScanResult> {
+  return invoke<ScanResult>("scan_folder", { root, maxDepth });
+}
+
+export async function registerGroupedProject(
+  projectName: string,
+  folders: string[],
+  rootPath?: string | null,
+): Promise<Project> {
+  return invoke<Project>("register_grouped_project", {
+    projectName,
+    folders,
+    rootPath: rootPath ?? null,
+  });
 }
 
 export async function onProjectsChanged(handler: () => void): Promise<UnlistenFn> {

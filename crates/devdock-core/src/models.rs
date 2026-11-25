@@ -143,3 +143,44 @@ pub struct AppBootstrapInfo {
     pub theme: String,
     pub adapters: Vec<String>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ScanCandidateKind {
+    Service,
+    Monorepo,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanWorkspacePackage {
+    pub name: String,
+    pub path: String,
+    pub package_manager: PackageManager,
+    pub framework: Framework,
+    pub script_count: usize,
+    pub already_registered: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanCandidate {
+    pub kind: ScanCandidateKind,
+    pub name: String,
+    pub path: String,
+    pub adapter: String,
+    pub package_manager: PackageManager,
+    pub framework: Framework,
+    pub script_count: usize,
+    pub already_registered: bool,
+    pub workspace_packages: Vec<ScanWorkspacePackage>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanResult {
+    pub root_path: String,
+    pub max_depth: usize,
+    pub scanned_dirs: usize,
+    pub candidates: Vec<ScanCandidate>,
+}

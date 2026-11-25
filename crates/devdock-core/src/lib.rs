@@ -3,14 +3,18 @@ pub mod db;
 pub mod error;
 pub mod models;
 pub mod registry;
+pub mod scanner;
 pub mod shell_env;
 pub mod traits;
 
 use crate::adapter::{AdapterRegistry, ProjectAdapter};
 use crate::db::Database;
 use crate::error::{CoreError, CoreResult};
-use crate::models::{AppBootstrapInfo, PackageManager, Project, Service, ServiceDescriptor};
+use crate::models::{
+    AppBootstrapInfo, PackageManager, Project, ScanResult, Service, ServiceDescriptor,
+};
 use crate::registry::ProjectRegistry;
+use crate::scanner::FolderScanner;
 use crate::shell_env::LoginShellEnvProvider;
 use crate::traits::{
     InMemoryNotifier, InMemorySecretStore, InMemoryShellEnvProvider, Notifier, SecretStore,
@@ -223,5 +227,19 @@ impl DevDockCore {
 
     pub fn remove_project(&self, project_id: &str) -> CoreResult<()> {
         self.registry().remove_project(project_id)
+    }
+
+    pub fn scan_folder(&self, root: &Path, max_depth: Option<usize>) -> CoreResult<ScanResult> {
+        FolderScanner::new(&self.db, &self.adapters).scan(root, max_depth)
+    }
+
+    pub fn register_grouped_project(
+        &self,
+        project_name: &str,
+        folders: &[std::path::PathBuf],
+        root_path: Option<&Path>,
+    ) -> CoreResult<Project> {
+        self.registry()
+            .register_grouped_project(project_name, folders, root_path)
     }
 }

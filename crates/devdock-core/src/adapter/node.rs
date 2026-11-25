@@ -93,6 +93,196 @@ impl NodeAdapter {
 
         Framework::Unknown
     }
+
+    fn parse_pnpm_workspace_patterns(folder: &Path) -> Vec<String> {
+        let yaml_path = folder.join("pnpm-workspace.yaml");
+        let Ok(content) = std::fs::read_to_string(&yaml_path) else {
+            return Vec::new();
+        };
+
+        let mut patterns = Vec::new();
+        let mut in_packages = false;
+
+        for raw_line in content.lines() {
+            let line = raw_line.split('#').next().unwrap_or("").trim_end();
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            if !raw_line.starts_with(' ') && !raw_line.starts_with('\t') {
+                if let Some(rest) = trimmed.strip_prefix("packages:") {
+                    in_packages = true;
+                    let inline = rest.trim();
+                    if inline.starts_with('[') && inline.ends_with(']') {
+                        let inner = &inline[1..inline.len() - 1];
+                        for item in inner.split(',') {
+                            let cleaned = item.trim().trim_matches(|c| c == '\'' || c == '"');
+                            if !cleaned.is_empty() {
+                                patterns.push(cleaned.to_string());
+                            }
+                        }
+                        in_packages = false;
+                    }
+                } else {
+                    in_packages = false;
+                }
+                continue;
+            }
+
+            if in_packages {
+                if let Some(item) = trimmed.strip_prefix('-') {
+                    let cleaned = item.trim().trim_matches(|c| c == '\'' || c == '"');
+                    if !cleaned.is_empty() {
+                        patterns.push(cleaned.to_string());
+                    }
+                }
+            }
+        }
+
+        patterns
+    }
+
+    fn parse_pkg_json_workspace_patterns(pkg_json: &Value) -> Vec<String> {
+        let mut patterns = Vec::new();
+        if let Some(ws) = pkg_json.get("workspaces") {
+            if let Some(arr) = ws.as_array() {
+                for item in arr {
+                    if let Some(s) = item.as_str() {
+                        patterns.push(s.to_string());
+                    }
+                }
+            } else if let Some(arr) = ws.get("packages").and_then(|v| v.as_array()) {
+                for item in arr {
+                    if let Some(s) = item.as_str() {
+                        patterns.push(s.to_string());
+                    }
+                }
+            }
+        }
+        patterns
+    }
+
+    fn expand_workspace_pattern(root: &Path, pattern: &str) -> Vec<std::path::PathBuf> {
+        let cleaned = pattern.trim().trim_start_matches("./").trim_end_matches('/');
+        if cleaned.is_empty() {
+            return Vec::new();
+        }
+
+        let mut results = Vec::new();
+        if let Some(prefix) = cleaned.strip_suffix("/**") {
+            let base = if prefix.is_empty() {
+                root.to_path_buf()
+            } else {
+                root.join(prefix)
+            };
+            Self::collect_nested_packages(&base, 0, 4, &mut results);
+        } else if let Some(prefix) = cleaned.strip_suffix("/*") {
+            let base = if prefix.is_empty() {
+                root.to_path_buf()
+            } else {
+                root.join(prefix)
+            };
+            if let Ok(entries) = std::fs::read_dir(&base) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_dir() && path.join("package.json").is_file() {
+                        results.push(path);
+                    }
+                }
+            }
+        } else if cleaned == "*" {
+            if let Ok(entries) = std::fs::read_dir(root) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    let name = entry.file_name();
+                    if name == "node_modules" || name == ".git" {
+                        continue;
+                    }
+                    if path.is_dir() && path.join("package.json").is_file() {
+                        results.push(path);
+                    }
+                }
+            }
+        } else {
+            let candidate = root.join(cleaned);
+            if candidate.is_dir() && candidate.join("package.json").is_file() {
+                results.push(candidate);
+            }
+        }
+
+        results
+    }
+
+    fn collect_nested_packages(
+        dir: &Path,
+        depth: usize,
+        max_depth: usize,
+        out: &mut Vec<std::path::PathBuf>,
+    ) {
+        if depth > max_depth || !dir.is_dir() {
+            return;
+        }
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str == "node_modules"
+                || name_str == ".git"
+                || name_str == "dist"
+                || name_str == ".next"
+                || name_str == "build"
+            {
+                continue;
+            }
+            if path.join("package.json").is_file() {
+                out.push(path);
+            } else {
+                Self::collect_nested_packages(&path, depth + 1, max_depth, out);
+            }
+        }
+    }
+
+    fn detect_workspace_packages(folder: &Path, pkg_json: &Value) -> Vec<String> {
+        let mut patterns = Self::parse_pnpm_workspace_patterns(folder);
+        if patterns.is_empty() {
+            patterns = Self::parse_pkg_json_workspace_patterns(pkg_json);
+        }
+        if patterns.is_empty() {
+            return Vec::new();
+        }
+
+        let mut included = std::collections::BTreeSet::new();
+        let mut excluded = HashSet::new();
+
+        for pat in patterns {
+            let trimmed = pat.trim();
+            if let Some(neg) = trimmed.strip_prefix('!') {
+                for p in Self::expand_workspace_pattern(folder, neg) {
+                    let canon = std::fs::canonicalize(&p).unwrap_or(p);
+                    excluded.insert(canon);
+                }
+            } else {
+                for p in Self::expand_workspace_pattern(folder, trimmed) {
+                    let canon = std::fs::canonicalize(&p).unwrap_or(p);
+                    included.insert(canon);
+                }
+            }
+        }
+
+        let root_canon = std::fs::canonicalize(folder).unwrap_or_else(|_| folder.to_path_buf());
+        included
+            .into_iter()
+            .filter(|p| p != &root_canon && !excluded.contains(p))
+            .map(|p| p.to_string_lossy().to_string())
+            .collect()
+    }
 }
 
 impl ProjectAdapter for NodeAdapter {
@@ -141,13 +331,15 @@ impl ProjectAdapter for NodeAdapter {
             }
         }
 
+        let workspace_packages = Self::detect_workspace_packages(folder, &json);
+
         Ok(ServiceDescriptor {
             adapter: self.id().to_string(),
             name,
             package_manager,
             framework,
             scripts,
-            workspace_packages: Vec::new(),
+            workspace_packages,
         })
     }
 
