@@ -1,6 +1,7 @@
 use crate::error::CoreResult;
 use crate::traits::ShellEnvProvider;
 use std::collections::HashMap;
+#[cfg(unix)]
 use std::process::Command;
 use std::sync::RwLock;
 
@@ -27,13 +28,38 @@ impl LoginShellEnvProvider {
     fn resolve_now() -> HashMap<String, String> {
         let mut env: HashMap<String, String> = std::env::vars().collect();
 
+        // Windows stores the PATH variable as "Path" (mixed case); normalize any
+        // case-variant to "PATH" so downstream lookups and child-process envs are consistent.
+        let existing_path_keys: Vec<String> = env
+            .keys()
+            .filter(|k| k.eq_ignore_ascii_case("PATH"))
+            .cloned()
+            .collect();
+        let mut normalized_path = env
+            .get("PATH")
+            .cloned()
+            .or_else(|| {
+                existing_path_keys
+                    .iter()
+                    .find_map(|k| env.get(k).cloned())
+            })
+            .unwrap_or_default();
+
+        for key in existing_path_keys {
+            env.remove(&key);
+        }
+
         #[cfg(unix)]
         {
             if let Some(shell_path) = Self::probe_unix_login_shell_path() {
                 if !shell_path.trim().is_empty() {
-                    env.insert("PATH".to_string(), shell_path);
+                    normalized_path = shell_path;
                 }
             }
+        }
+
+        if !normalized_path.is_empty() {
+            env.insert("PATH".to_string(), normalized_path);
         }
 
         env
