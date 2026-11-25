@@ -138,6 +138,55 @@ export interface EnvWriteResult {
   writtenKeys: number;
 }
 
+export type StorageEntryKind = "node_modules" | "build_cache";
+
+export interface CleanableFolder {
+  name: string;
+  path: string;
+  kind: StorageEntryKind;
+  sizeBytes: number;
+}
+
+export interface ServiceStorageReport {
+  serviceId: string;
+  serviceName: string;
+  totalBytes: number;
+  nodeModulesBytes: number;
+  buildCacheBytes: number;
+  sourceBytes: number;
+  reclaimableBytes: number;
+  cleanableFolders: CleanableFolder[];
+  calculatedAt: string;
+  fromCache: boolean;
+}
+
+export interface ProjectStorageSummary {
+  projectId: string;
+  projectName: string;
+  totalBytes: number;
+  nodeModulesBytes: number;
+  buildCacheBytes: number;
+  sourceBytes: number;
+  reclaimableBytes: number;
+  services: ServiceStorageReport[];
+}
+
+export interface GlobalStorageSummary {
+  totalBytes: number;
+  nodeModulesBytes: number;
+  buildCacheBytes: number;
+  reclaimableBytes: number;
+  serviceCount: number;
+  cachedServiceCount: number;
+}
+
+export interface StorageCleanResult {
+  serviceId: string;
+  deletedFolder: string;
+  freedBytes: number;
+  updatedReport: ServiceStorageReport;
+}
+
 export function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
@@ -295,6 +344,66 @@ export async function updateServiceEnvKey(
     targetFile,
     key,
     value,
+  });
+}
+
+export async function analyzeServiceStorage(
+  serviceId: string,
+  forceRefresh = false,
+): Promise<ServiceStorageReport> {
+  return invoke<ServiceStorageReport>("analyze_service_storage", {
+    serviceId,
+    forceRefresh,
+  });
+}
+
+export async function analyzeProjectStorage(
+  projectId: string,
+  forceRefresh = false,
+): Promise<ProjectStorageSummary> {
+  return invoke<ProjectStorageSummary>("analyze_project_storage", {
+    projectId,
+    forceRefresh,
+  });
+}
+
+export async function getCachedGlobalStorage(): Promise<GlobalStorageSummary> {
+  if (!isTauriRuntime()) {
+    return {
+      totalBytes: 0,
+      nodeModulesBytes: 0,
+      buildCacheBytes: 0,
+      reclaimableBytes: 0,
+      serviceCount: 0,
+      cachedServiceCount: 0,
+    };
+  }
+  return invoke<GlobalStorageSummary>("get_cached_global_storage");
+}
+
+export async function analyzeAllStorage(
+  forceRefresh = false,
+): Promise<GlobalStorageSummary> {
+  if (!isTauriRuntime()) {
+    return {
+      totalBytes: 0,
+      nodeModulesBytes: 0,
+      buildCacheBytes: 0,
+      reclaimableBytes: 0,
+      serviceCount: 0,
+      cachedServiceCount: 0,
+    };
+  }
+  return invoke<GlobalStorageSummary>("analyze_all_storage", { forceRefresh });
+}
+
+export async function cleanServiceStorage(
+  serviceId: string,
+  folderName: string,
+): Promise<StorageCleanResult> {
+  return invoke<StorageCleanResult>("clean_service_storage", {
+    serviceId,
+    folderName,
   });
 }
 

@@ -6,6 +6,7 @@ pub mod models;
 pub mod registry;
 pub mod scanner;
 pub mod shell_env;
+pub mod storage;
 pub mod traits;
 
 use crate::adapter::{AdapterRegistry, ProjectAdapter};
@@ -13,12 +14,14 @@ use crate::db::Database;
 use crate::env_resolver::EnvResolver;
 use crate::error::{CoreError, CoreResult};
 use crate::models::{
-    AppBootstrapInfo, EnvWriteResult, PackageManager, Project, ScanResult, Service,
-    ServiceDescriptor, ServiceEnvInspection,
+    AppBootstrapInfo, EnvWriteResult, GlobalStorageSummary, PackageManager, Project,
+    ProjectStorageSummary, ScanResult, Service, ServiceDescriptor, ServiceEnvInspection,
+    ServiceStorageReport, StorageCleanResult,
 };
 use crate::registry::ProjectRegistry;
 use crate::scanner::FolderScanner;
 use crate::shell_env::LoginShellEnvProvider;
+use crate::storage::StorageAnalyzer;
 use crate::traits::{
     InMemoryNotifier, InMemorySecretStore, InMemoryShellEnvProvider, Notifier, SecretStore,
     ShellEnvProvider,
@@ -33,6 +36,7 @@ pub struct DevDockCore {
     shell_env: Arc<dyn ShellEnvProvider>,
     notifier: Arc<dyn Notifier>,
     adapters: AdapterRegistry,
+    storage: StorageAnalyzer,
 }
 
 impl DevDockCore {
@@ -49,6 +53,7 @@ impl DevDockCore {
             shell_env,
             notifier,
             adapters: AdapterRegistry::default(),
+            storage: StorageAnalyzer::new(),
         })
     }
 
@@ -77,6 +82,7 @@ impl DevDockCore {
             shell_env: Arc::new(InMemoryShellEnvProvider::new(initial_path)),
             notifier: Arc::new(InMemoryNotifier::new()),
             adapters: AdapterRegistry::default(),
+            storage: StorageAnalyzer::new(),
         })
     }
 
@@ -274,5 +280,42 @@ impl DevDockCore {
     ) -> CoreResult<EnvWriteResult> {
         let service = self.get_service(service_id)?;
         EnvResolver::update_env_key(&service, target_file, key, value)
+    }
+
+    pub fn analyze_service_storage(
+        &self,
+        service_id: &str,
+        force_refresh: bool,
+    ) -> CoreResult<ServiceStorageReport> {
+        let service = self.get_service(service_id)?;
+        self.storage.analyze_service(&service, force_refresh)
+    }
+
+    pub fn analyze_project_storage(
+        &self,
+        project_id: &str,
+        force_refresh: bool,
+    ) -> CoreResult<ProjectStorageSummary> {
+        let project = self.get_project(project_id)?;
+        self.storage.analyze_project(&project, force_refresh)
+    }
+
+    pub fn get_cached_global_storage(&self) -> CoreResult<GlobalStorageSummary> {
+        let projects = self.list_projects()?;
+        Ok(self.storage.cached_global_summary(&projects))
+    }
+
+    pub fn analyze_all_storage(&self, force_refresh: bool) -> CoreResult<GlobalStorageSummary> {
+        let projects = self.list_projects()?;
+        Ok(self.storage.analyze_all(&projects, force_refresh))
+    }
+
+    pub fn clean_service_storage(
+        &self,
+        service_id: &str,
+        folder_name: &str,
+    ) -> CoreResult<StorageCleanResult> {
+        let service = self.get_service(service_id)?;
+        self.storage.clean_target(&service, folder_name)
     }
 }

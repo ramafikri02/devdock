@@ -233,3 +233,67 @@ pub struct EnvWriteResult {
     pub backup_path: Option<String>,
     pub written_keys: usize,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageEntryKind {
+    NodeModules,
+    BuildCache,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleanableFolder {
+    pub name: String,
+    pub path: String,
+    pub kind: StorageEntryKind,
+    pub size_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceStorageReport {
+    pub service_id: String,
+    pub service_name: String,
+    pub total_bytes: u64,
+    pub node_modules_bytes: u64,
+    pub build_cache_bytes: u64,
+    pub source_bytes: u64,
+    pub reclaimable_bytes: u64,
+    pub cleanable_folders: Vec<CleanableFolder>,
+    pub calculated_at: String,
+    pub from_cache: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectStorageSummary {
+    pub project_id: String,
+    pub project_name: String,
+    pub total_bytes: u64,
+    pub node_modules_bytes: u64,
+    pub build_cache_bytes: u64,
+    pub source_bytes: u64,
+    pub reclaimable_bytes: u64,
+    pub services: Vec<ServiceStorageReport>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalStorageSummary {
+    pub total_bytes: u64,
+    pub node_modules_bytes: u64,
+    pub build_cache_bytes: u64,
+    pub reclaimable_bytes: u64,
+    pub service_count: usize,
+    pub cached_service_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageCleanResult {
+    pub service_id: String,
+    pub deleted_folder: String,
+    pub freed_bytes: u64,
+    pub updated_report: ServiceStorageReport,
+}

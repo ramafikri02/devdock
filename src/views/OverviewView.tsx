@@ -7,7 +7,9 @@ import {
   MemoryStick,
   Network,
   PlayCircle,
+  RefreshCw,
 } from "lucide-react";
+import { formatBytes } from "@/lib/format";
 import { useAppStore } from "@/store/appStore";
 
 interface OverviewViewProps {
@@ -22,14 +24,33 @@ export function OverviewView({
   onAddProject,
 }: OverviewViewProps) {
   const bootstrap = useAppStore((s) => s.bootstrap);
+  const globalStorage = useAppStore((s) => s.globalStorage);
+  const storageLoading = useAppStore((s) => s.storageLoading);
+  const refreshGlobalStorage = useAppStore((s) => s.refreshGlobalStorage);
+
+  const nmDisplay =
+    globalStorage && globalStorage.cachedServiceCount > 0
+      ? formatBytes(globalStorage.nodeModulesBytes)
+      : "—";
+  const reclaimableSubtitle =
+    globalStorage && globalStorage.reclaimableBytes > 0
+      ? `${formatBytes(globalStorage.reclaimableBytes)} bisa dibersihkan`
+      : null;
 
   const kpis = [
-    { label: "Jalan", value: "0", icon: PlayCircle, tone: "text-accent" },
-    { label: "Crash", value: "0", icon: AlertTriangle, tone: "text-danger" },
-    { label: "Bentrok Port", value: "0", icon: Network, tone: "text-warn" },
-    { label: "CPU Total", value: "0.0%", icon: Cpu, tone: "text-info" },
-    { label: "RAM Total", value: "0 MB", icon: MemoryStick, tone: "text-info" },
-    { label: "node_modules", value: "—", icon: HardDrive, tone: "text-fg-muted" },
+    { label: "Jalan", value: "0", icon: PlayCircle, tone: "text-accent", sub: null },
+    { label: "Crash", value: "0", icon: AlertTriangle, tone: "text-danger", sub: null },
+    { label: "Bentrok Port", value: "0", icon: Network, tone: "text-warn", sub: null },
+    { label: "CPU Total", value: "0.0%", icon: Cpu, tone: "text-info", sub: null },
+    { label: "RAM Total", value: "0 MB", icon: MemoryStick, tone: "text-info", sub: null },
+    {
+      label: "node_modules",
+      value: nmDisplay,
+      icon: HardDrive,
+      tone: "text-warn",
+      sub: reclaimableSubtitle,
+      isStorage: true,
+    },
   ];
 
   return (
@@ -75,15 +96,40 @@ export function OverviewView({
             >
               <div className="flex items-center justify-between text-[12px] text-fg-muted">
                 <span>{kpi.label}</span>
-                <Icon
-                  className={`h-3.5 w-3.5 ${kpi.tone}`}
-                  strokeWidth={1.85}
-                  aria-hidden="true"
-                />
+                <div className="flex items-center gap-1.5">
+                  {"isStorage" in kpi && kpi.isStorage && serviceCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => void refreshGlobalStorage(true)}
+                      aria-label="Hitung ulang storage global"
+                      title="Hitung ulang storage"
+                      className="rounded p-0.5 text-fg-faint hover:bg-surface-hover hover:text-fg"
+                    >
+                      <RefreshCw
+                        className={`h-3 w-3 ${storageLoading ? "animate-spin" : ""}`}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  ) : null}
+                  <Icon
+                    className={`h-3.5 w-3.5 ${kpi.tone}`}
+                    strokeWidth={1.85}
+                    aria-hidden="true"
+                  />
+                </div>
               </div>
-              <div className="mt-2 font-mono text-[20px] font-semibold text-fg tabular-nums">
-                {kpi.value}
-              </div>
+              {"isStorage" in kpi && kpi.isStorage && storageLoading && nmDisplay === "—" ? (
+                <div className="skeleton-shimmer mt-2 h-7 w-24 rounded-[6px]" />
+              ) : (
+                <div className="mt-2 font-mono text-[20px] font-semibold text-fg tabular-nums">
+                  {kpi.value}
+                </div>
+              )}
+              {kpi.sub ? (
+                <div className="mt-0.5 truncate font-mono text-[10.5px] text-fg-faint tabular-nums">
+                  {kpi.sub}
+                </div>
+              ) : null}
             </div>
           );
         })}

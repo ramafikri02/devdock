@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   FileCode2,
   FolderOpen,
+  HardDrive,
   Package,
   RefreshCw,
   Settings,
@@ -15,11 +16,15 @@ import {
   type PackageManager,
   type Project,
   type Service,
+  type ServiceStorageReport,
+  analyzeServiceStorage,
   pickFolderDialog,
 } from "@/lib/tauri";
+import { formatBytes } from "@/lib/format";
 import { useAppStore } from "@/store/appStore";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ServiceEnvTab } from "@/components/workbench/ServiceEnvTab";
+import { ServiceStorageTab } from "@/components/workbench/ServiceStorageTab";
 import { cn } from "@/lib/cn";
 
 interface ServiceWorkbenchViewProps {
@@ -27,7 +32,7 @@ interface ServiceWorkbenchViewProps {
   service: Service;
 }
 
-type WorkbenchTab = "scripts" | "env" | "settings";
+type WorkbenchTab = "scripts" | "env" | "storage" | "settings";
 
 export function ServiceWorkbenchView({
   project,
@@ -50,12 +55,30 @@ export function ServiceWorkbenchView({
   const [confirmRemoveTarget, setConfirmRemoveTarget] = useState<
     "service" | "project" | null
   >(null);
+  const [storageSummary, setStorageSummary] =
+    useState<ServiceStorageReport | null>(null);
 
   useEffect(() => {
     setServiceNameInput(service.name);
     setProjectNameInput(project.name);
     setRelocateInput(service.path);
   }, [service.id, service.name, service.path, project.name]);
+
+  useEffect(() => {
+    if (service.isMissing) {
+      setStorageSummary(null);
+      return;
+    }
+    let cancelled = false;
+    void analyzeServiceStorage(service.id, false)
+      .then((rep) => {
+        if (!cancelled) setStorageSummary(rep);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [service.id, service.isMissing]);
 
   const effectivePm = service.pmOverride ?? service.detectedPm;
   const scriptEntries = Object.entries(service.scripts);
@@ -267,6 +290,22 @@ export function ServiceWorkbenchView({
               <button
                 type="button"
                 role="tab"
+                aria-selected={tab === "storage"}
+                onClick={() => setTab("storage")}
+                className={cn(
+                  "flex items-center gap-1.5 border-b-2 px-3 py-2 text-[13px] font-medium transition-colors",
+                  tab === "storage"
+                    ? "border-info text-fg"
+                    : "border-transparent text-fg-muted hover:text-fg",
+                )}
+              >
+                <HardDrive className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Storage</span>
+              </button>
+
+              <button
+                type="button"
+                role="tab"
                 aria-selected={tab === "settings"}
                 onClick={() => setTab("settings")}
                 className={cn(
@@ -332,6 +371,14 @@ export function ServiceWorkbenchView({
 
           {/* Tab content: Env */}
           {tab === "env" ? <ServiceEnvTab service={service} /> : null}
+
+          {/* Tab content: Storage */}
+          {tab === "storage" ? (
+            <ServiceStorageTab
+              service={service}
+              onReportChange={setStorageSummary}
+            />
+          ) : null}
 
           {/* Tab content: Settings */}
           {tab === "settings" ? (
@@ -541,6 +588,43 @@ export function ServiceWorkbenchView({
               {service.isMissing ? "Missing" : "Tersedia"}
             </span>
           </div>
+        </div>
+
+        <h2 className="mt-5 text-[11px] font-semibold tracking-wider text-fg-faint uppercase">
+          Storage Summary
+        </h2>
+        <div className="mt-3 space-y-2 rounded-[10px] border border-border bg-surface p-3.5 text-[12.5px]">
+          {storageSummary ? (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="text-fg-muted">Total</span>
+                <span className="font-mono font-semibold text-fg tabular-nums">
+                  {formatBytes(storageSummary.totalBytes)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-fg-muted">node_modules</span>
+                <span className="font-mono text-warn tabular-nums">
+                  {formatBytes(storageSummary.nodeModulesBytes)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-fg-muted">Build & Cache</span>
+                <span className="font-mono text-info tabular-nums">
+                  {formatBytes(storageSummary.buildCacheBytes)}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTab("storage")}
+                className="btn-press mt-2 w-full rounded-[6px] border border-border-strong bg-surface-2 py-1.5 text-center text-[11.5px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg"
+              >
+                Kelola Storage
+              </button>
+            </>
+          ) : (
+            <div className="skeleton-shimmer h-16 rounded-[6px]" />
+          )}
         </div>
       </aside>
 

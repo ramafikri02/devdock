@@ -1,6 +1,12 @@
-import { useState } from "react";
-import { AlertTriangle, Plus, Trash2, ArrowRight } from "lucide-react";
-import { FRAMEWORK_LABELS, type Project } from "@/lib/tauri";
+import { useEffect, useState } from "react";
+import { AlertTriangle, HardDrive, Plus, Trash2, ArrowRight } from "lucide-react";
+import {
+  FRAMEWORK_LABELS,
+  type Project,
+  type ProjectStorageSummary,
+  analyzeProjectStorage,
+} from "@/lib/tauri";
+import { formatBytes } from "@/lib/format";
 import { useAppStore } from "@/store/appStore";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
@@ -13,6 +19,19 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
   const openAddProjectModal = useAppStore((s) => s.openAddProjectModal);
   const removeProject = useAppStore((s) => s.removeProject);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [storage, setStorage] = useState<ProjectStorageSummary | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void analyzeProjectStorage(project.id, false)
+      .then((res) => {
+        if (!cancelled) setStorage(res);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
 
   return (
     <div className="animate-view-enter mx-auto max-w-5xl space-y-5 p-6">
@@ -25,6 +44,12 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
             <span className="rounded-full bg-surface-2 px-2 py-0.5 font-mono text-[11px] text-fg-muted tabular-nums">
               {project.services.length} services
             </span>
+            {storage ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 font-mono text-[11px] text-fg-muted tabular-nums">
+                <HardDrive className="h-3 w-3 text-warn" aria-hidden="true" />
+                {formatBytes(storage.totalBytes)}
+              </span>
+            ) : null}
           </div>
           <p className="mt-0.5 text-[13px] text-fg-muted">
             Pilih service untuk membuka Service Workbench atau tambahkan folder service baru ke project ini.

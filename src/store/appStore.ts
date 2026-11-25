@@ -1,10 +1,13 @@
 import { create } from "zustand";
 import {
   type AppBootstrapInfo,
+  type GlobalStorageSummary,
   type PackageManager,
   type Project,
+  analyzeAllStorage,
   attachFolderToProject,
   getBootstrapInfo,
+  getCachedGlobalStorage,
   listProjects,
   refreshService as apiRefreshService,
   refreshShellPath,
@@ -50,9 +53,12 @@ interface AppState {
   addProjectModalOpen: boolean;
   addProjectDefaultTargetId: string | null;
   scanModalOpen: boolean;
+  globalStorage: GlobalStorageSummary | null;
+  storageLoading: boolean;
 
   init: () => Promise<void>;
   loadProjects: () => Promise<void>;
+  refreshGlobalStorage: (forceRefresh?: boolean) => Promise<void>;
   setTheme: (theme: ThemeMode) => Promise<void>;
   toggleTheme: () => Promise<void>;
   toggleSidebar: () => void;
@@ -111,16 +117,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   addProjectModalOpen: false,
   addProjectDefaultTargetId: null,
   scanModalOpen: false,
+  globalStorage: null,
+  storageLoading: false,
 
   init: async () => {
     try {
-      const [info, projects] = await Promise.all([
+      const [info, projects, cachedStorage] = await Promise.all([
         getBootstrapInfo(),
         listProjects(),
+        getCachedGlobalStorage(),
       ]);
       const theme: ThemeMode = info.theme === "light" ? "light" : "dark";
       applyThemeClass(theme);
-      set({ bootstrap: info, theme, projects });
+      set({ bootstrap: info, theme, projects, globalStorage: cachedStorage });
+      // Gently warm storage cache in the background when services exist
+      if (projects.some((p) => p.services.length > 0)) {
+        void get().refreshGlobalStorage(false);
+      }
     } catch (err) {
       get().pushToast({
         title: "Gagal memuat konfigurasi awal",
@@ -134,12 +147,25 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const projects = await listProjects();
       set({ projects });
+      void get().refreshGlobalStorage(false);
     } catch (err) {
       get().pushToast({
         title: "Gagal memuat daftar project",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
+    }
+  },
+
+  refreshGlobalStorage: async (forceRefresh = false) => {
+    set({ storageLoading: true });
+    try {
+      const summary = await analyzeAllStorage(forceRefresh);
+      set({ globalStorage: summary });
+    } catch {
+      // Non-fatal background refresh
+    } finally {
+      set({ storageLoading: false });
     }
   },
 

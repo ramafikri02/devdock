@@ -1,6 +1,7 @@
 use devdock_core::models::{
-    AppBootstrapInfo, EnvWriteResult, PackageManager, Project, ScanResult, Service,
-    ServiceEnvInspection,
+    AppBootstrapInfo, EnvWriteResult, GlobalStorageSummary, PackageManager, Project,
+    ProjectStorageSummary, ScanResult, Service, ServiceEnvInspection, ServiceStorageReport,
+    StorageCleanResult,
 };
 use devdock_core::traits::{InMemoryNotifier, InMemorySecretStore};
 use devdock_core::DevDockCore;
@@ -260,6 +261,73 @@ fn update_service_env_key(
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+async fn analyze_service_storage(
+    state: State<'_, AppState>,
+    service_id: String,
+    force_refresh: bool,
+) -> Result<ServiceStorageReport, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.analyze_service_storage(&service_id, force_refresh)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn analyze_project_storage(
+    state: State<'_, AppState>,
+    project_id: String,
+    force_refresh: bool,
+) -> Result<ProjectStorageSummary, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.analyze_project_storage(&project_id, force_refresh)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn get_cached_global_storage(state: State<'_, AppState>) -> Result<GlobalStorageSummary, String> {
+    state
+        .core
+        .get_cached_global_storage()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn analyze_all_storage(
+    state: State<'_, AppState>,
+    force_refresh: bool,
+) -> Result<GlobalStorageSummary, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.analyze_all_storage(force_refresh)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn clean_service_storage(
+    state: State<'_, AppState>,
+    service_id: String,
+    folder_name: String,
+) -> Result<StorageCleanResult, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.clean_service_storage(&service_id, &folder_name)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn create_package_json_watcher(app_handle: AppHandle) -> Option<WatcherState> {
     let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
         if let Ok(event) = res {
@@ -328,6 +396,11 @@ pub fn run() {
             inspect_service_env,
             write_service_env,
             update_service_env_key,
+            analyze_service_storage,
+            analyze_project_storage,
+            get_cached_global_storage,
+            analyze_all_storage,
+            clean_service_storage,
         ])
         .run(tauri::generate_context!())
         .expect("error while running DevDock Tauri application");
