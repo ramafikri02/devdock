@@ -92,11 +92,134 @@ impl AppState {
     }
 }
 
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn restore_dev_macos_dock_icon(app: &AppHandle) {
+    let _ = app.run_on_main_thread(|| {
+        use objc2::{AllocAnyThread, MainThreadMarker};
+        use objc2_app_kit::{NSApplication, NSImage};
+        use objc2_foundation::NSData;
+
+        if let Some(mtm) = MainThreadMarker::new() {
+            let ns_app = NSApplication::sharedApplication(mtm);
+            let data = NSData::with_bytes(include_bytes!("../icons/icon.png"));
+            if let Some(app_icon) = NSImage::initWithData(NSImage::alloc(), &data) {
+                unsafe { ns_app.setApplicationIconImage(Some(&app_icon)) };
+            }
+        }
+    });
+}
+
 fn show_main_window(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+    }
+    #[cfg(all(target_os = "macos", debug_assertions))]
+    {
+        restore_dev_macos_dock_icon(app);
+    }
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+    }
+}
+
+fn hide_main_window_to_tray(window: &tauri::Window) {
+    let _ = window.hide();
+    #[cfg(target_os = "macos")]
+    {
+        let _ = window
+            .app_handle()
+            .set_activation_policy(tauri::ActivationPolicy::Accessory);
+    }
+}
+
+fn request_app_quit(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let active = state.core.active_process_count();
+    show_main_window(app);
+    let _ = app.emit(
+        "app:quit-requested",
+        serde_json::json!({ "activeCount": active }),
+    );
+}
+
+fn build_app_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    let quit_item = MenuItem::with_id(app, "menu:quit", "Quit DevDock", true, Some("CmdOrCtrl+Q"))?;
+
+    let edit_menu = Submenu::with_items(
+        app,
+        "Edit",
+        true,
+        &[
+            &PredefinedMenuItem::undo(app, None)?,
+            &PredefinedMenuItem::redo(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::cut(app, None)?,
+            &PredefinedMenuItem::copy(app, None)?,
+            &PredefinedMenuItem::paste(app, None)?,
+            &PredefinedMenuItem::select_all(app, None)?,
+        ],
+    )?;
+
+    #[cfg(target_os = "macos")]
+    {
+        let app_menu = Submenu::with_items(
+            app,
+            "DevDock",
+            true,
+            &[
+                &PredefinedMenuItem::about(app, None, None)?,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::services(app, None)?,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::hide(app, None)?,
+                &PredefinedMenuItem::hide_others(app, None)?,
+                &PredefinedMenuItem::show_all(app, None)?,
+                &PredefinedMenuItem::separator(app)?,
+                &quit_item,
+            ],
+        )?;
+        let file_menu = Submenu::with_items(
+            app,
+            "File",
+            true,
+            &[&PredefinedMenuItem::close_window(app, None)?],
+        )?;
+        let view_menu = Submenu::with_items(
+            app,
+            "View",
+            true,
+            &[&PredefinedMenuItem::fullscreen(app, None)?],
+        )?;
+        let window_menu = Submenu::with_items(
+            app,
+            "Window",
+            true,
+            &[
+                &PredefinedMenuItem::minimize(app, None)?,
+                &PredefinedMenuItem::maximize(app, None)?,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::close_window(app, None)?,
+            ],
+        )?;
+        return Menu::with_items(app, &[&app_menu, &file_menu, &edit_menu, &view_menu, &window_menu]);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let file_menu = Submenu::with_items(
+            app,
+            "File",
+            true,
+            &[
+                &PredefinedMenuItem::close_window(app, None)?,
+                &PredefinedMenuItem::separator(app)?,
+                &quit_item,
+            ],
+        )?;
+        Menu::with_items(app, &[&file_menu, &edit_menu])
     }
 }
 
@@ -257,17 +380,7 @@ fn handle_tray_menu_event(app: &AppHandle, id: &str) {
     let core = Arc::clone(&state.core);
 
     if id == "tray:quit" {
-        let active = core.active_process_count();
-        if active > 0 {
-            show_main_window(app);
-            let _ = app.emit(
-                "app:quit-requested",
-                serde_json::json!({ "activeCount": active }),
-            );
-        } else {
-            state.allow_exit.store(true, Ordering::SeqCst);
-            app.exit(0);
-        }
+        request_app_quit(app);
         return;
     }
 
@@ -1454,6 +1567,9 @@ pub fn run() {
             };
             state.sync_watchers();
 
+            let app_menu = build_app_menu(app.handle())?;
+            app.set_menu(app_menu)?;
+
             let tray_menu = build_tray_menu(app.handle(), &core)?;
             let mut tray_builder = TrayIconBuilder::with_id("devdock-tray")
                 .menu(&tray_menu)
@@ -1517,12 +1633,17 @@ pub fn run() {
 
             Ok(())
         })
+        .on_menu_event(|app_handle, event| {
+            if event.id.as_ref() == "menu:quit" {
+                request_app_quit(app_handle);
+            }
+        })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 let state = window.state::<AppState>();
                 if !state.allow_exit.load(Ordering::SeqCst) {
                     api.prevent_close();
-                    let _ = window.hide();
+                    hide_main_window_to_tray(window);
                 }
             }
         })
@@ -1613,21 +1734,19 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building DevDock Tauri application")
-        .run(|app_handle, event| {
-            if let RunEvent::ExitRequested { api, .. } = event {
+        .run(|app_handle, event| match event {
+            RunEvent::ExitRequested { api, .. } => {
                 let state = app_handle.state::<AppState>();
                 if !state.allow_exit.load(Ordering::SeqCst) {
-                    let active = state.core.active_process_count();
-                    if active > 0 {
-                        api.prevent_exit();
-                        show_main_window(app_handle);
-                        let _ = app_handle.emit(
-                            "app:quit-requested",
-                            serde_json::json!({ "activeCount": active }),
-                        );
-                    }
+                    api.prevent_exit();
+                    request_app_quit(app_handle);
                 }
             }
+            #[cfg(target_os = "macos")]
+            RunEvent::Reopen { .. } => {
+                show_main_window(app_handle);
+            }
+            _ => {}
         });
 }
 

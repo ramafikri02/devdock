@@ -114,6 +114,17 @@ export default function App() {
     pushToast,
   ]);
 
+  useEffect(() => {
+    if (quitActiveCount === null) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !quitBusy) {
+        setQuitActiveCount(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [quitActiveCount, quitBusy]);
+
   const totalServices = useMemo(
     () => projects.reduce((sum, p) => sum + p.services.length, 0),
     [projects],
@@ -222,23 +233,37 @@ export default function App() {
           aria-modal="true"
           aria-label="Konfirmasi keluar DevDock"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]"
+          onClick={() => {
+            if (!quitBusy) setQuitActiveCount(null);
+          }}
         >
-          <div className="animate-modal-enter w-full max-w-md rounded-[12px] border border-border-strong bg-surface p-5 shadow-2xl">
+          <div
+            className="animate-modal-enter w-full max-w-md rounded-[12px] border border-border-strong bg-surface p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-warn-soft text-warn">
                 <AlertTriangle className="h-4.5 w-4.5" aria-hidden="true" />
               </div>
               <div>
                 <h2 className="text-[15px] font-semibold text-fg">
-                  Hentikan semua proses sebelum keluar?
+                  {quitActiveCount > 0
+                    ? "Hentikan semua proses sebelum keluar?"
+                    : "Keluar dari DevDock?"}
                 </h2>
-                <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">
-                  Saat ini ada{" "}
-                  <span className="font-mono font-semibold text-fg tabular-nums">
-                    {quitActiveCount}
-                  </span>{" "}
-                  proses yang masih berjalan. Anda dapat menghentikan seluruh pohon proses atau membiarkannya tetap berjalan di latar belakang.
-                </p>
+                {quitActiveCount > 0 ? (
+                  <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">
+                    Saat ini ada{" "}
+                    <span className="font-mono font-semibold text-fg tabular-nums">
+                      {quitActiveCount}
+                    </span>{" "}
+                    proses yang masih berjalan. Anda dapat menghentikan seluruh pohon proses atau membiarkannya tetap berjalan di latar belakang.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">
+                    DevDock akan ditutup sepenuhnya dan berhenti berjalan di latar belakang. Jika hanya ingin menyembunyikan jendela, tutup dengan tombol X agar tetap aktif di menu bar.
+                  </p>
+                )}
               </div>
             </div>
             <div className="mt-5 flex flex-wrap justify-end gap-2">
@@ -250,28 +275,44 @@ export default function App() {
               >
                 Batal
               </button>
-              <button
-                type="button"
-                disabled={quitBusy}
-                onClick={() => {
-                  setQuitBusy(true);
-                  void confirmAppQuit(false).finally(() => setQuitBusy(false));
-                }}
-                className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg hover:bg-surface-hover disabled:opacity-50"
-              >
-                Biarkan Jalan & Keluar
-              </button>
-              <button
-                type="button"
-                disabled={quitBusy}
-                onClick={() => {
-                  setQuitBusy(true);
-                  void confirmAppQuit(true).finally(() => setQuitBusy(false));
-                }}
-                className="btn-press h-8 rounded-[7px] bg-danger-solid px-3 text-[12.5px] font-semibold text-white hover:opacity-95 disabled:opacity-50"
-              >
-                Stop Semua & Keluar
-              </button>
+              {quitActiveCount > 0 ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={quitBusy}
+                    onClick={() => {
+                      setQuitBusy(true);
+                      void confirmAppQuit(false).finally(() => setQuitBusy(false));
+                    }}
+                    className="btn-press h-8 rounded-[7px] border border-border-strong bg-surface-2 px-3 text-[12.5px] font-medium text-fg hover:bg-surface-hover disabled:opacity-50"
+                  >
+                    Biarkan Jalan & Keluar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={quitBusy}
+                    onClick={() => {
+                      setQuitBusy(true);
+                      void confirmAppQuit(true).finally(() => setQuitBusy(false));
+                    }}
+                    className="btn-press h-8 rounded-[7px] bg-danger-solid px-3 text-[12.5px] font-semibold text-white hover:opacity-95 disabled:opacity-50"
+                  >
+                    Stop Semua & Keluar
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  disabled={quitBusy}
+                  onClick={() => {
+                    setQuitBusy(true);
+                    void confirmAppQuit(false).finally(() => setQuitBusy(false));
+                  }}
+                  className="btn-press h-8 rounded-[7px] bg-danger-solid px-3 text-[12.5px] font-semibold text-white hover:opacity-95 disabled:opacity-50"
+                >
+                  Keluar DevDock
+                </button>
+              )}
             </div>
           </div>
         </div>
