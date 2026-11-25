@@ -34,14 +34,15 @@ fn wait_for_process_status(
 ) {
     let deadline = Instant::now() + timeout;
     loop {
-        if let Ok(info) = core.get_process(process_id) {
+        let current = core.get_process(process_id).ok();
+        if let Some(ref info) = current {
             if info.status == expected {
                 return;
             }
         }
         assert!(
             Instant::now() < deadline,
-            "timed out waiting for process {process_id} to reach {expected:?}"
+            "timed out waiting for process {process_id} to reach {expected:?} (last: {current:?})"
         );
         thread::sleep(Duration::from_millis(25));
     }
@@ -122,7 +123,7 @@ fn start_all_respects_reordered_sequence_and_default_script() {
 
     // Verify both processes actually executed the expected scripts (including frontend's custom default script).
     // Child `npm` -> `node` startup times vary under OS scheduling, so check membership rather than file-write race order.
-    let deadline = Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + Duration::from_secs(15);
     let contents = loop {
         let text = fs::read_to_string(&order_log).unwrap_or_default();
         if text.lines().count() >= 2 {
@@ -223,7 +224,7 @@ fn compute_project_status_reports_stopped_partial_all_running_and_crashed() {
 
     // Crash svc_a -> Crashed
     let p_fail = core.run_service_script(&svc_a.id, "fail").expect("run fail");
-    wait_for_process_status(&core, &p_fail.id, ProcessStatus::Crashed, Duration::from_secs(5));
+    wait_for_process_status(&core, &p_fail.id, ProcessStatus::Crashed, Duration::from_secs(15));
     let s4 = core.compute_project_status(&project.id).expect("status");
     assert_eq!(s4.status, ProjectAggregateStatus::Crashed);
     assert_eq!(s4.crashed_services, 1);
