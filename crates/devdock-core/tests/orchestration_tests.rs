@@ -230,3 +230,52 @@ fn compute_project_status_reports_stopped_partial_all_running_and_crashed() {
     assert_eq!(s4.status, ProjectAggregateStatus::Crashed);
     assert_eq!(s4.crashed_services, 1);
 }
+
+#[test]
+fn start_all_skips_library_packages_without_dev_scripts_and_cleared_defaults() {
+    let temp = TempDir::new().expect("tempdir");
+    let api_dir = temp.path().join("api");
+    let auth_pkg_dir = temp.path().join("auth");
+
+    write_service_fixture(
+        &api_dir,
+        "@luno/api",
+        r#"{ "dev": "node -e \"setInterval(() => {}, 1000)\"", "typecheck": "tsc --noEmit" }"#,
+    );
+    write_service_fixture(
+        &auth_pkg_dir,
+        "@luno/auth",
+        r#"{ "generate": "node -e \"process.exit(2)\"", "typecheck": "tsc --noEmit" }"#,
+    );
+
+    let core = DevDockCore::in_memory_for_tests(&host_path()).expect("core");
+    let project = core
+        .register_grouped_project("Luno", &[api_dir, auth_pkg_dir], Some(temp.path()))
+        .expect("register");
+
+    let api = &project.services[0];
+    let auth = &project.services[1];
+
+    // @luno/api picks `dev`, while library package @luno/auth does NOT pick `generate`
+    assert_eq!(api.default_script.as_deref(), Some("dev"));
+    assert_eq!(auth.default_script, None);
+
+    let res = core.start_project_all(&project.id).expect("start all");
+    assert_eq!(res.started_process_ids.len(), 1);
+    assert_eq!(res.steps[0].service_id, api.id);
+    assert_eq!(res.steps[0].state, OrchestrationStepState::Running);
+    assert_eq!(res.steps[1].service_id, auth.id);
+    assert_eq!(res.steps[1].state, OrchestrationStepState::Skipped);
+
+    core.stop_project_all(&project.id).expect("stop all");
+
+    // Explicitly clearing default_script on @luno/api also skips it during Start All
+    core.set_service_default_script(&api.id, None)
+        .expect("clear default script");
+    let res2 = core.start_project_all(&project.id).expect("start all 2");
+    assert_eq!(res2.started_process_ids.len(), 0);
+    assert!(res2
+        .steps
+        .iter()
+        .all(|s| s.state == OrchestrationStepState::Skipped));
+}

@@ -52,10 +52,7 @@ type ProjectTab = "services" | "env" | "storage";
 
 function resolveFallbackScript(scripts: Record<string, string>, defaultScript: string | null): string | null {
   if (defaultScript && scripts[defaultScript]) return defaultScript;
-  for (const preferred of ["dev", "start:dev", "serve", "start"]) {
-    if (scripts[preferred]) return preferred;
-  }
-  return Object.keys(scripts)[0] ?? null;
+  return null;
 }
 
 export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
@@ -613,12 +610,13 @@ export function ProjectOverviewView({ project }: ProjectOverviewViewProps) {
                           {scriptNames.length > 0 ? (
                             <select
                               aria-label={`Default script for ${svc.name}`}
-                              value={svc.defaultScript ?? effectiveDefault}
+                              value={svc.defaultScript ?? ""}
                               onChange={(e) =>
                                 void handleDefaultScriptChange(svc.id, e.target.value)
                               }
                               className="h-7 rounded-[6px] border border-border-strong bg-surface-2 px-2 font-mono text-[11.5px] text-fg"
                             >
+                              <option value="">— Skip —</option>
                               {scriptNames.map((name) => (
                                 <option key={name} value={name}>
                                   {name}

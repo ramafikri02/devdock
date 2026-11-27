@@ -53,12 +53,12 @@ impl<'a> ProjectRegistry<'a> {
     }
 
     fn pick_default_script(scripts: &BTreeMap<String, String>) -> Option<String> {
-        for preferred in ["dev", "start:dev", "serve", "start"] {
+        for preferred in ["dev", "start:dev", "serve", "start", "develop"] {
             if scripts.contains_key(preferred) {
                 return Some(preferred.to_string());
             }
         }
-        scripts.keys().next().cloned()
+        None
     }
 
     fn parse_port_injection(raw: Option<String>) -> Option<PortInjectionMethod> {

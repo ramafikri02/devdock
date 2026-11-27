@@ -872,17 +872,11 @@ impl DevDockCore {
     }
 
     fn resolve_service_default_script(service: &Service) -> Option<String> {
-        if let Some(ref def) = service.default_script {
-            if service.scripts.contains_key(def) {
-                return Some(def.clone());
-            }
+        let def = service.default_script.as_ref()?;
+        if service.scripts.contains_key(def) {
+            return Some(def.clone());
         }
-        for preferred in ["dev", "start:dev", "serve", "start"] {
-            if service.scripts.contains_key(preferred) {
-                return Some(preferred.to_string());
-            }
-        }
-        service.scripts.keys().next().cloned()
+        None
     }
 
     pub fn compute_project_status(&self, project_id: &str) -> CoreResult<ProjectStatusSummary> {
