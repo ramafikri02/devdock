@@ -30,12 +30,14 @@ import {
   type PortCheckResult,
   type PortInjectionMethod,
   type ProcessInfo,
+  type ProcessPortConflict,
   type Project,
   type Service,
   type ServiceNodeRuntime,
   type ServiceStorageReport,
   analyzeServiceStorage,
   checkServicePort,
+  inspectProcessPortConflict,
   inspectServiceNodeRuntime,
   installNodeVersion,
   killPortOwner,
@@ -118,9 +120,13 @@ export function ServiceWorkbenchView({
     scriptName: string;
     check: PortCheckResult;
   } | null>(null);
-  const [confirmKillConflictPid, setConfirmKillConflictPid] = useState<number | null>(
-    null,
-  );
+  const [crashPortConflict, setCrashPortConflict] =
+    useState<ProcessPortConflict | null>(null);
+  const [confirmKillConflict, setConfirmKillConflict] = useState<{
+    pid: number;
+    processName?: string;
+    scriptName: string;
+  } | null>(null);
   const [chartsPaused, setChartsPaused] = useState(false);
   const [frozenMetrics, setFrozenMetrics] = useState<
     { cpu: number[]; ram: number[]; currentCpu: number; currentRam: number } | null
@@ -239,11 +245,34 @@ export function ServiceWorkbenchView({
 
   const latestCrashedProcess = useMemo(
     () =>
-      activeServiceProcesses.length === 0
-        ? (serviceProcesses.find((p) => p.status === "crashed") ?? null)
+      activeServiceProcesses.length === 0 &&
+      serviceProcesses[0]?.status === "crashed"
+        ? serviceProcesses[0]
         : null,
     [serviceProcesses, activeServiceProcesses.length],
   );
+
+  useEffect(() => {
+    if (!latestCrashedProcess) {
+      setCrashPortConflict(null);
+      return;
+    }
+    let cancelled = false;
+    void inspectProcessPortConflict(latestCrashedProcess.id)
+      .then((conflict) => {
+        if (!cancelled) {
+          setCrashPortConflict(conflict);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCrashPortConflict(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [latestCrashedProcess?.id, service.port]);
 
   const processesByScript = useMemo(() => {
     const map = new Map<string, ProcessInfo[]>();
@@ -304,9 +333,13 @@ export function ServiceWorkbenchView({
     }
   };
 
-  const handleResolveConflictKillPid = async (pid: number) => {
-    const scriptName = portConflict?.scriptName;
-    setConfirmKillConflictPid(null);
+  const handleResolveConflictKillPid = async (
+    pid: number,
+    scriptName?: string,
+  ) => {
+    const targetScript =
+      scriptName ?? portConflict?.scriptName ?? crashPortConflict?.script;
+    setConfirmKillConflict(null);
     setBusyAction(`kill:${pid}`);
     try {
       await killPortOwner(pid);
@@ -316,12 +349,78 @@ export function ServiceWorkbenchView({
         variant: "success",
       });
       setPortConflict(null);
-      if (scriptName) {
-        await runScript(service.id, scriptName);
+      setCrashPortConflict(null);
+      if (targetScript) {
+        await runScript(service.id, targetScript);
       }
     } catch (err) {
       pushToast({
         title: `Failed to kill PID ${pid}`,
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleResolveConflictStopDevdockOwner = async (
+    ownerProcessId: string,
+    ownerServiceName: string,
+    scriptName: string,
+  ) => {
+    setBusyAction(`stop-owner:${ownerProcessId}`);
+    try {
+      await stopProcess(ownerProcessId);
+      await refreshPorts();
+      pushToast({
+        title: `Stopped ${ownerServiceName}`,
+        variant: "success",
+      });
+      setPortConflict(null);
+      setCrashPortConflict(null);
+      await runScript(service.id, scriptName);
+    } catch (err) {
+      pushToast({
+        title: `Failed to stop ${ownerServiceName}`,
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleCrashConflictUseNextPort = async () => {
+    if (!crashPortConflict?.suggestedPort) return;
+    const { script, suggestedPort } = crashPortConflict;
+    setBusyAction(`resolve-crash:${script}`);
+    try {
+      await setServicePort(service.id, suggestedPort);
+      setCrashPortConflict(null);
+      await runScript(service.id, script);
+    } catch (err) {
+      pushToast({
+        title: "Failed to switch port and run script",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "danger",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleCrashConflictResetPortAuto = async () => {
+    setBusyAction("reset-port:auto");
+    try {
+      await setServicePort(service.id, null);
+      pushToast({
+        title: "Port reset to auto",
+        variant: "info",
+      });
+    } catch (err) {
+      pushToast({
+        title: "Failed to reset port",
         description: err instanceof Error ? err.message : String(err),
         variant: "danger",
       });
@@ -865,14 +964,33 @@ export function ServiceWorkbenchView({
                       {portConflict.check.owner ? (
                         <>
                           Currently in use by{" "}
-                          <span className="font-mono font-medium text-fg">
-                            {portConflict.check.owner.processName}
-                          </span>{" "}
-                          (PID{" "}
-                          <span className="font-mono tabular-nums text-fg">
-                            {portConflict.check.owner.pid}
-                          </span>
-                          ).
+                          {portConflict.check.owner.devdockServiceName ? (
+                            <>
+                              <span className="font-mono font-medium text-fg">
+                                {portConflict.check.owner.devdockServiceName}
+                              </span>{" "}
+                              (
+                              <span className="font-mono text-fg-2">
+                                {portConflict.check.owner.processName}
+                              </span>
+                              , PID{" "}
+                              <span className="font-mono tabular-nums text-fg">
+                                {portConflict.check.owner.pid}
+                              </span>
+                              ).
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-mono font-medium text-fg">
+                                {portConflict.check.owner.processName}
+                              </span>{" "}
+                              (PID{" "}
+                              <span className="font-mono tabular-nums text-fg">
+                                {portConflict.check.owner.pid}
+                              </span>
+                              ).
+                            </>
+                          )}
                         </>
                       ) : (
                         "Port is currently in use by another process on this machine."
@@ -893,12 +1011,35 @@ export function ServiceWorkbenchView({
                       <span>Use :{portConflict.check.suggestedPort}</span>
                     </button>
                   ) : null}
-                  {portConflict.check.owner ? (
+                  {portConflict.check.owner?.devdockProcessId &&
+                  portConflict.check.owner.devdockServiceName ? (
                     <button
                       type="button"
                       disabled={busyAction !== null}
                       onClick={() =>
-                        setConfirmKillConflictPid(portConflict.check.owner!.pid)
+                        void handleResolveConflictStopDevdockOwner(
+                          portConflict.check.owner!.devdockProcessId!,
+                          portConflict.check.owner!.devdockServiceName!,
+                          portConflict.scriptName,
+                        )
+                      }
+                      className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-danger-solid px-3 text-[12px] font-semibold text-white hover:opacity-95 disabled:opacity-50"
+                    >
+                      <Square className="h-3 w-3 fill-current" aria-hidden="true" />
+                      <span>
+                        Stop {portConflict.check.owner.devdockServiceName} & Run
+                      </span>
+                    </button>
+                  ) : portConflict.check.owner ? (
+                    <button
+                      type="button"
+                      disabled={busyAction !== null}
+                      onClick={() =>
+                        setConfirmKillConflict({
+                          pid: portConflict.check.owner!.pid,
+                          processName: portConflict.check.owner!.processName,
+                          scriptName: portConflict.scriptName,
+                        })
                       }
                       className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-danger-solid px-3 text-[12px] font-semibold text-white hover:opacity-95 disabled:opacity-50"
                     >
@@ -918,7 +1059,7 @@ export function ServiceWorkbenchView({
             </div>
           ) : null}
 
-          {/* Crash summary banner with Run again action */}
+          {/* Crash summary banner with inline port-conflict resolution */}
           {!service.isMissing && latestCrashedProcess ? (
             <div
               role="alert"
@@ -930,43 +1071,216 @@ export function ServiceWorkbenchView({
                     className="mt-0.5 h-4 w-4 shrink-0 text-danger"
                     aria-hidden="true"
                   />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-semibold text-fg">
                       Script{" "}
                       <span className="font-mono">
                         {latestCrashedProcess.script}
                       </span>{" "}
-                      crashed (exit {latestCrashedProcess.exitCode ?? "—"})
+                      {crashPortConflict ? (
+                        <>
+                          crashed — Port{" "}
+                          <span className="font-mono tabular-nums text-danger">
+                            :{crashPortConflict.conflictPort}
+                          </span>{" "}
+                          already in use
+                        </>
+                      ) : (
+                        <>
+                          crashed (exit {latestCrashedProcess.exitCode ?? "—"})
+                        </>
+                      )}
                       {latestCrashedProcess.restartCount > 0 ? (
                         <span className="ml-1.5 font-mono text-[11.5px] font-normal text-danger tabular-nums">
                           · {latestCrashedProcess.restartCount}× auto-restart
                         </span>
                       ) : null}
                     </p>
-                    {latestCrashedProcess.crashReason ? (
-                      <p className="mt-0.5 text-[12px] text-fg-2">
-                        {latestCrashedProcess.crashReason}
-                      </p>
-                    ) : null}
-                    {latestCrashedProcess.lastErrorSnippet ? (
-                      <p className="mt-1 truncate rounded bg-surface/70 px-2 py-1 font-mono text-[11.5px] text-danger">
-                        {latestCrashedProcess.lastErrorSnippet}
-                      </p>
-                    ) : null}
+
+                    {crashPortConflict ? (
+                      <>
+                        <p className="mt-1 text-[12px] text-fg-2">
+                          {crashPortConflict.owner ? (
+                            <>
+                              Currently in use by{" "}
+                              {crashPortConflict.owner.devdockServiceName ? (
+                                <>
+                                  <span className="font-mono font-medium text-fg">
+                                    {crashPortConflict.owner.devdockServiceName}
+                                  </span>{" "}
+                                  (
+                                  <span className="font-mono text-fg-2">
+                                    {crashPortConflict.owner.processName}
+                                  </span>
+                                  , PID{" "}
+                                  <span className="font-mono tabular-nums text-fg">
+                                    {crashPortConflict.owner.pid}
+                                  </span>
+                                  ).
+                                </>
+                              ) : (
+                                <>
+                                  <span className="font-mono font-medium text-fg">
+                                    {crashPortConflict.owner.processName}
+                                  </span>{" "}
+                                  (PID{" "}
+                                  <span className="font-mono tabular-nums text-fg">
+                                    {crashPortConflict.owner.pid}
+                                  </span>
+                                  ).
+                                </>
+                              )}
+                            </>
+                          ) : crashPortConflict.isPortAvailableNow ? (
+                            <>
+                              Port{" "}
+                              <span className="font-mono tabular-nums text-fg">
+                                :{crashPortConflict.conflictPort}
+                              </span>{" "}
+                              is now available — you can run the script again.
+                            </>
+                          ) : (
+                            <>
+                              Port{" "}
+                              <span className="font-mono tabular-nums text-fg">
+                                :{crashPortConflict.conflictPort}
+                              </span>{" "}
+                              is currently in use by another process on this machine.
+                            </>
+                          )}
+                        </p>
+
+                        {crashPortConflict.isLikelyHardcoded ? (
+                          <div className="mt-2 rounded-[7px] border border-warn/45 bg-warn-soft px-2.5 py-2 text-[12px] text-fg-2">
+                            <span className="font-semibold text-warn">
+                              Port :{crashPortConflict.conflictPort} appears to be hardcoded.
+                            </span>{" "}
+                            DevDock tried running on{" "}
+                            <span className="font-mono tabular-nums text-fg">
+                              :{crashPortConflict.requestedPort}
+                            </span>
+                            , but the app still attempted to bind{" "}
+                            <span className="font-mono tabular-nums text-fg">
+                              :{crashPortConflict.conflictPort}
+                            </span>
+                            . Update the port manually in your project&apos;s code or config, or
+                            stop/kill the active process.
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <>
+                        {latestCrashedProcess.crashReason ? (
+                          <p className="mt-0.5 text-[12px] text-fg-2">
+                            {latestCrashedProcess.crashReason}
+                          </p>
+                        ) : null}
+                        {latestCrashedProcess.lastErrorSnippet ? (
+                          <p className="mt-1 truncate rounded bg-surface/70 px-2 py-1 font-mono text-[11.5px] text-danger">
+                            {latestCrashedProcess.lastErrorSnippet}
+                          </p>
+                        ) : null}
+                      </>
+                    )}
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={busyAction !== null}
-                    onClick={() =>
-                      void handleRunScript(latestCrashedProcess.script)
-                    }
-                    className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
-                  >
-                    <Play className="h-3 w-3 fill-current" aria-hidden="true" />
-                    <span>Run Again</span>
-                  </button>
+
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  {crashPortConflict ? (
+                    <>
+                      {!crashPortConflict.isLikelyHardcoded &&
+                      !crashPortConflict.isPortAvailableNow &&
+                      crashPortConflict.suggestedPort ? (
+                        <button
+                          type="button"
+                          disabled={busyAction !== null}
+                          onClick={() => void handleCrashConflictUseNextPort()}
+                          className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
+                        >
+                          <Network className="h-3.5 w-3.5" aria-hidden="true" />
+                          <span>Use :{crashPortConflict.suggestedPort}</span>
+                        </button>
+                      ) : null}
+
+                      {crashPortConflict.owner?.devdockProcessId &&
+                      crashPortConflict.owner.devdockServiceId !== service.id &&
+                      crashPortConflict.owner.devdockServiceName ? (
+                        <button
+                          type="button"
+                          disabled={busyAction !== null}
+                          onClick={() =>
+                            void handleResolveConflictStopDevdockOwner(
+                              crashPortConflict.owner!.devdockProcessId!,
+                              crashPortConflict.owner!.devdockServiceName!,
+                              crashPortConflict.script,
+                            )
+                          }
+                          className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-danger-solid px-3 text-[12px] font-semibold text-white hover:opacity-95 disabled:opacity-50"
+                        >
+                          <Square className="h-3 w-3 fill-current" aria-hidden="true" />
+                          <span>
+                            Stop {crashPortConflict.owner.devdockServiceName} & Run
+                          </span>
+                        </button>
+                      ) : crashPortConflict.owner ? (
+                        <button
+                          type="button"
+                          disabled={busyAction !== null}
+                          onClick={() =>
+                            setConfirmKillConflict({
+                              pid: crashPortConflict.owner!.pid,
+                              processName: crashPortConflict.owner!.processName,
+                              scriptName: crashPortConflict.script,
+                            })
+                          }
+                          className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-danger-solid px-3 text-[12px] font-semibold text-white hover:opacity-95 disabled:opacity-50"
+                        >
+                          <Skull className="h-3.5 w-3.5" aria-hidden="true" />
+                          <span>
+                            Kill PID {crashPortConflict.owner.pid} & Run
+                          </span>
+                        </button>
+                      ) : null}
+
+                      {crashPortConflict.isPortAvailableNow ? (
+                        <button
+                          type="button"
+                          disabled={busyAction !== null}
+                          onClick={() =>
+                            void handleRunScript(latestCrashedProcess.script, true)
+                          }
+                          className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
+                        >
+                          <Play className="h-3 w-3 fill-current" aria-hidden="true" />
+                          <span>Run Again</span>
+                        </button>
+                      ) : null}
+
+                      {crashPortConflict.isLikelyHardcoded && service.port !== null ? (
+                        <button
+                          type="button"
+                          disabled={busyAction !== null}
+                          onClick={() => void handleCrashConflictResetPortAuto()}
+                          className="btn-press flex h-8 items-center rounded-[7px] border border-border-strong bg-surface px-2.5 text-[12px] font-medium text-fg-2 hover:bg-surface-hover hover:text-fg disabled:opacity-50"
+                        >
+                          Reset Port to Auto
+                        </button>
+                      ) : null}
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busyAction !== null}
+                      onClick={() =>
+                        void handleRunScript(latestCrashedProcess.script)
+                      }
+                      className="btn-press flex h-8 items-center gap-1.5 rounded-[7px] bg-accent px-3 text-[12px] font-semibold text-accent-fg hover:opacity-95 disabled:opacity-50"
+                    >
+                      <Play className="h-3 w-3 fill-current" aria-hidden="true" />
+                      <span>Run Again</span>
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => openLogsForProcess(latestCrashedProcess.id)}
@@ -1821,18 +2135,23 @@ export function ServiceWorkbenchView({
         }}
       />
       <ConfirmDialog
-        open={confirmKillConflictPid !== null}
+        open={confirmKillConflict !== null}
         title={
-          confirmKillConflictPid !== null
-            ? `Kill process PID ${confirmKillConflictPid}?`
+          confirmKillConflict !== null
+            ? confirmKillConflict.processName
+              ? `Kill ${confirmKillConflict.processName} (PID ${confirmKillConflict.pid})?`
+              : `Kill process PID ${confirmKillConflict.pid}?`
             : ""
         }
         description="The process holding this port will be terminated (SIGTERM followed by SIGKILL) so this service can use the port immediately."
         confirmLabel="Kill & Run"
-        onCancel={() => setConfirmKillConflictPid(null)}
+        onCancel={() => setConfirmKillConflict(null)}
         onConfirm={() => {
-          if (confirmKillConflictPid !== null) {
-            void handleResolveConflictKillPid(confirmKillConflictPid);
+          if (confirmKillConflict !== null) {
+            void handleResolveConflictKillPid(
+              confirmKillConflict.pid,
+              confirmKillConflict.scriptName,
+            );
           }
         }}
       />

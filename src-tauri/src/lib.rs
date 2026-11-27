@@ -3,7 +3,7 @@ use devdock_core::models::{
     ExportSummary, FolderRelocationCheck, GitStatusInfo, GlobalStorageSummary, HostsSyncPreview,
     HostsSyncResult, ImportPreview, ImportResult, LogExportScope, LogLine, MetricsSnapshot,
     NodeInstallResult, PackageManager, PortCheckResult, PortInjectionMethod, PortInspectorSnapshot,
-    PresetEntryInput, ProcessEvent, ProcessInfo, Project, ProjectEnvSummary,
+    PresetEntryInput, ProcessEvent, ProcessInfo, ProcessPortConflict, Project, ProjectEnvSummary,
     ProjectOrchestrationResult, ProjectStatusSummary, ProjectStorageSummary, ProxyStatus,
     QuickActionTarget, ScanResult, Service, ServiceEnvInspection, ServiceNodeRuntime,
     ServiceStorageReport, StorageCleanResult,
@@ -707,6 +707,20 @@ async fn check_service_port(
     let core = Arc::clone(&state.core);
     tauri::async_runtime::spawn_blocking(move || {
         core.check_service_port(&service_id)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn inspect_process_port_conflict(
+    state: State<'_, AppState>,
+    process_id: String,
+) -> Result<Option<ProcessPortConflict>, String> {
+    let core = Arc::clone(&state.core);
+    tauri::async_runtime::spawn_blocking(move || {
+        core.inspect_process_port_conflict(&process_id)
             .map_err(|e| e.to_string())
     })
     .await
@@ -1674,6 +1688,7 @@ pub fn run() {
             set_service_port_injection,
             ensure_service_port,
             check_service_port,
+            inspect_process_port_conflict,
             assign_next_free_port,
             inspect_listening_ports,
             kill_port_owner,

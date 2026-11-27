@@ -634,6 +634,20 @@ pub struct PortCheckResult {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ProcessPortConflict {
+    pub process_id: String,
+    pub service_id: String,
+    pub script: String,
+    pub conflict_port: u16,
+    pub requested_port: Option<u16>,
+    pub is_likely_hardcoded: bool,
+    pub is_port_available_now: bool,
+    pub owner: Option<PortOwnerInfo>,
+    pub suggested_port: Option<u16>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ListeningPortEntry {
     pub port: u16,
     pub address: String,

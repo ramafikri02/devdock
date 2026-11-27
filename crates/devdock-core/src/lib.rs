@@ -34,7 +34,8 @@ use crate::models::{
     HostsSyncResult, ImportPreview, ImportResult, LogExportScope, LogLine, MetricsSnapshot,
     NodeInstallProgress, NodeInstallResult, OrchestrationStepState, PackageManager,
     PortCheckResult, PortInjectionMethod, PortInspectorSnapshot, PresetEntryInput, ProcessEvent,
-    ProcessInfo, ProcessStatus, Project, ProjectAggregateStatus, ProjectEnvSummary,
+    ProcessInfo, ProcessPortConflict, ProcessStatus, Project, ProjectAggregateStatus,
+    ProjectEnvSummary,
     ProjectOrchestrationResult, ProjectOrchestrationStep, ProjectStatusSummary,
     ProjectStorageSummary, ProxyStatus, QuickActionTarget, ScanResult, Service, ServiceDescriptor,
     ServiceEnvInspection, ServiceNodeRuntime, ServiceStorageReport, StorageCleanResult,
@@ -334,6 +335,45 @@ impl DevDockCore {
             .collect();
         let processes = self.list_processes();
         PortManager::check_service_port(&service, port, &all_services, &processes)
+    }
+
+    /// Inspects a crashed process's logs for port-in-use errors (e.g. `EADDRINUSE`),
+    /// identifies the current OS/DevDock owner of that port, suggests the next free port,
+    /// and flags when the app appears to ignore DevDock's port override (likely hardcoded).
+    pub fn inspect_process_port_conflict(
+        &self,
+        process_id: &str,
+    ) -> CoreResult<Option<ProcessPortConflict>> {
+        let Ok(proc_info) = self.processes.get_process(process_id) else {
+            return Ok(None);
+        };
+        let logs = self.processes.get_process_logs(process_id, None, false)?;
+        let Some(conflict_port) = PortManager::extract_conflict_port_from_logs(&logs) else {
+            return Ok(None);
+        };
+
+        let service = self.get_service(&proc_info.service_id)?;
+        let all_services: Vec<Service> = self
+            .list_projects()?
+            .into_iter()
+            .flat_map(|p| p.services)
+            .collect();
+        let processes = self.list_processes();
+        let check = PortManager::check_service_port(&service, conflict_port, &all_services, &processes)?;
+        let requested_port = service.port;
+        let is_likely_hardcoded = matches!(requested_port, Some(req) if req != conflict_port);
+
+        Ok(Some(ProcessPortConflict {
+            process_id: proc_info.id,
+            service_id: proc_info.service_id,
+            script: proc_info.script,
+            conflict_port,
+            requested_port,
+            is_likely_hardcoded,
+            is_port_available_now: check.is_available,
+            owner: check.owner,
+            suggested_port: check.suggested_port,
+        }))
     }
 
     pub fn assign_next_free_port(&self, service_id: &str) -> CoreResult<Service> {

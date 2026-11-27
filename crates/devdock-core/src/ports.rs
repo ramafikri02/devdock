@@ -1,6 +1,6 @@
 use crate::error::{CoreError, CoreResult};
 use crate::models::{
-    ListeningPortEntry, PackageManager, PortCheckResult, PortInjectionMethod,
+    ListeningPortEntry, LogLine, PackageManager, PortCheckResult, PortInjectionMethod,
     PortInspectorSnapshot, PortOwnerInfo, ProcessInfo, RunCommandSpec, Service,
 };
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -11,22 +11,33 @@ use std::time::{Duration, Instant};
 pub struct PortManager;
 
 impl PortManager {
-    /// Checks whether a local TCP port is free on IPv4 (127.0.0.1) and IPv6 (::1).
+    /// Checks whether a local TCP port is free across both loopback and wildcard
+    /// IPv4/IPv6 interfaces (`127.0.0.1`, `0.0.0.0`, `::1`, `::`).
+    ///
+    /// On macOS/BSD, binding `127.0.0.1:port` can succeed even when another process
+    /// is already listening on `0.0.0.0:port` or `[::]:port` (which Node.js/Next.js
+    /// commonly use), so we must probe wildcard binds as well.
     pub fn is_port_available(port: u16) -> bool {
         if port == 0 {
             return false;
         }
-        let v4_ok = TcpListener::bind(("127.0.0.1", port)).is_ok();
-        if !v4_ok {
+        if TcpListener::bind(("127.0.0.1", port)).is_err() {
             return false;
         }
-        match TcpListener::bind(("::1", port)) {
-            Ok(_) => true,
-            Err(err) => matches!(
-                err.kind(),
-                std::io::ErrorKind::AddrNotAvailable | std::io::ErrorKind::Unsupported
-            ),
+        if TcpListener::bind(("0.0.0.0", port)).is_err() {
+            return false;
         }
+        for addr in [("::1", port), ("::", port)] {
+            if let Err(err) = TcpListener::bind(addr) {
+                if !matches!(
+                    err.kind(),
+                    std::io::ErrorKind::AddrNotAvailable | std::io::ErrorKind::Unsupported
+                ) {
+                    return false;
+                }
+            }
+        }
+        true
     }
 
     /// Finds the next available port >= `start_port` that is neither in `reserved`
@@ -171,16 +182,6 @@ impl PortManager {
             .filter_map(|s| s.port)
             .collect();
 
-        if Self::is_port_available(port) {
-            return Ok(PortCheckResult {
-                service_id: service.id.clone(),
-                port,
-                is_available: true,
-                owner: None,
-                suggested_port: None,
-            });
-        }
-
         let snapshot = Self::inspect_listening_ports(all_services, processes)?;
         let owner = snapshot
             .entries
@@ -194,6 +195,16 @@ impl PortManager {
                 devdock_service_name: e.devdock_service_name,
             });
 
+        if owner.is_none() && Self::is_port_available(port) {
+            return Ok(PortCheckResult {
+                service_id: service.id.clone(),
+                port,
+                is_available: true,
+                owner: None,
+                suggested_port: None,
+            });
+        }
+
         let suggested_port = Self::find_next_free_port(port.saturating_add(1), &reserved);
 
         Ok(PortCheckResult {
@@ -203,6 +214,55 @@ impl PortManager {
             owner,
             suggested_port,
         })
+    }
+
+    /// Scans process log lines (most recent first) for port-in-use errors such as
+    /// `EADDRINUSE`, `Port 5173 is already in use`, or `address already in use`,
+    /// returning the conflicting port number if detected.
+    pub fn extract_conflict_port_from_logs(logs: &[LogLine]) -> Option<u16> {
+        let texts: Vec<&str> = logs.iter().map(|l| l.text.as_str()).collect();
+        Self::extract_conflict_port_from_lines(&texts)
+    }
+
+    /// Scans raw log text lines for port-in-use errors and returns the most recent
+    /// conflicting port number.
+    pub fn extract_conflict_port_from_lines<S: AsRef<str>>(lines: &[S]) -> Option<u16> {
+        if lines.is_empty() {
+            return None;
+        }
+        let cleaned: Vec<String> = lines.iter().map(|l| strip_ansi(l.as_ref())).collect();
+        let len = cleaned.len();
+
+        // Scan from newest to oldest so auto-restart retries report the latest failure.
+        for idx in (0..len).rev() {
+            let line = &cleaned[idx];
+            if !is_port_conflict_indicator(line) {
+                continue;
+            }
+
+            if let Some(port) = extract_port_from_line(line) {
+                return Some(port);
+            }
+
+            // Node.js error objects often print `code: 'EADDRINUSE'` followed a few lines
+            // later by `port: 4631`.
+            let forward_end = (idx + 8).min(len - 1);
+            for next_idx in (idx + 1)..=forward_end {
+                if let Some(port) = extract_port_from_line(&cleaned[next_idx]) {
+                    return Some(port);
+                }
+            }
+
+            // Fallback: some frameworks print the address/port a couple lines above the error.
+            let back_start = idx.saturating_sub(4);
+            for prev_idx in (back_start..idx).rev() {
+                if let Some(port) = extract_port_from_line(&cleaned[prev_idx]) {
+                    return Some(port);
+                }
+            }
+        }
+
+        None
     }
 
     /// Terminates an OS process by PID (SIGTERM -> SIGKILL on Unix, taskkill on Windows).
@@ -425,4 +485,116 @@ fn parse_lsof_endpoint(raw: &str) -> Option<(String, u16)> {
         },
         port,
     ))
+}
+
+fn strip_ansi(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            if matches!(chars.peek(), Some('[')) {
+                chars.next();
+                for next in chars.by_ref() {
+                    if ('@'..='~').contains(&next) {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+        out.push(c);
+    }
+    out
+}
+
+fn is_port_conflict_indicator(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    if lower.contains("eaddrinuse") || lower.contains("address already in use") {
+        return true;
+    }
+    if lower.contains("port")
+        && (lower.contains("already in use")
+            || lower.contains("is in use")
+            || lower.contains("in use?")
+            || lower.contains("already allocated")
+            || lower.contains("already bound"))
+    {
+        return true;
+    }
+    false
+}
+
+fn extract_port_from_line(line: &str) -> Option<u16> {
+    let lower = line.to_ascii_lowercase();
+
+    // 1. Explicit `port` keyword followed by optional punctuation/whitespace and digits
+    //    Matches: `port: 4631`, `"port": 4631`, `port=4631`, `Port 5173 is already in use`, `port :3000`
+    let bytes = lower.as_bytes();
+    let mut search_from = 0;
+    while let Some(rel) = lower[search_from..].find("port") {
+        let start = search_from + rel;
+        let end = start + 4;
+        let prev_ok = start == 0 || !bytes[start - 1].is_ascii_alphanumeric();
+        let next_ok = end == bytes.len() || !bytes[end].is_ascii_alphanumeric();
+        if prev_ok && next_ok {
+            let tail = &lower[end..];
+            let trimmed = tail.trim_start_matches(|c: char| {
+                c.is_ascii_whitespace() || matches!(c, ':' | '=' | '"' | '\'' | '(' | '[')
+            });
+            if let Some(port) = parse_leading_port(trimmed) {
+                return Some(port);
+            }
+        }
+        search_from = end;
+    }
+
+    // 2. Host/endpoint patterns: `:::4631`, `[::]:4631`, `0.0.0.0:3000`, `127.0.0.1:8080`, `localhost:5173`, `*:3000`, ` :8080`
+    for prefix in [
+        ":::",
+        "[::]:",
+        "[::1]:",
+        "0.0.0.0:",
+        "127.0.0.1:",
+        "localhost:",
+        "*:",
+    ] {
+        if let Some(pos) = lower.find(prefix) {
+            let after = &lower[pos + prefix.len()..];
+            if let Some(port) = parse_leading_port(after) {
+                return Some(port);
+            }
+        }
+    }
+
+    // 3. Standalone `:PORT` preceded by whitespace or quote (e.g. `listen tcp :8080: bind`)
+    for (idx, ch) in lower.char_indices() {
+        if ch != ':' {
+            continue;
+        }
+        let prev_char = lower[..idx].chars().next_back();
+        if matches!(prev_char, None | Some(' ' | '\t' | '\'' | '"' | '(' | '[')) {
+            if let Some(port) = parse_leading_port(&lower[idx + 1..]) {
+                return Some(port);
+            }
+        }
+    }
+
+    None
+}
+
+fn parse_leading_port(s: &str) -> Option<u16> {
+    let digits: String = s.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if digits.is_empty() || digits.len() > 5 {
+        return None;
+    }
+    let rest = &s[digits.len()..];
+    // Avoid matching partial IP octets or decimal numbers like `127.0.0.1`
+    if rest.starts_with('.') {
+        return None;
+    }
+    let port = digits.parse::<u16>().ok()?;
+    if port == 0 {
+        return None;
+    }
+    Some(port)
 }

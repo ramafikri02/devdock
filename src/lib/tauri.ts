@@ -376,6 +376,18 @@ export interface PortCheckResult {
   suggestedPort: number | null;
 }
 
+export interface ProcessPortConflict {
+  processId: string;
+  serviceId: string;
+  script: string;
+  conflictPort: number;
+  requestedPort: number | null;
+  isLikelyHardcoded: boolean;
+  isPortAvailableNow: boolean;
+  owner: PortOwnerInfo | null;
+  suggestedPort: number | null;
+}
+
 export interface ListeningPortEntry {
   port: number;
   address: string;
@@ -584,6 +596,17 @@ export async function checkServicePort(
     };
   }
   return invoke<PortCheckResult>("check_service_port", { serviceId });
+}
+
+export async function inspectProcessPortConflict(
+  processId: string,
+): Promise<ProcessPortConflict | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+  return invoke<ProcessPortConflict | null>("inspect_process_port_conflict", {
+    processId,
+  });
 }
 
 export async function assignNextFreePort(serviceId: string): Promise<Service> {
