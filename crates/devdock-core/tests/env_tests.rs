@@ -202,3 +202,48 @@ fn writes_env_file_safely_with_backup_and_rejects_unsafe_targets() {
         Err(CoreError::Validation(_))
     ));
 }
+
+#[test]
+fn strips_backticks_and_inline_comments_after_quoted_values() {
+    let tmp = TempDir::new().unwrap();
+    let app_dir = tmp.path().join("lms-backend");
+    fs::create_dir_all(&app_dir).unwrap();
+    fs::write(
+        app_dir.join("package.json"),
+        r#"{ "name": "backend", "scripts": { "dev": "tsx watch src/index.ts" } }"#,
+    )
+    .unwrap();
+
+    fs::write(
+        app_dir.join(".env"),
+        concat!(
+            "DATABASE_URL=`mysql://root:secret@localhost:3306/lms_dev`\n",
+            "BACKTICK_WITH_COMMENT=`hello \"world\" 'ok'` # trailing comment\n",
+            "DOUBLE_WITH_COMMENT=\"value \\\"quoted\\\"\" # trailing comment\n",
+            "SINGLE_WITH_COMMENT='single value' # trailing comment\n",
+        ),
+    )
+    .unwrap();
+
+    let core = DevDockCore::in_memory_for_tests("/usr/bin").unwrap();
+    let project = core.register_folder_as_project(&app_dir, None).unwrap();
+    let service_id = &project.services[0].id;
+
+    let inspection = core.inspect_service_env(service_id, None).unwrap();
+    let by_key: BTreeMap<_, _> = inspection
+        .entries
+        .iter()
+        .map(|e| (e.key.as_str(), e))
+        .collect();
+
+    assert_eq!(
+        by_key["DATABASE_URL"].value,
+        "mysql://root:secret@localhost:3306/lms_dev"
+    );
+    assert_eq!(
+        by_key["BACKTICK_WITH_COMMENT"].value,
+        "hello \"world\" 'ok'"
+    );
+    assert_eq!(by_key["DOUBLE_WITH_COMMENT"].value, "value \"quoted\"");
+    assert_eq!(by_key["SINGLE_WITH_COMMENT"].value, "single value");
+}

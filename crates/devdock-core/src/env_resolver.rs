@@ -48,6 +48,38 @@ impl EnvResolver {
         false
     }
 
+    fn parse_quoted_value(val_trimmed: &str, quote: char) -> Option<String> {
+        let rest = val_trimmed.strip_prefix(quote)?;
+        let mut out = String::new();
+        let mut chars = rest.chars();
+        while let Some(c) = chars.next() {
+            if quote == '"' && c == '\\' {
+                match chars.next() {
+                    Some('n') => out.push('\n'),
+                    Some('r') => out.push('\r'),
+                    Some('t') => out.push('\t'),
+                    Some('"') => out.push('"'),
+                    Some('\\') => out.push('\\'),
+                    Some(other) => {
+                        out.push('\\');
+                        out.push(other);
+                    }
+                    None => out.push('\\'),
+                }
+                continue;
+            }
+            if c == quote {
+                let trailing = chars.as_str().trim();
+                if trailing.is_empty() || trailing.starts_with('#') {
+                    return Some(out);
+                }
+                return None;
+            }
+            out.push(c);
+        }
+        None
+    }
+
     pub fn parse_dotenv(content: &str) -> BTreeMap<String, String> {
         let mut map = BTreeMap::new();
 
@@ -72,23 +104,16 @@ impl EnvResolver {
             }
 
             let val_trimmed = raw_val.trim();
-            let value = if val_trimmed.starts_with('"') && val_trimmed.ends_with('"') && val_trimmed.len() >= 2 {
-                let inner = &val_trimmed[1..val_trimmed.len() - 1];
-                inner
-                    .replace("\\n", "\n")
-                    .replace("\\r", "\r")
-                    .replace("\\t", "\t")
-                    .replace("\\\"", "\"")
-                    .replace("\\\\", "\\")
-            } else if val_trimmed.starts_with('\'') && val_trimmed.ends_with('\'') && val_trimmed.len() >= 2 {
-                val_trimmed[1..val_trimmed.len() - 1].to_string()
-            } else {
-                // Strip inline comments preceded by whitespace for unquoted values
-                match val_trimmed.find(" #") {
-                    Some(idx) => val_trimmed[..idx].trim_end().to_string(),
-                    None => val_trimmed.to_string(),
-                }
-            };
+            let value = Self::parse_quoted_value(val_trimmed, '"')
+                .or_else(|| Self::parse_quoted_value(val_trimmed, '\''))
+                .or_else(|| Self::parse_quoted_value(val_trimmed, '`'))
+                .unwrap_or_else(|| {
+                    // Strip inline comments preceded by whitespace for unquoted values
+                    match val_trimmed.find(" #") {
+                        Some(idx) => val_trimmed[..idx].trim_end().to_string(),
+                        None => val_trimmed.to_string(),
+                    }
+                });
 
             map.insert(key.to_string(), value);
         }
@@ -102,6 +127,7 @@ impl EnvResolver {
             || value.contains('#')
             || value.contains('"')
             || value.contains('\'')
+            || value.contains('`')
             || value.contains('\n');
         if !needs_quotes {
             return value.to_string();
