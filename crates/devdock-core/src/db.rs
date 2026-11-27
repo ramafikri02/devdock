@@ -73,6 +73,15 @@ CREATE TABLE IF NOT EXISTS setting (
 );
 "#;
 
+const MIGRATION_0002: &str = r#"
+UPDATE service
+SET default_script = NULL
+WHERE default_script IS NOT NULL
+  AND lower(default_script) NOT IN ('dev', 'start:dev', 'serve', 'start', 'develop', 'preview', 'watch')
+  AND lower(default_script) NOT LIKE 'dev:%'
+  AND lower(default_script) NOT LIKE 'start:%';
+"#;
+
 pub struct Database {
     conn: Mutex<Connection>,
     path: PathBuf,
@@ -141,7 +150,10 @@ impl Database {
             |row| row.get(0),
         )?;
 
-        let migrations: &[(i32, &str)] = &[(1, MIGRATION_0001)];
+        let migrations: &[(i32, &str)] = &[
+            (1, MIGRATION_0001),
+            (2, MIGRATION_0002),
+        ];
 
         for &(version, sql) in migrations {
             if version > current_version {

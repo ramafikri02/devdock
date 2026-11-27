@@ -21,7 +21,7 @@ fn initializes_sqlite_on_disk_and_runs_migrations() {
     .expect("core should initialize");
 
     assert!(db_path.is_file(), "SQLite database file should be created");
-    assert_eq!(core.schema_version().unwrap(), 1);
+    assert_eq!(core.schema_version().unwrap(), 2);
 
     // Persisting settings works across re-opens.
     core.set_setting("theme", "light").unwrap();
@@ -35,7 +35,7 @@ fn initializes_sqlite_on_disk_and_runs_migrations() {
     )
     .expect("reopening existing DB should be idempotent");
 
-    assert_eq!(reopened.schema_version().unwrap(), 1);
+    assert_eq!(reopened.schema_version().unwrap(), 2);
     assert_eq!(reopened.get_setting("theme").unwrap().as_deref(), Some("light"));
 }
 
